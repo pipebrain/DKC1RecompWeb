@@ -64,6 +64,19 @@ Save normally at Candy's in the game. Cartridge SRAM is stored in this browser a
 
 Saves, keyboard assignments, and controller profiles are separate. They belong to the browser profile and exact local address, including its port. Export saves and controller profiles before moving between browsers or local addresses.
 
+## Mobile testing
+
+Use an HTTPS site in a browser with WebGPU support: current Chrome on a supported Android device, or Safari 26 or later on iOS/iPadOS. Availability is checked on your device; mobile gameplay has not yet been verified on physical hardware.
+
+1. Make the verified ROM available in your device's Files picker, then choose **Menu → Load ROM**. The ROM is read locally, not uploaded.
+2. Pair a controller or connect a hardware keyboard. Touch menus are available; touch game controls are not implemented.
+3. For a controller, choose **Config → Input**, select **Gamepad**, and select/configure its profile. A new browser profile starts with Keyboard selected.
+4. Close Config, tap the game screen to focus it, then use **DKM → Start Game** or the displayed Start binding. Enable Sound through Config with a tap.
+
+Fullscreen is disabled when the browser does not support fullscreen for the game screen. Returning from another app/tab leaves the game paused. Rotate the device and check that the complete 4:3 image remains visible.
+
+A hosted site and localhost have separate browser storage. Export cartridge saves and controller profiles before switching, import them on the new site, and recreate any custom keyboard assignments there.
+
 ## Available features
 
 Video currently uses the original 4:3 presentation and nearest scaling. Speed uses normal game timing with pause/resume. Paths, Cheat, and NetPlay remain visible but disabled. Native-release enhancements such as widescreen, CRT filters, rewind, save states, replacement music, and mods are not enabled in this browser edition.

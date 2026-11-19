@@ -14,5 +14,10 @@ source was edited. Exact revisions are in `upstream.lock.json`.
 
 The browser host adds no third-party JavaScript package. The statically linked
 C support archives are enumerated in [RUNTIME_DECISION.md](RUNTIME_DECISION.md).
-ROMs, extracted assets, generated game source/binaries, saves, and evidence are
-private local artifacts excluded from Git. No public distribution was made.
+Exact pinned snesrecomp, color-LUT, Emscripten, musl, and compiler-rt license
+texts are preserved in [licenses/](../licenses/README.md) for inclusion with
+the compiled Wasm in a Pages artifact. The root MIT license does not replace
+those third-party notices.
+ROMs, extracted assets, generated game C, saves, and evidence remain local and
+excluded from Git. The compiled Wasm is excluded from Git but is included in
+the approved public Pages deployment/archive with these notices.

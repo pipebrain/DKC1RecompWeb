@@ -25,7 +25,8 @@ const controllerUI=initControllerUI({
   onClose:()=>appShell.closeSettings(),
 });
 keyboardUI=initKeyboardUI({onChange:()=>{releaseInput();updateShell();},onCapture:releaseInput});
-function hostState(){return {...state,sound,loading,resuming:Boolean(resumeAttempt),playbackBusy:Boolean(resumeAttempt)||pendingPauses>0,inputMode:keyboardUI?.getMode()||'keyboard',keyboardCustom:keyboardUI?!keyboardUI.status().isDefault:false,spaceBound:keyboardUI?.getMode()==='keyboard'&&Boolean(keyboardUI.bitForCode('Space')),spaceIsStart:keyboardUI?.getMode()==='keyboard'&&keyboardUI.bitForCode('Space')===8,helpAvailable:contentAvailability.help,aboutAvailable:contentAvailability.about};}
+function fullscreenAvailable(){return Boolean(document.fullscreenElement||(document.fullscreenEnabled&&typeof $('.screen-wrap').requestFullscreen==='function'));}
+function hostState(){return {...state,sound,loading,fullscreenAvailable:fullscreenAvailable(),resuming:Boolean(resumeAttempt),playbackBusy:Boolean(resumeAttempt)||pendingPauses>0,inputMode:keyboardUI?.getMode()||'keyboard',keyboardCustom:keyboardUI?!keyboardUI.status().isDefault:false,spaceBound:keyboardUI?.getMode()==='keyboard'&&Boolean(keyboardUI.bitForCode('Space')),spaceIsStart:keyboardUI?.getMode()==='keyboard'&&keyboardUI.bitForCode('Space')===8,helpAvailable:contentAvailability.help,aboutAvailable:contentAvailability.about};}
 function canLeaveInput(){return keyboardUI.canClose()&&controllerUI.canClose();}
 async function showInputSource(){
   const mode=keyboardUI.getMode();
@@ -271,6 +272,9 @@ window.addEventListener('keydown',event=>{
 });
 window.addEventListener('keyup',event=>{if(pressedCodes.delete(event.code)){if(document.activeElement===canvas)event.preventDefault();refreshKeyboardInput();sendInput();}});
 canvas.addEventListener('blur',()=>{cancelResume();pressedCodes.clear();keyBits=0;sendInput();});
+canvas.addEventListener('pointerdown',()=>{
+  if(!modalOpen()&&!appShell.isMenuOpen())canvas.focus({preventScroll:true});
+});
 document.addEventListener('focusin',()=>updatePauseOverlay(true));
 document.addEventListener('focusout',()=>updatePauseOverlay(true));
 window.addEventListener('blur',()=>{cancelResume();physicalCodes.clear();releaseInput();if(state.running)pause('blur').catch(console.error);});
@@ -280,7 +284,10 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.load
 $('#rom-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{await loadRom(await file.arrayBuffer());}catch(error){console.error(error);}finally{event.target.value='';}});
 async function toggleFullscreen(){
   if(document.fullscreenElement)await document.exitFullscreen();
-  else await $('.screen-wrap').requestFullscreen();
+  else{
+    if(!fullscreenAvailable())throw new Error('Full screen is not available in this browser.');
+    await $('.screen-wrap').requestFullscreen();
+  }
   canvas.focus({preventScroll:true});
 }
 document.addEventListener('fullscreenchange',()=>{
@@ -314,7 +321,7 @@ window.dkcDebug={
 };
 try{
   if(!window.isSecureContext)throw new Error('Use localhost or HTTPS for WebGPU and local ROM verification.');
-  if(!navigator.gpu)throw new Error('WebGPU is unavailable. Open this player in a WebGPU-enabled Chrome window.');
+  if(!navigator.gpu)throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over HTTPS or localhost.');
   presenter=await createPresenter(canvas);status('Ready · choose your DKC USA v1.0 ROM.');
 }catch(error){status(error.message,true);}
 requestAnimationFrame(animate);

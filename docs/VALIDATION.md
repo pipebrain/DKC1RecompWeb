@@ -515,6 +515,61 @@ flag or JavaScript/console errors in
 This packaging/link change did not rerun the full game regression; the earlier
 recorded frame/save/audio evidence remains applicable to unchanged game code.
 
+## Pages package and project-subpath testing
+
+The Pages package is an explicit 35-file allowlist: runtime files, the known
+Wasm, manifest, `.nojekyll`, and exact pinned runtime/compiler licenses. The
+existing ignored ROM/SRAM in `web/` are excluded, as are the launcher/profile
+JSON and all generated C/local tools. Twenty-one packaging fixtures covered
+missing/hash-invalid Wasm, symlinks, output traversal, resource references,
+license availability, deterministic replacement, and preservation of unrelated
+or altered output. Twenty archive fixtures covered deterministic gzip/tar,
+approved SHA-256, strict member names, links/duplicates/traversal, extra ROM
+files, size limits, and preservation of differing outputs.
+
+`scripts/browser_check.mjs --url ... --manifest ...` now verifies deployed
+asset bytes/SHA-256 before and after browser execution. The final local Pages
+simulation serves only `build/pages` under `/DKC1RecompWeb/`:
+`build/browser-check/2026-11-19T11-23-29-466Z-60479/evidence.json`.
+All 35 assets match, the 600-frame native oracle matches, and real audio,
+SRAM import/export/reload/restoration and pause/resume pass. A mocked lack of
+the Fullscreen API disables its command/shortcut without an app error. That
+fixture is not a physical iPhone test. The final source explicitly focuses
+the canvas on a pointer tap for mobile controller/keyboard input.
+
+`build/pages-final-check/server-evidence.json` records 125 HTTP GET requests,
+all 200, with no ROM/save paths or uploads. Additional checks cover default
+local mode, remote mode without local build assets, unsafe manifests, and
+tampered remote assets in `build/pages-url-cases/20261119T111243Z/evidence.json`.
+The existing 29 pure input/presentation tests pass. The compiled Wasm remains
+unchanged at `dcc015d75e943aac3eb179309426b0caa90321f88731effe85e8922b3de3a014`.
+
+The current account's private-repository Pages enablement was rejected by
+GitHub with HTTP 422 (plan ineligible). The user then explicitly chose a
+separate public Pages repository while keeping the source private.
+
+## Live GitHub Pages deployment
+
+The live URL is https://pipebrain.github.io/DKC1RecompWeb-Pages/.
+GitHub's Pages API confirms workflow publishing, public site visibility, and
+HTTPS enforcement. The source repository remains private. The deployment
+repository has one independent commit (`5579ae9`), six tooling files, no
+private ancestry/game inputs/binaries in Git, and a GitHub no-reply author.
+
+Preview release `pages-v1-ac77be235c22` supplies only the approved static
+archive. Its SHA-256 is
+`ac77be235c22f3d55945287c37a4560779d6be09740d8c283f29bce79d934e0b`.
+The manual workflow completed successfully at
+https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/44516231581.
+
+The actual HTTPS site passes
+`build/browser-check/2026-11-19T11-37-14-699Z-61013/evidence.json`:
+all 35 file identities and manifest match before/after, the native 600-frame
+oracle matches, SRAM transport/reload/restoration and actual AudioWorklet
+processing pass, and pause/resume pacing holds. Unsupported fullscreen is
+checked using a capability mock; native capabilities are restored afterward.
+No unsafe-WebGPU flag was needed. Actual Android/iOS hardware remains untested.
+
 ## Limits
 
 No full playthrough, completed-level gate, agent-operated physical controller

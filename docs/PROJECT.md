@@ -1,6 +1,6 @@
 # DKC1RecompWeb / DKC and DKL browser project
 
-Updated: 2026-11-18 (America/Toronto).
+Updated: 2026-11-19 (America/Toronto).
 
 ## Goal and scope
 
@@ -12,6 +12,7 @@ before implementing a new port.
 The longer-term goal is to add the original Game Boy Donkey Kong Land levels
 as another campaign, retaining SNES Country as the behavioral foundation.
 Land extraction and level integration are outside Phase 1.
+The user added GitHub Pages hosting for Android/iOS testing to version 1.
 
 ## Confirmed decisions
 
@@ -68,6 +69,12 @@ Land extraction and level integration are outside Phase 1.
   pausing or leaving the game, including audio waits and posted worker commands.
 - Start with desktop Chrome on the user's Mac; expand compatibility after a
   working baseline.
+- Version 1 includes an HTTPS GitHub Pages test site. Physical Android/iOS
+  validation is still required. The user chose a separate public deployment
+  repository, [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages),
+  while this source repository stays private. The test site is
+  https://pipebrain.github.io/DKC1RecompWeb-Pages/. It publicly serves the
+  approved browser/Wasm package, with no ROM or saves. See [Pages](PAGES.md).
 - The browser application must be dependency-free: handwritten HTML, CSS,
   JavaScript, WGSL, and standard browser APIs. No frontend framework, runtime
   JavaScript package, graphics wrapper, or generated JavaScript runtime is approved.
@@ -306,10 +313,23 @@ of SNES pixels are not implemented.
   The browser commit descends directly from pinned DKC1Recomp `3eb9a10`;
   ROMs, generated game code/binaries, saves, and evidence remain excluded.
   Upstream licenses, notices, source, submodule pin, and Git history are
-  retained. No public visibility or deployment was authorized.
+  retained. Pages hosting was subsequently added to version 1 through a
+  separate public deployment repository; this source/history stays private.
 - The gold favicon is linked from the document head. ICO image entries/sizes
   were verified, and actual Chrome fetched `/favicon.ico` with HTTP 200 during
   a passing WebGPU smoke check. The original `dk-coin.png` is unchanged.
+- Pages preparation now uses a strict 35-file package: browser runtime,
+  unchanged verified Wasm, checksum manifest, and full pinned notices. ROMs,
+  saves, generated C, user launcher/profile exports, and local tools are not
+  packaged. The manually dispatched workflow uses an approved release archive
+  and keeps compiled game binaries out of Git. HTTPS/project-subpath checks
+  match all asset identities and the native 600-frame oracle, and pass audio,
+  SRAM reload/restoration, pause/resume, and unavailable-fullscreen fixtures.
+  The canvas explicitly takes focus on a pointer tap. The live HTTPS Pages
+  site passes the same asset/native-frame/save/audio/pause checks. The public
+  deployment repository contains six tooling files with no private ancestry;
+  its commits use a GitHub no-reply identity. Android/iOS hardware testing
+  remains outstanding.
 
 Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
 
@@ -339,9 +359,12 @@ in Safari and Chrome. The user confirmed separate Input/Devices/Options menu
 entries opening three tabs in one settings page, and visible disabled entries
 for unavailable features.
 About/Help content and editable default keyboard input are implemented. The
-private DKC1RecompWeb repository and About link are established, with the
-pinned upstream ancestry preserved. Continue from this private baseline;
-public visibility, deployments, and release-parity work require separate scope.
+DKC1RecompWeb repository and About link are established, with the pinned
+upstream ancestry preserved. The version-1 Pages test site is live through
+DKC1RecompWeb-Pages, while the source repository remains private. Obtain
+physical Android/iOS testing using the hosted URL and record device/browser,
+input, sound, saves, rotation, and background/resume results. Native release
+parity and Land integration remain separate work.
 Mapped Start quick start/resume is implemented and checked in Chrome; obtain
 the user's physical controller and Safari review alongside the current GUI.
 The DKM playback states and informational pause/resume-input overlay are now

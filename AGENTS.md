@@ -52,6 +52,15 @@ changes them.
 - Ask the user when uncertainty affects a requirement or would require an
   exception. Continue independent work while a clarification is pending.
 - Donkey Kong Land level integration is a later phase.
+- Version 1 includes GitHub Pages hosting for Android/iOS testing. Follow
+  `docs/PAGES.md` for hosting status and the chosen visibility/plan route.
+  The source repo stays private; the approved public deployment repo is
+  `pipebrain/DKC1RecompWeb-Pages`, with no imported private history.
+  Package an explicit runtime allowlist; never copy the whole `web/` folder,
+  which can contain ignored ROMs and saves. Compiled Wasm may be supplied as a
+  deployment artifact while staying out of Git. Include runtime license
+  notices, use manual deployment, and distinguish desktop checks from actual
+  mobile hardware testing.
 
 ## Working boundaries
 

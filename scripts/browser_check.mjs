@@ -17,7 +17,7 @@ const NATIVE_FRAMES={
   3600:'7e6fee75bf9eada584bc414d140805999cd635baacea7d6bedbf1156551bce24',
   5100:'60878dca94a5a87f77729991bdd301e211e94738ec1fb1556812aa4b5f63ff70',
 };
-const options={frames:600,smoke:false,rom:null,input:null,expectedFrame:null};
+const options={frames:600,smoke:false,rom:null,input:null,expectedFrame:null,url:null,manifest:null};
 for(let i=2;i<process.argv.length;i++){
   const arg=process.argv[i];
   if(arg==='--smoke')options.smoke=true;
@@ -25,13 +25,16 @@ for(let i=2;i<process.argv.length;i++){
   else if(arg==='--input')options.input=resolve(process.argv[++i]||'');
   else if(arg==='--expected-frame')options.expectedFrame=(process.argv[++i]||'').toLowerCase();
   else if(arg==='--frames')options.frames=Number(process.argv[++i]);
-  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256]\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
+  else if(arg==='--url'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--url requires a site directory URL.');options.url=normalizeBaseUrl(value);}
+  else if(arg==='--manifest'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--manifest requires a local Pages manifest path.');options.manifest=resolve(value);}
+  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256]\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
   else throw new Error(`Unknown argument: ${arg}`);
 }
 if(!options.smoke&&!options.rom)throw new Error('--rom is required unless --smoke is selected.');
 if(!Number.isInteger(options.frames)||options.frames<0||options.frames>100000)throw new Error('--frames must be an integer from 0 to 100,000.');
 if(options.expectedFrame!==null&&!/^[0-9a-f]{64}$/.test(options.expectedFrame))throw new Error('--expected-frame must contain exactly 64 hexadecimal characters.');
 if(options.smoke&&(options.input||options.expectedFrame))throw new Error('--input and --expected-frame require a game check, not --smoke.');
+if(options.manifest&&!options.url)throw new Error('--manifest requires --url.');
 if(options.rom)await stat(options.rom);
 let inputRuns=null,inputSummary=null;
 if(options.input){
@@ -53,11 +56,69 @@ const stamp=new Date().toISOString().replace(/[:.]/g,'-')+`-${process.pid}`;
 const output=join(root,'build','browser-check',stamp);
 const profileRoot=join(root,'.local','chrome-check-profile',stamp);
 await mkdir(output,{recursive:true});await mkdir(profileRoot,{recursive:true});
-const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game',framesRequested:options.frames,input:inputSummary,expectedFrame:options.expectedFrame,attempts:[],checks:[],javascriptErrors:[],consoleErrors:[],result:'running'};
+const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game',target:options.url?'remote':'local',url:options.url,framesRequested:options.frames,input:inputSummary,expectedFrame:options.expectedFrame,attempts:[],checks:[],javascriptErrors:[],consoleErrors:[],result:'running'};
 let server=null,chrome=null,client=null,session=null,originalSave=null,origin=null,profile=null;
+let pagesManifest=null,pagesManifestBytes=null;
 const streams=[];
 const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/audio-worklet.js','web/graphics.js','web/dkc.wasm'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
+
+function normalizeBaseUrl(value){
+  let url;try{url=new URL(value);}catch{throw new Error('--url requires an absolute HTTPS or HTTP loopback URL.');}
+  const authority=/^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(value)?.[1]||'';
+  if(url.username||url.password||authority.includes('@')||url.href.includes('?')||url.href.includes('#'))throw new Error('--url must not contain credentials, a query, or a fragment.');
+  const loopback=url.hostname==='localhost'||url.hostname==='[::1]'||/^127\.\d+\.\d+\.\d+$/.test(url.hostname);
+  if(url.protocol!=='https:'&&!(url.protocol==='http:'&&loopback))throw new Error('--url requires HTTPS, except HTTP localhost or loopback addresses.');
+  if(!url.pathname.endsWith('/'))url.pathname+='/';
+  return url.href;
+}
+function sha256(bytes){return createHash('sha256').update(bytes).digest('hex');}
+async function loadPagesManifest(){
+  pagesManifestBytes=await readFile(options.manifest);
+  pagesManifest=JSON.parse(pagesManifestBytes.toString('utf8'));
+  assert(pagesManifest&&typeof pagesManifest==='object'&&!Array.isArray(pagesManifest),'Pages manifest must be an object.');
+  assert.deepEqual(Object.keys(pagesManifest).sort(),['files','schema','version','wasm_sha256']);
+  assert.equal(pagesManifest.schema,'dkc1recompweb.pages');assert.equal(pagesManifest.version,1);
+  assert(/^[0-9a-f]{64}$/i.test(pagesManifest.wasm_sha256),'Invalid manifest Wasm SHA-256.');
+  assert(pagesManifest.files&&typeof pagesManifest.files==='object'&&!Array.isArray(pagesManifest.files),'Pages manifest files must be an object.');
+  const entries=Object.entries(pagesManifest.files);assert(entries.length>0&&entries.length<=256,'Pages manifest has an invalid file count.');
+  for(const [name,value] of entries){
+    assert(/^[a-z0-9._/-]+$/i.test(name)&&!name.startsWith('/')&&!name.split('/').some(part=>!part||['.','..','.git','.local'].includes(part)),`Unsafe Pages manifest path: ${name}`);
+    assert(!/\.(?:smc|sfc|sav|srm|state)(?:\.|$)/i.test(name),`ROM/save paths are not Pages assets: ${name}`);
+    assert(name!=='pages-manifest.json','Pages manifest must not list itself.');
+    assert(value&&typeof value==='object'&&!Array.isArray(value),`Invalid Pages file entry: ${name}`);
+    assert.deepEqual(Object.keys(value).sort(),['bytes','sha256'],`Invalid Pages file fields: ${name}`);
+    assert(Number.isSafeInteger(value.bytes)&&value.bytes>=0&&/^[0-9a-f]{64}$/i.test(value.sha256),`Invalid Pages file identity: ${name}`);
+  }
+  for(const name of ['index.html','main.js','worker.js','dkc.wasm'])assert(pagesManifest.files[name],`Pages manifest omits ${name}.`);
+  assert.equal(pagesManifest.files['dkc.wasm'].sha256.toLowerCase(),pagesManifest.wasm_sha256.toLowerCase(),'Manifest Wasm hashes disagree.');
+  report.sourceIdentity={kind:'expected-pages-manifest',baseUrl:origin,manifest:options.manifest,manifestSha256:sha256(pagesManifestBytes),wasmSha256:pagesManifest.wasm_sha256.toLowerCase()};
+  report.remoteAssetVerification=[];
+}
+async function remoteAsset(name,expected){
+  const url=new URL(name,origin).href;
+  const response=await fetch(url,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(30000)});
+  assert.equal(response.status,200,`${name}: expected HTTP 200, received ${response.status}.`);
+  const bytes=Buffer.from(await response.arrayBuffer()),digest=sha256(bytes);
+  assert.equal(bytes.length,expected.bytes,`${name}: remote byte count differs from the Pages manifest.`);
+  assert.equal(digest,expected.sha256.toLowerCase(),`${name}: remote SHA-256 differs from the Pages manifest.`);
+  if(name==='dkc.wasm')assert(bytes.subarray(0,8).equals(Buffer.from([0,97,115,109,1,0,0,0])),'Remote Wasm header is invalid.');
+  return {path:name,url,status:response.status,bytes:bytes.length,sha256:digest,contentType:response.headers.get('content-type')};
+}
+async function verifyRemoteAssets(stage){
+  const verification={stage,started:new Date().toISOString(),files:[],errors:[]};report.remoteAssetVerification.push(verification);
+  verification.manifest=await remoteAsset('pages-manifest.json',{bytes:pagesManifestBytes.length,sha256:sha256(pagesManifestBytes)});
+  const entries=Object.entries(pagesManifest.files).sort(([left],[right])=>left.localeCompare(right));
+  for(let offset=0;offset<entries.length;offset+=4){
+    const batch=entries.slice(offset,offset+4),results=await Promise.allSettled(batch.map(([name,value])=>remoteAsset(name,value)));
+    results.forEach((result,index)=>{if(result.status==='fulfilled')verification.files.push(result.value);else verification.errors.push({path:batch[index][0],message:result.reason?.message||String(result.reason)});});
+  }
+  verification.finished=new Date().toISOString();
+  assert.equal(verification.errors.length,0,`Remote Pages assets failed verification: ${verification.errors.map(value=>`${value.path}: ${value.message}`).join('; ')}`);
+  verification.passed=true;
+  report.sourceIdentity.kind='verified-pages-manifest';
+  return Object.fromEntries(verification.files.map(value=>[value.path,value.sha256]));
+}
 
 class CDP{
   constructor(url){
@@ -124,7 +185,7 @@ async function launch(extraFlags,attempt){
   await client.send('Runtime.enable',{},session);await client.send('Page.enable',{},session);
   await client.send('Network.enable',{},session);
   await client.send('Page.setLifecycleEventsEnabled',{enabled:true},session);
-  client.on('Network.requestWillBeSent',(data,id)=>{if(id===session)attemptReport.network.push({event:'request',id:data.requestId,url:data.request.url,type:data.type});});
+  client.on('Network.requestWillBeSent',(data,id)=>{if(id===session)attemptReport.network.push({event:'request',id:data.requestId,url:data.request.url,type:data.type,method:data.request.method,hasPostData:Boolean(data.request.hasPostData)});});
   client.on('Network.loadingFinished',(data,id)=>{if(id===session)attemptReport.network.push({event:'finished',id:data.requestId});});
   client.on('Network.loadingFailed',(data,id)=>{if(id===session)attemptReport.network.push({event:'failed',id:data.requestId,error:data.errorText,canceled:data.canceled});});
   client.on('Page.lifecycleEvent',(data,id)=>{if(id===session)attemptReport.lifecycle.push({name:data.name,timestamp:data.timestamp});});
@@ -155,12 +216,47 @@ async function selectRom(){
 }
 async function reloadAndSelect(){const loaded=client.event('Page.loadEventFired',session);await client.send('Page.reload',{ignoreCache:true},session);await loaded;await poll(()=>evaluate(`document.readyState==='complete' && Boolean(window.dkcDebug)`),'page reload',30000);const ready=await waitReady();assert(!ready.error,ready.message);return selectRom();}
 function bytesEqual(actual,expected,message){assert.deepEqual(actual,expected,message);}
+async function checkUnavailableFullscreen(){
+  report.fullscreenCapabilityFixture=await evaluate(`(async()=>{
+    const enabled=Object.getOwnPropertyDescriptor(document,'fullscreenEnabled');
+    const request=Object.getOwnPropertyDescriptor(Element.prototype,'requestFullscreen');
+    let calls=0;
+    try{
+      Object.defineProperty(document,'fullscreenEnabled',{configurable:true,value:false});
+      Object.defineProperty(Element.prototype,'requestFullscreen',{configurable:true,value(){calls++;return Promise.reject(new Error('Fullscreen should not be requested by this fixture.'));}});
+      document.dispatchEvent(new Event('fullscreenchange'));
+      const buttons=[...document.querySelectorAll('[data-fullscreen-label]')];
+      const disabled=buttons.map(button=>button.disabled);for(const button of buttons)button.click();
+      const shortcut=new KeyboardEvent('keydown',{key:'f',code:'KeyF',ctrlKey:true,metaKey:true,bubbles:true,cancelable:true});document.dispatchEvent(shortcut);
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      return {available:window.dkcDebug.status().fullscreenAvailable,buttons:buttons.length,disabled,calls,shortcutPrevented:shortcut.defaultPrevented,fullscreen:Boolean(document.fullscreenElement),error:document.querySelector('#status').classList.contains('error'),method:'Runtime capability override and synthetic shortcut; not a physical iPhone test.'};
+    }finally{
+      if(enabled)Object.defineProperty(document,'fullscreenEnabled',enabled);else delete document.fullscreenEnabled;
+      if(request)Object.defineProperty(Element.prototype,'requestFullscreen',request);else delete Element.prototype.requestFullscreen;
+      document.dispatchEvent(new Event('fullscreenchange'));
+    }
+  })()`);
+  const value=report.fullscreenCapabilityFixture;
+  assert.equal(value.available,false);assert(value.buttons>0&&value.disabled.every(Boolean),'Unavailable fullscreen must disable its commands.');
+  assert.equal(value.calls,0,'Unavailable fullscreen command or shortcut called the API.');assert.equal(value.shortcutPrevented,false);
+  assert.equal(value.fullscreen,false);assert.equal(value.error,false,'Unavailable fullscreen produced an application error.');
+  report.checks.push('A mocked unavailable Fullscreen API disables its command and shortcut without an application error; native capabilities restored.');
+}
 
 try{
-  report.sources=await sourceHashes();
-  const port=await unusedPort();origin=`http://127.0.0.1:${port}/`;
-  server=spawn(process.env.PYTHON||'python3',[join(root,'scripts','serve.py'),'--port',String(port)],{cwd:root,stdio:['ignore','pipe','pipe']});logProcess(server,'server.log');
-  await poll(async()=>{const response=await fetch(origin);return response.ok;},'localhost web-root server');
+  report.toolIdentity={path:'scripts/browser_check.mjs',sha256:sha256(await readFile(fileURLToPath(import.meta.url)))};
+  if(options.url){
+    origin=options.url;
+    if(options.manifest){await loadPagesManifest();report.sources=await verifyRemoteAssets('before-browser');report.checks.push('Every remote Pages asset and its manifest match the supplied local manifest SHA-256 and byte counts.');}
+    else{report.sourceIdentity={kind:'remote-unverified',baseUrl:origin,note:'No manifest supplied; remote files are not assumed to match this local working tree.'};report.sources=null;}
+  }else{
+    report.sources=await sourceHashes();
+    const port=await unusedPort();origin=`http://127.0.0.1:${port}/`;
+    server=spawn(process.env.PYTHON||'python3',[join(root,'scripts','serve.py'),'--port',String(port)],{cwd:root,stdio:['ignore','pipe','pipe']});logProcess(server,'server.log');
+    await poll(async()=>{const response=await fetch(origin);return response.ok;},'localhost web-root server');
+    report.sourceIdentity={kind:'local-working-tree',baseUrl:origin};
+  }
+  report.url=origin;
   let ready=await launch([],1);
   if(!report.attempts.at(-1).webgpu.adapter){
     await screenshot('standard-flags.png');await closeChrome();
@@ -170,6 +266,7 @@ try{
   assert(report.attempts.at(-1).webgpu.adapter,'WebGPU adapter is unavailable even with the explicit fallback flag.');
   assert(!ready.error,ready.message);assert.match(ready.message,/Ready/);
   report.checks.push('Handwritten host loads and obtains a WebGPU adapter.');
+  if(options.url)await checkUnavailableFullscreen();
   await screenshot('ready.png');
   if(!options.smoke){
     report.initial=await selectRom();report.imports=report.initial.imports;
@@ -216,8 +313,11 @@ try{
     report.final=await evaluate('window.dkcDebug.status()');await screenshot('final.png');
   }
   assert.equal(report.javascriptErrors.length,0,'Page raised JavaScript exceptions.');assert.equal(report.consoleErrors.length,0,'Page logged JavaScript errors.');
-  report.sourcesAfter=await sourceHashes();report.sourceUnchanged=JSON.stringify(report.sources)===JSON.stringify(report.sourcesAfter);
-  assert(report.sourceUnchanged,'Production source changed during browser verification.');
+  if(!options.url||pagesManifest){
+    report.sourcesAfter=options.url?await verifyRemoteAssets('after-browser'):await sourceHashes();
+    report.sourceUnchanged=JSON.stringify(report.sources)===JSON.stringify(report.sourcesAfter);
+    assert(report.sourceUnchanged,'Served production source changed during browser verification.');
+  }else{report.sourcesAfter=null;report.sourceUnchanged=null;}
   report.result='passed';
 }catch(error){
   report.result='failed';report.error={message:error.message,stack:error.stack};process.exitCode=1;
@@ -230,5 +330,5 @@ try{
   for(const stream of streams)stream.end();
   report.finished=new Date().toISOString();report.output=output;
   await writeFile(join(output,'evidence.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({result:report.result,mode:report.mode,unsafeWebgpuFlagRequired:report.unsafeWebgpuFlagRequired,checks:report.checks,error:report.error?.message,evidence:join(output,'evidence.json')},null,2));
+  console.log(JSON.stringify({result:report.result,mode:report.mode,target:report.target,url:report.url,unsafeWebgpuFlagRequired:report.unsafeWebgpuFlagRequired,checks:report.checks,error:report.error?.message,evidence:join(output,'evidence.json')},null,2));
 }

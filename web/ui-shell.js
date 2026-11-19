@@ -112,7 +112,7 @@ export function initAppShell({
     let command=null;
     if(modifier&&key===','&&!modal&&!editable)command='settings';
     else if(modifier&&key==='o'&&!modal&&!editable)command='open-rom';
-    else if(event.metaKey&&event.ctrlKey&&!event.shiftKey&&key==='f'&&!modal&&!editable)command='fullscreen';
+    else if(event.metaKey&&event.ctrlKey&&!event.shiftKey&&key==='f'&&!modal&&!editable&&getState().fullscreenAvailable)command='fullscreen';
     else if(event.code==='Space'&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!modal&&event.target===document.getElementById('screen')&&getState().loaded&&!getState().spaceIsStart&&(!getState().spaceBound||!getState().running))command='toggle';
     if(!command)return;
     event.preventDefault();closeMenus();
@@ -237,7 +237,12 @@ export function initAppShell({
       else button.setAttribute('aria-pressed',String(sound));
       if(button.hasAttribute('data-sound-label'))changeLabel(button,sound?'Sound On':'Sound Off');
     }
-    for(const button of document.querySelectorAll('[data-fullscreen-label]'))changeLabel(button,document.fullscreenElement?'Exit Full Screen':'Enter Full Screen');
+    const fullscreenAvailable=Boolean(value.fullscreenAvailable);
+    for(const button of document.querySelectorAll('[data-fullscreen-label]')){
+      changeLabel(button,document.fullscreenElement?'Exit Full Screen':'Enter Full Screen');
+      button.disabled=!fullscreenAvailable;
+      button.title=fullscreenAvailable?'':'Full screen is not available in this browser.';
+    }
     syncNotices();
   }
   document.addEventListener('fullscreenchange',()=>update(getState()));

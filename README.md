@@ -47,12 +47,14 @@ The bootstrap checks the LLVM/lld version and downloads checksum-verified
 Node and Binaryen build tools into ignored `.local/`; it obtains the pinned
 Emscripten source there. Node is used for compilation and test automation,
 not by the deployed browser application. Build logs are in ignored
-`build/logs/`; private output is `web/dkc.wasm`.
+`build/logs/`; the Wasm output is `web/dkc.wasm` (excluded from Git).
 
 The Python server serves only `web/` on localhost. The source folder, ROM,
 private generated C, and native evidence are outside its document root.
 Keep generated game code/binaries, extracted assets, ROMs, and saves out of Git.
-No deployment is configured.
+The [public mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
+is hosted through a separate deployment repository; this source repository
+stays private. See [GitHub Pages and mobile testing](docs/PAGES.md).
 
 ## Controls and saves
 
@@ -106,6 +108,36 @@ without another file picker. It preserves cartridge SRAM and controller
 profiles and keyboard settings; use **DKM → Start Game**, mapped Start, or Space
 to begin again. The DKM command becomes **Pause Game** during play and
 **Resume Game** after pausing. Resuming preserves the current game state.
+
+## GitHub Pages and mobile testing
+
+For a Pages artifact, build the Wasm locally, then package only the allowlisted
+runtime files and notices:
+
+```sh
+python3 scripts/package_pages.py --out build/pages
+python3 scripts/package_pages.py --out build/pages --verify
+python3 scripts/pages_archive.py create --package build/pages \
+  --out build/pages-transfer/pages-site.tar.gz
+```
+
+The archive is supplied as a release asset to a manual Pages workflow; ROMs,
+saves, generated C, and compiled Wasm remain out of Git. Browser files and Wasm
+are publicly served by Pages. A paired controller or hardware keyboard is
+needed for mobile gameplay; physical Android/iOS testing remains outstanding.
+The private repository's account plan does not support Pages for it. The user
+chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
+as the separate public deployment repository, preserving source/history privacy.
+
+To verify a published site (with a ROM still selected locally in Chrome):
+
+```sh
+node scripts/browser_check.mjs --url https://pipebrain.github.io/DKC1RecompWeb-Pages/ \
+  --manifest build/pages/pages-manifest.json --rom '/absolute/game.smc'
+```
+
+This checks deployed asset identities, the native frame oracle, saves, sound,
+and pause/resume. It does not replace physical phone/tablet testing.
 
 ## Reference checks
 

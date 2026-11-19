@@ -5,6 +5,7 @@ A browser home for Donkey Kong Country, built on DKC1Recomp and its pinned snesr
 ## Source repositories
 
 - [Browser project: DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb) (private repository; GitHub access required)
+- [Public test deployment: DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
 - [Original project: DKC1Recomp](https://github.com/elliotttate/DKC1Recomp)
 - [Original recompilation framework: snesrecomp](https://github.com/elliotttate/snesrecomp)
 

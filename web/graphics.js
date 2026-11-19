@@ -1,7 +1,7 @@
 export async function createPresenter(canvas) {
-  if (!navigator.gpu) throw new Error('WebGPU is unavailable. Open this page in Chrome on localhost or HTTPS.');
+  if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over HTTPS or localhost.');
   const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) throw new Error('No WebGPU adapter is available. Check Chrome hardware acceleration.');
+  if (!adapter) throw new Error('No WebGPU adapter is available in this browser on this device.');
   const device = await adapter.requestDevice();
   const context = canvas.getContext('webgpu');
   if (!context) throw new Error('Could not create the WebGPU canvas.');
