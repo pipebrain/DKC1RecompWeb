@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f5f7">
+  <title>Donkey Kong Country</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon" sizes="16x16 32x32 48x48">
+  <link rel="icon" href="./favicon.png" type="image/png" sizes="64x64">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.js"></script>
+</head>
+<body>
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="icon-definitions" aria-hidden="true"><defs>
+<symbol id="icon-controller" viewBox="0 0 24 24"><path d="M7.5 7.5h9c2 0 3.5 1.8 4 4l1 5c.4 2-1.6 3.2-3 1.8l-3-2.8h-7l-3 2.8c-1.4 1.4-3.4.2-3-1.8l1-5c.5-2.2 2-4 4-4Z"/><path d="M7.5 10v5m-2.5-2.5h5m5.5-1.5h.01m2.5 3h.01"/></symbol>
+<symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 3v6m8 0v6m-6 0v6"/></symbol>
+<symbol id="icon-save" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8"/></symbol>
+<symbol id="icon-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/></symbol>
+<symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z"/></symbol>
+</defs></svg>
+<div class="app-window">
+<nav id="app-menubar" class="app-menubar" aria-label="Application menu" role="menubar">
+ <span class="menu-coin" role="img" aria-label="DK coin"><span class="dk-coin" aria-hidden="true"></span></span>
+ <div class="menu-group desktop-menu"><button class="menu-trigger app-name" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-dkm">DKM</button><div id="menu-dkm" class="app-menu" role="menu" hidden><button role="menuitem" data-command="open-rom">Load ROM…<kbd>⌘O</kbd></button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><div class="menu-notices" role="none"><p id="status" role="status">Checking WebGPU…</p><p id="save-status" aria-live="polite"></p></div></div></div>
+ <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-config">Config</button><div id="menu-config" class="app-menu" role="menu" hidden><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><hr><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths" disabled title="Browser path configuration is not implemented">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button></div></div>
+ <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="Cheat support is not implemented">Cheat</button>
+ <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button>
+ <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-misc">Misc</button><div id="menu-misc" class="app-menu" role="menu" hidden><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button></div></div>
+ <div class="menu-group compact-more"><button class="menu-trigger" role="menuitem" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-more">Menu<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"/></svg></button><div id="menu-more" class="app-menu" role="menu" hidden><p class="menu-section-label" role="presentation">DKM</p><button role="menuitem" data-command="open-rom">Load ROM…</button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><p class="menu-section-label" role="presentation">Config</p><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths" disabled title="Browser path configuration is not implemented">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" disabled title="Cheat support is not implemented">Cheat</button><button role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button><hr><p class="menu-section-label" role="presentation">Misc</p><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button><hr><div class="menu-notices" role="none"><p data-status-copy="status" role="status"></p><p data-status-copy="save-status" aria-live="polite"></p></div></div></div>
+</nav>
+<main class="game-workspace">
+ <section class="player" aria-label="Game player"><div class="screen-wrap"><canvas id="screen" width="768" height="672" tabindex="0" aria-label="Donkey Kong Country game screen"></canvas><div id="pause-overlay" class="pause-overlay" role="status" aria-live="polite" aria-atomic="true" hidden><div class="pause-card"><svg class="pause-symbol" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="5" width="6" height="22" rx="2"/><rect x="19" y="5" width="6" height="22" rx="2"/></svg><h2 id="pause-title">Paused</h2><p id="pause-input"></p><p id="pause-hint"></p></div></div></div></section>
+</main>
+</div>
+<input id="rom-file" type="file" accept=".smc,.sfc" hidden>
+<dialog id="app-settings" class="settings-sheet" aria-labelledby="settings-title">
+  <div class="sheet-header"><h2 id="settings-title">Config</h2><button id="settings-done" class="primary compact-button" type="button">Done</button></div>
+  <div class="settings-layout">
+    <nav class="settings-navigation" aria-label="Configuration sections" role="tablist">
+      <button type="button" id="settings-page-input" role="tab" data-settings-page="input" aria-controls="input-settings-page" aria-selected="true">Input</button>
+      <button type="button" id="settings-tab-video" role="tab" data-settings-tab="video" aria-controls="settings-pane-video" aria-selected="false">Video</button>
+      <button type="button" id="settings-tab-sound" role="tab" data-settings-tab="sound" aria-controls="settings-pane-sound" aria-selected="false">Sound</button>
+      <button type="button" id="settings-tab-paths" role="tab" data-settings-tab="paths" aria-controls="settings-pane-paths" aria-selected="false" disabled title="Browser path configuration is not implemented">Paths</button>
+      <button type="button" id="settings-tab-saves" role="tab" data-settings-tab="saves" aria-controls="settings-pane-saves" aria-selected="false">Saves</button>
+      <button type="button" id="settings-tab-speed" role="tab" data-settings-tab="speed" aria-controls="settings-pane-speed" aria-selected="false">Speed</button>
+    </nav>
+    <div class="settings-content">
+      <section id="input-settings-page" class="input-settings-page" role="tabpanel" aria-labelledby="settings-page-input">
+        <div class="input-tabs" role="tablist" aria-label="Input settings">
+          <button type="button" id="settings-tab-controllers" role="tab" data-settings-tab="controllers" aria-controls="settings-pane-controllers" aria-selected="true">Input</button>
+          <button type="button" id="settings-tab-devices" role="tab" data-settings-tab="devices" aria-controls="settings-pane-devices" aria-selected="false">Devices</button>
+          <button type="button" id="settings-tab-options" role="tab" data-settings-tab="options" aria-controls="settings-pane-options" aria-selected="false">Options</button>
+        </div>
+      <section id="settings-pane-controllers" class="settings-pane" data-settings-pane="controllers" role="tabpanel" aria-labelledby="settings-tab-controllers">
+        <div class="input-source-field"><label for="input-source">Input device</label><select id="input-source"><option value="keyboard" selected>Keyboard (default)</option><option value="gamepad">Gamepad</option></select></div>
+        <section id="keyboard-panel" class="keyboard-panel" aria-labelledby="keyboard-heading">
+          <div class="controller-heading"><h2 id="keyboard-heading">Keyboard</h2></div>
+          <p class="small">Your keyboard is the default input. Choose Set key beside an action, press a key, then Save.</p>
+          <div class="keyboard-actions"><button id="keyboard-save" class="primary" type="button" disabled>Save</button><button id="keyboard-discard" type="button" disabled>Discard changes</button><button id="keyboard-defaults" type="button">Restore defaults</button><button id="keyboard-capture-cancel" type="button" hidden>Cancel learning</button></div>
+          <p id="keyboard-draft" class="controller-draft">Default keyboard mapping</p><p id="keyboard-message" role="status" aria-live="polite"></p>
+          <div id="keyboard-bindings" class="keyboard-binding-list"></div>
+          <p class="settings-footnote">Tab, Escape, Space, and system command combinations remain available for navigation and application shortcuts.</p>
+        </section>
+        <section id="controller-panel" class="controller-panel" aria-labelledby="controller-heading" hidden>
+      <div class="controller-heading"><h2 id="controller-heading">Input</h2></div>
+      <p class="small">Connect a controller and press a button to make it available. Each profile keeps your preferred controls.</p>
+      <div class="controller-fields">
+        <label>Controller<select id="controller-device"><option value="">No controller detected</option></select></label>
+        <label>Load profile<select id="controller-profile"></select></label>
+        <label>Profile name<input id="controller-name" maxlength="80" autocomplete="off"></label>
+        <label>Stick dead zone<input id="controller-deadzone" type="number" min="0.01" max="0.95" step="0.05" value="0.35"></label>
+      </div>
+      <p id="controller-device-info" class="small"></p>
+      <p id="controller-summary" class="small">Controller: connect and press a button</p>
+      <div class="controller-actions">
+        <button id="controller-new" type="button">New profile</button><button id="controller-copy" type="button">Duplicate</button>
+        <button id="controller-save" type="button">Save</button><button id="controller-discard" type="button">Discard changes</button>
+      </div>
+      <details class="controller-profile-files"><summary>Profile files and options</summary><div class="controller-actions">
+        <button id="controller-export" type="button">Export profile…</button><label class="button" for="controller-import">Import profile…<input id="controller-import" type="file" accept=".json,application/json" hidden></label><button id="controller-delete" class="destructive" type="button">Delete profile</button>
+      </div></details>
+      <p id="controller-draft" class="controller-draft"></p><p id="controller-message" role="status" aria-live="polite">The default profile is read-only. Copy it or create a blank profile to configure raw inputs.</p>
+      <div class="controller-capture-options"><label>Listen for<select id="controller-capture-mode"><option value="auto">Button or stick movement</option><option value="button">Button only</option><option value="axis">Stick / trigger axis</option><option value="axis-value">Exact axis / hat value</option><option value="hat">8-way hat direction</option></select></label><button id="controller-capture-cancel" type="button" hidden>Cancel listening</button></div>
+      <p class="small">Release a control, choose Listen, then press or move it. For a D-pad on one axis, choose 8-way hat direction.</p>
+      <div id="controller-bindings" class="controller-bindings"></div>
+      <details class="controller-manual"><summary>Enter a binding manually</summary>
+        <div class="controller-fields">
+          <label>Game action<select id="controller-bind-action"></select></label>
+          <label>Input kind<select id="controller-bind-type"><option value="button">Button</option><option value="axis-negative">Axis −</option><option value="axis-positive">Axis +</option><option value="axis-value">Exact axis value</option><option value="hat-up">8-way hat · up</option><option value="hat-right">8-way hat · right</option><option value="hat-down">8-way hat · down</option><option value="hat-left">8-way hat · left</option></select></label>
+          <label>Input index<input id="controller-bind-index" type="number" min="0" max="127" step="1" value="0"></label>
+          <label data-binding-fields="button axis-negative axis-positive">Threshold<input id="controller-bind-threshold" type="number" min="0.01" max="1" step="0.05" value="0.35"></label>
+          <label data-binding-fields="axis-negative axis-positive">Axis at rest<input id="controller-bind-rest" type="number" min="-1" max="1" step="0.01" value="0"></label>
+          <label data-binding-fields="axis-value">Axis value<input id="controller-bind-value" type="number" min="-4" max="4" step="0.001" value="0"></label>
+          <label data-binding-fields="axis-value">Value tolerance<input id="controller-bind-tolerance" type="number" min="0.001" max="0.5" step="0.01" value="0.08"></label>
+        </div><button id="controller-bind-add" type="button">Add binding</button>
+      </details>
+      <details class="controller-live"><summary>Live controller inputs</summary><p class="small">Inputs are shown even while this panel has focus. They are not sent to the game while configuring.</p><h3>Buttons</h3><p id="controller-live-buttons">—</p><h3>Axes</h3><p id="controller-live-axes">—</p><h3>Mapped game actions</h3><p id="controller-mapped">None</p></details>
+    </section>
+      </section>
+      <section id="settings-pane-devices" class="settings-pane" data-settings-pane="devices" role="tabpanel" aria-labelledby="settings-tab-devices" hidden>
+        <div class="pane-heading"><h3>Devices</h3><p>Keyboard and controllers available to this browser.</p></div>
+        <div id="device-list" class="settings-group device-list" aria-live="polite">Keyboard — default input. Connect a controller and press a button to make it available.</div>
+        <p class="settings-footnote">Select a controller and assign its profile in Input.</p><button type="button" data-command="controllers">Open Input…</button>
+      </section>
+      <section id="settings-pane-options" class="settings-pane" data-settings-pane="options" role="tabpanel" aria-labelledby="settings-tab-options" hidden>
+        <div class="pane-heading"><h3>Options</h3><p>Application behavior.</p></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Pause when inactive</h4><p>The game pauses when this page loses focus or is hidden.</p></div><span class="setting-value">On</span></div><div class="settings-row"><div><h4>Appearance</h4><p>Menus follow your system’s light or dark appearance.</p></div><span class="setting-value">System</span></div></div>
+        <p class="settings-footnote">These behaviors are fixed in the current browser build.</p><button type="button" data-command="keyboard" disabled>Keyboard Controls…</button>
+      </section>
+      </section>
+      <section id="settings-pane-video" class="settings-pane" data-settings-pane="video" role="tabpanel" aria-labelledby="settings-tab-video" hidden>
+        <div class="pane-heading"><h3>Video</h3><p>Original game presentation.</p></div>
+        <div class="settings-group"><div class="settings-row"><span>Display aspect</span><span class="setting-value">4:3</span></div><div class="settings-row"><span>Scaling</span><span class="setting-value">Nearest pixel</span></div><div class="settings-row"><div><h4>Full screen</h4><p>Fit the complete game image to the display.</p></div><button type="button" data-command="fullscreen" data-fullscreen-label>Enter Full Screen</button></div></div>
+        <p class="settings-footnote">Widescreen and additional graphics filters are not enabled in this build.</p>
+      </section>
+      <section id="settings-pane-sound" class="settings-pane" data-settings-pane="sound" role="tabpanel" aria-labelledby="settings-tab-sound" hidden>
+        <div class="pane-heading"><h3>Sound</h3><p>Original soundtrack and sound effects.</p></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Game audio</h4><p>Enable stereo sound while the game is running.</p></div><button type="button" data-command="audio" data-needs-game data-sound-label aria-pressed="false">Sound Off</button></div></div>
+        <p class="settings-footnote">Replacement music packs and volume adjustment are not enabled in this build.</p>
+      </section>
+      <section id="settings-pane-paths" class="settings-pane" data-settings-pane="paths" role="tabpanel" aria-labelledby="settings-tab-paths" hidden>
+        <div class="pane-heading"><h3>Paths</h3><p>Path configuration is not implemented.</p></div>
+        <p class="settings-footnote">ROMs and imported files are selected through the browser’s file picker. Saves and profiles use this browser’s local storage.</p>
+      </section>
+      <section id="settings-pane-speed" class="settings-pane" data-settings-pane="speed" role="tabpanel" aria-labelledby="settings-tab-speed" hidden>
+        <div class="pane-heading"><h3>Speed</h3><p>Game timing and playback.</p></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Game speed</h4><p>Original fixed game timing.</p></div><span class="setting-value">Normal · 1×</span></div><div class="settings-row"><div><h4>Playback</h4><p>Close Config and continue the game.</p></div><button type="button" data-command="toggle" data-needs-game data-toggle-label>Start</button></div></div>
+        <p class="settings-footnote">Fast-forward, slow motion, and rewind are not enabled in this build.</p>
+      </section>
+      <section id="settings-pane-saves" class="settings-pane" data-settings-pane="saves" role="tabpanel" aria-labelledby="settings-tab-saves" hidden>
+        <div class="pane-heading"><h3>Saves</h3><p>Import or export your cartridge save.</p></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Saved in this browser</h4><p>Save at Candy’s in the game. Your cartridge save is kept here automatically.</p></div><span class="row-symbol"><svg viewBox="0 0 24 24"><use href="#icon-save"/></svg></span></div></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Export game save</h4><p>Keep a copy or move your progress to another browser.</p></div><button id="export-save" disabled>Export…</button></div><div class="settings-row"><div><h4>Import game save</h4><p>Choose a 2,048-byte cartridge save, then reopen your ROM.</p></div><label class="button" id="import-label" aria-disabled="true" for="save-file">Choose File…<input id="save-file" type="file" accept=".srm,.sav" hidden disabled></label></div></div>
+        <p class="settings-footnote">Saves belong to this browser and local address. Export a copy before clearing browser data.</p>
+      </section>
+
+    </div>
+  </div>
+</dialog>
+<dialog id="help-dialog" class="help-sheet" aria-labelledby="help-title">
+  <div class="sheet-header"><h2 id="help-title">Help</h2><button type="button" class="primary compact-button" data-close-help>Done</button></div>
+  <div class="help-content"><div id="help-content" class="markdown-content"></div><p id="frame-info" class="technical-note">256 × 224</p></div>
+</dialog>
+<dialog id="about-dialog" class="about-sheet" aria-labelledby="about-title"><button class="about-close icon-button" data-close-about aria-label="Close about">×</button><span class="dk-coin" role="img" aria-label="DK coin"></span><h2 id="about-title">About</h2><div id="about-content" class="markdown-content"></div><button class="primary" data-close-about>Done</button></dialog>
+</body>
+</html>

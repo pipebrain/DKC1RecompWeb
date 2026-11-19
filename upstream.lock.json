@@ -1,0 +1,39 @@
+{
+  "dkc1recomp": {
+    "url": "https://github.com/elliotttate/DKC1Recomp.git",
+    "revision": "3eb9a10c49cb210df2bd63addafe2a78cf9f4e22"
+  },
+  "snesrecomp": {
+    "revision": "de94587464524ebac8dcd62e14618bf0d3953644"
+  },
+  "recomp_net": {
+    "revision": "6d848d6f9a7269d511e6e97d943c2ef0774779b0"
+  },
+  "emscripten": {
+    "url": "https://github.com/emscripten-core/emscripten.git",
+    "tag": "6.0.2",
+    "revision": "7a2d97d627ff4945eae28847ce0387ac52b92c09"
+  },
+  "node_build_tool": {
+    "version": "22.16.0",
+    "archive": "node-v22.16.0-darwin-arm64.tar.gz",
+    "url": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-darwin-arm64.tar.gz",
+    "sha256": "1d7f34ec4c03e12d8b33481e5c4560432d7dc31a0ef3ff5a4d9a8ada7cf6ecc9"
+  },
+  "binaryen": {
+    "version": "129",
+    "archive": "binaryen-version_129-arm64-macos.tar.gz",
+    "url": "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-arm64-macos.tar.gz",
+    "sha256": "d1bb014775ca3002506712b81b4406d126ff6845e8b2f343bc2696a1a88b7117"
+  },
+  "build_tools": {
+    "llvm": "23.1.6",
+    "lld": "23.1.6",
+    "cmake": "4.5.0",
+    "ninja": "1.13.2"
+  },
+  "rom": {
+    "size": 4194304,
+    "sha256": "fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15"
+  }
+}

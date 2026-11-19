@@ -1,0 +1,24 @@
+# Fixed controller inputs, not ROM/game/asset bytes.
+# Pinned DKC1Recomp recipes/route_jungle.dks, live gameplay prefix.
+# 7450 frames; masks are hexadecimal, counts are decimal.
+# Frame SHA-256: 506dbc580397d38d4fbd5331b18a732393da7467ae7455ffcf31193e11548d43
+000 * 5168
+008 * 6
+000 * 120
+008 * 6
+000 * 120
+008 * 6
+000 * 25
+008 * 6
+000 * 99
+008 * 6
+000 * 120
+008 * 6
+000 * 1525
+008 * 8
+000 * 111
+083 * 12
+082 * 45
+083 * 12
+082 * 45
+083 * 4

@@ -1,3 +1,25 @@
+# Local game inputs and state
+/private/
+*.[sS][fF][cC]
+*.[sS][mM][cC]
+*.sav
+*.srm
+*.state
+
+# Generated game sources, extracted assets, and build outputs
+/generated/
+/assets/extracted/
+/build/
+/dist/
+*.wasm
+
+# Local tools and machine files
+/.local/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Retained upstream exclusions
 build/
 build-*/
 .DS_Store

@@ -1,0 +1,117 @@
+import {importsFor} from './wasm-imports.js';
+
+const ROM_SIZE=4194304, ROM_SHA='fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15';
+const FPS=60.098811862, INTERVAL=1000/FPS;
+let wasm=null,loaded=false,running=false,hasStarted=false,input=0,frameCount=0,timer=0,deadline=0;
+let previousSram=null,framePool=[],audioPool=[],framesOutstanding=0,audioOutstanding=0,inventory=[];
+let droppedPresentations=0,lateTicks=0,pausedReason='not-loaded';
+const text=new TextDecoder();
+const send=(message,transfer=[])=>self.postMessage(message,transfer);
+const heap=()=>new Uint8Array(wasm.exports.memory.buffer);
+function cString(pointer){const bytes=heap();let end=pointer;while(end<bytes.length&&bytes[end])end++;return text.decode(bytes.subarray(pointer,end));}
+function coreError(operation){const pointer=wasm.exports.dkc_last_error?.();throw new Error(`${operation}: ${pointer?cString(pointer):'core returned an error'}`);}
+function state(){return {loaded,running,hasStarted,paused:!running,pausedReason,frameCount,fps:FPS,width:loaded?wasm.exports.dkc_width():256,height:loaded?wasm.exports.dkc_height():224,rate:loaded?wasm.exports.dkc_audio_rate():32040,droppedPresentations,lateTicks,imports:inventory};}
+function stop(reason='paused'){running=false;pausedReason=reason;clearTimeout(timer);timer=0;input=0;if(loaded)checkSave();}
+function checkSave(force=false){
+  if(!loaded)return;
+  const size=wasm.exports.dkc_sram_size(),current=heap().subarray(wasm.exports.dkc_sram(),wasm.exports.dkc_sram()+size);
+  let changed=force||!previousSram;
+  if(!changed)for(let i=0;i<size;i++)if(current[i]!==previousSram[i]){changed=true;break;}
+  if(changed){previousSram=current.slice();const buffer=previousSram.slice().buffer;send({type:'sram-changed',buffer},[buffer]);}
+}
+function present(){
+  if(framesOutstanding>=3){droppedPresentations++;return;}
+  const width=wasm.exports.dkc_width(),height=wasm.exports.dkc_height(),size=width*height*4;
+  let buffer=framePool.pop();if(!buffer||buffer.byteLength!==size)buffer=new ArrayBuffer(size);
+  const output=new Uint8Array(buffer),source=heap(),pointer=wasm.exports.dkc_framebuffer(),pitch=wasm.exports.dkc_pitch();
+  for(let y=0;y<height;y++)output.set(source.subarray(pointer+y*pitch,pointer+y*pitch+width*4),y*width*4);
+  framesOutstanding++;send({type:'frame',buffer,width,height,frameCount},[buffer]);
+}
+function audio(){
+  const frames=wasm.exports.dkc_audio_frames();if(!frames)return;
+  if(audioOutstanding>=8)return;
+  const length=frames*4;
+  let buffer=audioPool.find(x=>x.byteLength===length);
+  if(buffer)audioPool.splice(audioPool.indexOf(buffer),1);else buffer=new ArrayBuffer(length);
+  new Uint8Array(buffer).set(heap().subarray(wasm.exports.dkc_audio_buffer(),wasm.exports.dkc_audio_buffer()+length));
+  audioOutstanding++;send({type:'audio',buffer,rate:wasm.exports.dkc_audio_rate(),frames},[buffer]);
+}
+function advance(buttons,display=true,playAudio=true){
+  if(wasm.exports.dkc_step(buttons)!==0)coreError('Game step failed');
+  hasStarted=true;frameCount++;if(display)present();if(playAudio)audio();checkSave();
+}
+function tick(){
+  if(!running)return;
+  try{
+    const now=performance.now();
+    if(now<deadline-.5){timer=setTimeout(tick,Math.max(0,deadline-now));return;}
+    advance(input);
+    deadline+=INTERVAL;
+    if(performance.now()-deadline>INTERVAL*3){lateTicks++;deadline=performance.now()+INTERVAL;}
+    timer=setTimeout(tick,Math.max(0,deadline-performance.now()));
+    if(frameCount%60===0)send({type:'stats',...state()});
+  }catch(error){stop('error');send({type:'error',error:error.message,stack:error.stack});}
+}
+async function hash(bytes){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');}
+async function initialize(buffer){
+  stop('loading');loaded=false;
+  if(buffer.byteLength!==ROM_SIZE)throw new Error('Unsupported ROM size. Expected a headerless 4,194,304-byte DKC USA v1.0 ROM.');
+  if(await hash(buffer)!==ROM_SHA)throw new Error('Unsupported ROM SHA-256. Expected unmodified DKC USA v1.0.');
+  send({type:'loading',message:'Compiling WebAssembly…'});
+  const response=await fetch(new URL('./dkc.wasm',import.meta.url));
+  if(!response.ok)throw new Error(`Wasm build not found (${response.status}). Build web/dkc.wasm first.`);
+  const module=await WebAssembly.compile(await response.arrayBuffer());
+  let instance=null;
+  const prepared=importsFor(module,()=>instance,message=>send(message));inventory=prepared.inventory;
+  send({type:'imports',imports:inventory});
+  instance=await WebAssembly.instantiate(module,prepared.imports);wasm=instance;
+  const required=['memory','dkc_init','dkc_alloc','dkc_free','dkc_step','dkc_framebuffer','dkc_width','dkc_height','dkc_pitch','dkc_audio_buffer','dkc_audio_frames','dkc_audio_rate','dkc_sram','dkc_sram_size','dkc_last_error'];
+  const missing=required.filter(name=>!wasm.exports[name]);if(missing.length)throw new Error(`Missing Wasm exports: ${missing.join(', ')}`);
+  wasm.exports._initialize?.();
+  const pointer=wasm.exports.dkc_alloc(buffer.byteLength);if(!pointer)throw new Error('Cannot allocate ROM memory.');
+  try{heap().set(new Uint8Array(buffer),pointer);if(wasm.exports.dkc_init(pointer,buffer.byteLength)!==0)coreError('Game initialization failed');}
+  finally{wasm.exports.dkc_free(pointer);}
+  loaded=true;hasStarted=false;frameCount=0;input=0;previousSram=null;pausedReason='ready';droppedPresentations=0;lateTicks=0;
+  present();return state();
+}
+async function command(data){
+  switch(data.type){
+    case 'load':return initialize(data.buffer);
+    case 'pause':stop(data.reason||'paused');send({type:'stats',...state()});return state();
+    case 'resume':if(!loaded)throw new Error('Load a ROM first.');hasStarted=true;if(!running){running=true;pausedReason=null;deadline=performance.now()+INTERVAL;timer=setTimeout(tick,INTERVAL);}return state();
+    case 'input':input=data.buttons&4095;return;
+    case 'step':if(!loaded)throw new Error('Load a ROM first.');stop('debug-step');advance(data.buttons&4095,true,false);return state();
+    case 'run-frames':{
+      if(!loaded)throw new Error('Load a ROM first.');
+      const count=Number(data.count);if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Frame count must be an integer from 0 to 100,000.');
+      stop('debug-run');for(let i=0;i<count;i++){advance(data.buttons&4095,false,false);if(i%120===119)await new Promise(resolve=>setTimeout(resolve,0));}
+      present();checkSave();return state();
+    }
+    case 'get-state':return state();
+    case 'get-sram':if(!loaded)throw new Error('Load a ROM first.');return {buffer:heap().slice(wasm.exports.dkc_sram(),wasm.exports.dkc_sram()+wasm.exports.dkc_sram_size()).buffer};
+    case 'set-sram':{
+      if(!loaded)throw new Error('Load a ROM first.');
+      if(data.buffer.byteLength!==wasm.exports.dkc_sram_size())throw new Error('Save must contain exactly 2,048 bytes of cartridge SRAM.');
+      heap().set(new Uint8Array(data.buffer),wasm.exports.dkc_sram());checkSave(true);return state();
+    }
+    case 'frame-hash':{
+      if(!loaded)throw new Error('Load a ROM first.');
+      const width=wasm.exports.dkc_width(),height=wasm.exports.dkc_height(),pitch=wasm.exports.dkc_pitch(),pointer=wasm.exports.dkc_framebuffer();
+      const frame=new Uint8Array(width*height*4);for(let y=0;y<height;y++)frame.set(heap().subarray(pointer+y*pitch,pointer+y*pitch+width*4),y*width*4);
+      return {frameCount,sha256:await hash(frame)};
+    }
+    default:throw new Error(`Unknown worker command: ${data.type}`);
+  }
+}
+let queue=Promise.resolve();
+self.onmessage=({data})=>{
+  if(data.type==='recycle-frame'){framesOutstanding=Math.max(0,framesOutstanding-1);if(framePool.length<3)framePool.push(data.buffer);return;}
+  if(data.type==='recycle-audio'){audioOutstanding=Math.max(0,audioOutstanding-1);if(audioPool.length<12)audioPool.push(data.buffer);return;}
+  // Input remains responsive while an explicit diagnostic run yields.
+  if(data.type==='input'){input=data.buttons&4095;return;}
+  queue=queue.then(async()=>{
+    try{const result=await command(data);if(data.id){const transfer=result?.buffer?[result.buffer]:[];send({type:'response',id:data.id,value:result},transfer);}}
+    catch(error){send({type:data.id?'response':'error',id:data.id,error:error.message,stack:error.stack});}
+  });
+};
+send({type:'worker-ready'});

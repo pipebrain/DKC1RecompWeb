@@ -1,0 +1,526 @@
+# First browser build verification
+
+Date: 2026-11-18. Source/tool pins: [upstream.lock.json](../upstream.lock.json).
+The supplied USA v1.0 ROM passed the expected size and SHA-256 checks.
+Upstream and generated game sources were not edited.
+
+## Build identity
+
+- Private `web/dkc.wasm`: 8,021,037 bytes.
+- SHA-256: `dcc015d75e943aac3eb179309426b0caa90321f88731effe85e8922b3de3a014`.
+- Emscripten 6.0.2, LLVM/lld 23.1.6, Binaryen 129, CMake 4.5.0,
+  Ninja 1.13.2; Node 22.16.0 is a build/test executable only.
+- Browser: Chrome 157.0.8103.79, native Apple Metal 3 WebGPU adapter,
+  standard headless flags. No unsafe-WebGPU flag was required.
+- Static C archives and all nine actual imports are inventoried in
+  [RUNTIME_DECISION.md](RUNTIME_DECISION.md).
+
+## Reference comparisons
+
+The unchanged native headless host and the new browser C adapter each passed
+three independent 600-frame runs, matching framebuffer, WRAM, VRAM, CGRAM,
+PPU OAM, source OAM, and cumulative audio fingerprints. The browser comparisons
+below verify the raw four-byte framebuffer; they do not imply complete Wasm
+memory/audio fingerprint comparisons.
+
+| Browser case | Frames | Framebuffer SHA-256 | Evidence directory beneath `build/browser-check/` |
+| --- | --- | --- | --- |
+| No-input intro | 600 | `a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd` | `2026-11-18T20-08-44-997Z-27072` |
+| No-input title screen | 5100 | `60878dca94a5a87f77729991bdd301e211e94738ec1fb1556812aa4b5f63ff70` | `2026-11-18T20-09-11-116Z-27143` |
+| Exact Jungle route | 8070 | `9e8c67590fe4b11ca5886f5dd4884e685ab195cea07d174f6902c952a7579ea5` | `2026-11-18T20-12-08-669Z-27594` |
+| Live Jungle entry/movement prefix | 7450 | `506dbc580397d38d4fbd5331b18a732393da7467ae7455ffcf31193e11548d43` | `2026-11-18T20-13-33-032Z-27664` |
+
+Every listed browser frame matches its native oracle exactly. Each browser
+evidence directory contains `evidence.json`, `game.png`, ready-state capture,
+and process logs. Title and live Jungle screenshots were visually inspected.
+The fixed live-gameplay schedule is in
+[`tests/fixtures/jungle-entry.inputs`](../tests/fixtures/jungle-entry.inputs).
+
+Native evidence is under `build/native-reference/evidence/`: `boot-600`,
+`adapter-600`, `boot-5100`, `jungle-route`, and `jungle-prefix-7450`.
+The full inherited Jungle route loses a life before its later camera predicate;
+its successful replay is not a completed level. The earlier 7,450-frame prefix
+shows live DK movement with five lives remaining and avoids that ambiguity.
+
+## Host and toolchain checks
+
+- Local picker and C core independently verify the ROM; wrong size/hash are
+  rejected. The C adapter retains ROM ownership after the upload is freed.
+- Real WebGPU presentation occurs through the handwritten host.
+- 2,048-byte SRAM import/export, invalid-size rejection, IndexedDB persistence
+  across page reloads, and restoration of original test bytes pass.
+- Real AudioContext/AudioWorklet execution passes a 1.8-second run. Observed
+  underruns and overruns were both zero. The queue report is retained; this is
+  a short pipeline check, not a listening-quality or long-duration result.
+- Resume advances game frames and pause holds the count stable.
+- The standalone C allocation/setjmp/longjmp probe passes 20 repetitions with
+  no imports; repeat with `python3 scripts/check_runtime.py`.
+- JavaScript/Python syntax checks and `git diff --check` pass.
+- The local server exposes `web/` only. ROM, project-root, and traversal
+  requests return 404; Wasm is served as `application/wasm`.
+- Private inputs, generated sources/binaries, and captures remain excluded
+  from Git. No remote publication or deployment was performed.
+
+## User playtest feedback
+
+The user reported on 2026-11-18 that Safari and Chrome both passed sound on/off,
+keyboard input, and pause/resume. Saving/loading were initially untested.
+After the controller work below, the user reported "Everything tests OK" and
+requested the GUI overhaul. This accepts the prior functional baseline without
+adding detailed full-game or hardware test evidence.
+This visible playtest is separate from the automated IndexedDB/SRAM checks.
+
+The user found fullscreen expanding horizontally while clipping vertically,
+then clarified that `.toolbar` must remain separate from `.player` and only
+`.screen-wrap` should enter fullscreen. The toolbar is now a sibling of the
+player. The canvas fills the entire fullscreen viewport; WebGPU centers the
+4:3 game image with bars as needed and no space reserved for controls. Canvas
+resize/fullscreen events redraw the retained GPU texture without advancing a
+paused game. Entry and exit return keyboard focus to the canvas.
+
+Actual Chrome fullscreen checks passed at 1280x720, 1920x1080, 1024x768,
+800x1000, and 480x320, plus 1280x720 at DPR 2. The test clicks the real
+fullscreen button and checks `.screen-wrap` is the fullscreen root, the toolbar
+is outside both `.player` and the fullscreen tree, and the canvas fills the
+whole viewport with centered 4:3 output. Escape exit restores canvas focus;
+the paused 600-frame source hash remains unchanged. Wide and compact captures
+confirm no controls or clipping.
+
+Evidence: `build/fullscreen-check/2026-11-18T20-54-48-890Z-29456/evidence.json`.
+Reproduce with:
+
+```sh
+.local/tools/node-v22.16.0-darwin-arm64/bin/node scripts/fullscreen_check.mjs \
+  --rom '/absolute/path/to/your/dkc1.smc'
+```
+
+The fullscreen fix was Chrome-verified before the user's subsequent general
+acceptance. The redesigned interface needs a fresh visible Safari review. No
+Safari automation settings were changed.
+
+## Controller profiles and raw input
+
+The user reported an 8BitDo SN30 Pro+, vendor/product `2dc8:6102`, whose
+B0-B7/B10/B11 and axes 0/1/2/5/9 did not register in the player. Source inspection
+confirmed the old host skipped any pad whose browser mapping was not
+`standard`. The device's actual mapping string, startup mode, and complete
+physical assignments were not recorded; the user confirmed Bluetooth in both
+Chrome and Safari. No vendor-specific mapping is claimed agent-verified.
+
+The default remains immutable, while custom profiles accept raw buttons,
+signed/rest-offset axes, exact axis values, and explicit eight-way hats. The
+live monitor works while settings have focus. Settings pause the game and
+suppress controller output; saved profile selection, JSON import/export,
+save/discard, and deletion are available. Storage is separate from SRAM.
+Setup is described in [CONTROLLERS.md](CONTROLLERS.md).
+
+Nine pure mapping/serialization tests passed, including all reported button
+ranges and axis indices, hat diagonals/neutral, deadzones, trigger rest values,
+capture, malformed files, default protection, and JSON round trips.
+
+Actual Chrome integration with the supplied ROM and representative injected
+gamepads passed:
+
+- Raw and standard device discovery, with mapped button/axis/hat masks observed
+  at the actual worker input boundary while the player canvas has focus.
+- Live monitoring, binding capture, and input release/pause during settings.
+- Default protection and export as an editable custom copy.
+- New/edit/save/discard, real JSON download/import, invalid-file rejection,
+  saved-profile loading, and per-controller selection after reload.
+- Isolation from existing cartridge SRAM and restoration of test save bytes.
+
+Evidence: `build/controller-check/2026-11-18T21-12-10-002Z-31107/evidence.json`.
+Focused desktop/compact visual checks also passed; evidence:
+`build/controller-check/2026-11-18T21-16-15-871Z-31443/evidence.json`.
+These values are synthetic fixtures matching the user's reported index ranges,
+not a physical-controller capture. The user later withdrew a diagonal-input
+bug after correcting the binding setup and reported "Everything tests OK".
+That user feedback is separate from the injected-device checks.
+
+Focused visual checks at 1280x1000 and 480x900 verify all 12 binding rows use
+the intended grid and controls fit without horizontal overflow. Evidence:
+`build/controller-check/2026-11-18T21-15-20-674Z-31381/evidence.json`. Opening
+Controllers previously scrolled the editor into view; the redesigned Settings
+sheet scrolls its own content instead. Subsequent standard-game and
+six-case fullscreen regressions also passed after controller integration:
+`build/browser-check/2026-11-18T21-13-46-940Z-31218/evidence.json` and
+`build/fullscreen-check/2026-11-18T21-13-45-824Z-31195/evidence.json`.
+
+After integration, the unchanged 600-frame native browser framebuffer oracle,
+audio/save/pause tests, and all six screen-only fullscreen configurations pass:
+`build/browser-check/2026-11-18T21-13-46-940Z-31218/evidence.json` and
+`build/fullscreen-check/2026-11-18T21-13-45-824Z-31195/evidence.json`.
+
+## Apple-style interface overhaul
+
+The browser shell now adapts between an emulated macOS application menu bar
+and compact iOS-style navigation. It uses handwritten HTML/CSS/JavaScript and
+SVG, system typography, light/dark appearance, and a modal Settings sheet.
+The design references are in [UI_DESIGN.md](UI_DESIGN.md).
+
+The final actual Chrome UI run passed:
+
+- Menu keyboard traversal, including Game's initially disabled commands;
+  Escape focus restoration; outside-click dismissal; and Open ROM dispatch.
+- The unchanged 600-frame native framebuffer oracle, real menu playback/audio
+  commands, Settings section navigation, modal focus isolation, unsaved-profile
+  guards, discard, and game-save export.
+- Layout at 1440x900 light, 1280x720 dark, 390x844 light, 844x390 dark,
+  320x568 light, and 390x844 dark at DPR 2. No page scrolling, horizontal
+  overflow, clipped stage/toolbar, or clipped Settings bounds was observed.
+- Compact More navigation and Settings; 44px compact playback/More targets;
+  screen-only fullscreen and Escape exit. No JavaScript or console errors.
+
+Desktop/compact, light/dark, and Settings screenshots were visually inspected.
+Final evidence and captures:
+`build/ui-check/2026-11-18T23-49-14-263Z-35887/`.
+
+Independent host regressions after integration also passed:
+
+| Check | Evidence beneath `build/` |
+| --- | --- |
+| Native 600-frame hash, SRAM/import/export/reload, real AudioWorklet (zero observed underruns/overruns), pause/resume | `browser-check/2026-11-18T23-47-28-846Z-35355/evidence.json` |
+| Controller raw/standard inputs, capture, save/discard, JSON round trips, profile persistence and SRAM separation | `controller-check/2026-11-18T23-47-58-739Z-35441/evidence.json` |
+| All six screen-only fullscreen size/DPR configurations | `fullscreen-check/2026-11-18T23-47-58-739Z-35442/evidence.json` |
+| Native save-file chooser from File and compact More while Settings is closed | `ui-check/2026-11-18T23-48-18-598Z-35819/evidence.json` |
+
+All nine pure gamepad profile tests and whitespace checks pass. The private
+Wasm SHA-256 remains `dcc015d75e943aac3eb179309426b0caa90321f88731effe85e8922b3de3a014`.
+The user's `web/start-app.command` and `web/8bitdo-sn30-pro.json` are unchanged.
+The new interface still needs a visible Safari/user review; mobile sizes here
+are Chrome emulation, not physical iPhone/iPad testing.
+
+## Menu-only composition revision
+
+The user rejected the first shell's extra interface regions and required menus
+as the only main interface controls in both wide and narrow modes. The HTML
+and CSS now remove `.menubar-caption`, `.app-navigation`, `.toolbar`,
+`.app-status`, and the empty-state text/buttons. The closed main page contains
+one `.app-menubar` navigation element and the game canvas. Compact mode uses
+that same navigation element, with all application commands in its menu.
+Settings/About remain menu-opened tasks. Status/errors appear within menus.
+
+The host now dispatches playback, audio, fullscreen, and save commands
+directly instead of clicking removed toolbar controls. Menus preserve familiar
+ordering, state-dependent labels, disabled commands, keyboard shortcuts, focus
+restoration, and 44px compact targets. Keyboard navigation scrolls long menus
+to keep the active item visible. Pointer menu opening explicitly moves focus
+from the canvas to the trigger.
+
+Post-revision host checks pass:
+
+| Check | Evidence beneath `build/` |
+| --- | --- |
+| Native 600-frame framebuffer, SRAM/import/export/reload, audio (zero observed underruns/overruns), pause/resume | `browser-check/2026-11-19T00-11-42-945Z-37513/evidence.json` |
+| Controller mapping/profile integration, JSON round trips, persistence and SRAM separation | `controller-check/2026-11-19T00-12-07-661Z-37560/evidence.json` |
+| Six screen-only fullscreen configurations | `fullscreen-check/2026-11-19T00-12-07-661Z-37561/evidence.json` |
+
+The final UI run passes across all six viewport/theme/DPR cases, with unchanged
+source hashes recorded in its report. It verifies the removed regions are
+absent, there is one main navigation element, and no main text/controls appear
+outside it. All eleven application commands are accessible from desktop and
+compact menus. Tests cover keyboard traversal/long-menu scrolling, Settings
+draft guards, real file chooser events, compact playback/audio, screen-only
+fullscreen, and invalid-ROM errors revealed within menus. No JavaScript or
+console errors were observed. Desktop and compact screenshots were visually
+inspected, including portrait/landscape, open menus, and light/dark appearance.
+
+Final UI evidence and captures:
+`build/ui-check/2026-11-19T00-13-22-514Z-38039/`.
+The private Wasm, launcher, and supplied controller profile remain unchanged.
+This revision still requires a visible Safari/user review.
+
+## ZSNES-inspired menu structure and Reset Game
+
+The main menu now follows the user's requested grouping: a static monochrome
+DK coin with no action/submenu; DKM; Config; Cheat; NetPlay; Misc. DKM contains
+Load ROM, Reset Game, Load Save, and Export Save. Config contains Input,
+Devices, Options, Video, Sound, Paths, Saves, and Speed; Misc contains Help
+and About. The compact menu exposes the same working commands. Paths, Cheat,
+and NetPlay remain visibly disabled because they are not implemented.
+
+The generated logo is a transparent monochrome PNG based on the user's
+reference images; no source photographs were copied into the project. It
+renders through a theme-aware CSS mask. Its alpha, monochrome pixels, and
+20px/28px light/dark appearance were checked.
+
+Reset retains the verified ROM in session memory, snapshots current cartridge
+SRAM, recreates the Wasm instance, restores SRAM, and clears the retained GPU
+frame. It returns to frame zero paused without another ROM picker or a change
+to controller profiles. It does not implement emulator save states.
+
+Final Chrome UI evidence:
+`build/ui-check/2026-11-19T00-45-45-749Z-40845/evidence.json`.
+Source hashes matched at completion. Checks cover desktop/compact Reset with
+distinctive SRAM bytes, unchanged profiles, a repeat of the native 600-frame
+oracle after reset, exact menu grouping, static coin semantics, actual Devices
+readouts, Options help, Config guards, native file choosers, sound/playback,
+screen-only fullscreen, and all six layout/theme/DPR cases. Screenshot review
+included desktop/compact menus and Config sheets. No JavaScript or console
+errors were observed.
+
+Independent regression evidence:
+
+| Check | Evidence beneath `build/` |
+| --- | --- |
+| Native framebuffer, save/reload, real audio pipeline, pause/resume | `browser-check/2026-11-19T00-46-22-401Z-41188/evidence.json` |
+| Controller mapping/profile integration and SRAM separation | `controller-check/2026-11-19T00-42-52-338Z-40004/evidence.json` |
+| All six screen-only fullscreen configurations | `fullscreen-check/2026-11-19T00-42-53-488Z-40024/evidence.json` |
+
+After these runs, a small menu-opening adjustment resets long compact menus
+to the first section on reopening. Three controller messages were also renamed
+from Controllers to Input/Config; mapping and persistence logic were unchanged.
+The final focused check passes with unchanged source hashes, including the
+controller module and PNG: `build/menu-scroll-check/2026-11-19T00-48-23-836Z-41372/evidence.json`.
+It checks reopening at the top and keeping End/ArrowUp items visible at
+390x844 and 844x390. A settled Devices screenshot was also visually verified:
+`build/ui-visual/2026-11-19T00-47-26-229Z-41275/devices-settled.png`.
+The game binary, user launcher, and supplied controller profile are unchanged.
+Visible Safari and physical-device testing were not repeated in this run.
+
+## Shared Input settings tabs
+
+The user confirmed separate Config menu entries for Input, Devices, and
+Options that open three tabs in one settings page, and visible disabled
+entries for unavailable features. The settings sidebar now shows Input once;
+the shared page has a horizontal Input | Devices | Options tab strip. Video,
+Sound, Paths, Saves, Speed, and Help remain separate pages.
+
+Focused Chrome verification passes with unchanged source hashes and no
+JavaScript/console errors:
+`build/input-tabs-check/2026-11-19T00-56-44-793Z-41872/evidence.json`.
+Checks include all three menu commands, matching selected tabs, shared/sidebar
+visibility, keyboard navigation within each tab group, skipping disabled
+Paths, and dirty-profile protection for tab changes, leaving the page, Done,
+and Escape. Discard permits navigation again. Opening Config pauses the
+loaded ROM. Desktop/compact screenshots were inspected at 1440x900 light,
+390x844 light, 844x390 dark, and 320x568 dark without clipping.
+
+Reproduce with the existing runner's `--input-tabs` mode and the local ROM.
+The game runtime, audio, saves, and mapping behavior were not changed in this
+layout correction; earlier host regressions remain recorded above.
+
+## DKM Start/Reload and Config cleanup
+
+The DKM menu now reads Load ROM; separator; Start Game, Reload Game;
+separator; Load Save, Export Save in both layouts. Start Game starts/resumes
+the selected ROM and is disabled while unloaded, loading, or already running.
+Reload Game retains the existing fresh paused boot behavior and preserves
+SRAM/profiles. Config no longer contains `.sheet-eyebrow` or
+`#settings-tab-keyboard`. Misc > Help opens a standalone modal; its input,
+focus, and error handling participate in the existing modal guards.
+
+Focused actual Chrome checks pass with unchanged source hashes and no
+JavaScript/console errors:
+`build/dkm-menu-check/2026-11-19T01-13-00-812Z-42647/evidence.json`.
+Coverage includes desktop/compact DKM labels and separators, native ROM picker,
+Start enablement and actual frame advance without resetting, repeated Start
+without pausing/restarting, Reload preservation and native 600-frame replay,
+the required DOM removals, standalone Help and Escape/focus behavior, and
+shared Input tabs/draft guards. Desktop menu and compact Help screenshots were
+visually inspected. No broad audio or controller reruns were needed for this
+menu change; earlier host evidence remains above.
+
+## Markdown content and editable default keyboard
+
+About now uses `.dk-coin` and loads `web/About.md`. Help loads `web/Help.md`.
+The new documents adapt the pinned original project's description, credits,
+controls, and save guidance while identifying the browser modifications and
+unimplemented native enhancements. About links to DKC1Recomp and snesrecomp;
+our repository link is omitted at the user's request until a repository exists.
+The handwritten Markdown reader uses DOM text and validated HTTP(S) links;
+raw HTML and executable links remain inert. Missing, empty, or HTML-fallback
+Help responses leave every Help command disabled.
+
+A fresh profile selects Keyboard and shows Keyboard (default) in the menu.
+Config > Input provides key capture, Clear, Save, Discard, and Restore defaults.
+Keyboard settings and the selected source use `dkc.keyboard-settings.v1`,
+separate from gamepad profiles and SRAM. Gamepad mappings activate only after
+selecting Gamepad; keyboard gameplay is inactive in that mode. Source changes,
+pause, and focus loss release held input. Space is bindable: its game mapping
+takes priority during play, while the default unbound key pauses/resumes and
+Space can still start a paused game.
+
+Eight pure keyboard validation/mapping tests pass. Actual Chrome integration
+passes with unchanged source hashes:
+`build/keyboard-content-check/2026-11-19T01-39-27-042Z-45605/evidence.json`.
+It covers real keyboard events at the worker input boundary, both Shift keys,
+inactive-source suppression, custom Space, saved remapping, Save/Discard/
+Restore defaults, duplicate/reserved rejection, draft guards, page-reload
+persistence, corrupt-storage repair, and isolation from controller profiles
+and cartridge SRAM. About links/coin, safe rendering, and all unavailable-Help
+cases also pass. Foreground-focus emulation is recorded for the isolated
+headless input target; these are browser events and injected gamepad fixtures,
+not physical-controller testing.
+
+The existing controller regression passes with explicit Gamepad selection:
+`build/controller-check/2026-11-19T01-42-43-864Z-46429/evidence.json`.
+After the functional run, a scoped CSS rule fixed the keyboard capture-cancel
+button appearing while hidden. Final visual/focused checks pass with unchanged
+source hashes at 1440x900, 390x844, and 844x390:
+`build/keyboard-content-visual/2026-11-19T01-43-31-999Z-46475/evidence.json`.
+Cancel is visible only during capture; About, Help, and keyboard layouts fit.
+
+The final native-frame/save/audio/pacing browser regression also passes with
+unchanged source hashes and the native Apple Metal 3 WebGPU adapter:
+`build/browser-check/2026-11-19T01-47-00-539Z-46762/evidence.json`.
+The 600-frame hash is unchanged; SRAM import/export/reload/restoration passes;
+the real AudioWorklet ran for 1.8 seconds with zero observed underruns/overruns;
+pause/resume pacing passes. No JavaScript or network failures were observed.
+The runner now records foreground-focus emulation, startup network/lifecycle
+diagnostics, and source/Wasm hashes. Earlier isolated startup attempts stalled
+before the module graph finished; the precise cause was not independently
+established. No application workaround or unsafe-WebGPU flag was introduced.
+
+The standalone Wasm, user launcher, and supplied controller profile remain
+unchanged. Safari and physical hardware were not retested in this run.
+
+## Mapped Start quick start/resume
+
+The selected keyboard/controller profile's logical Start quick starts or
+resumes only with the game screen focused in the foreground. That press is
+consumed until release. Later Start presses during play still reach SNES Start.
+Menus, dialogs, loading, input capture, unsaved drafts, and error states block
+the shortcut. Connection, source, and focus transitions require a fresh press.
+Pending resumes are canceled during audio waits or after worker dispatch;
+stale resume responses cannot restore running state.
+
+Five new pure press/release tests pass, along with the existing seventeen
+keyboard/controller tests. The focused Chrome runner is
+`scripts/start_shortcut_check.mjs`. All ten integration groups pass in
+`build/start-shortcut-check/2026-11-19T02-22-41-402Z-49572/evidence.json`:
+
+- Actual CDP Return/custom keyboard input, repeats, normal in-game Start, and
+  Space remapped as Start without the host Space toggle stealing it.
+- Injected standard B9 and custom raw B11 profiles, selected-source exclusion,
+  menu/dialog/editor guards, held inputs, connection and focus transitions.
+- A real second browser target hides the player; returning requires release
+  and another press. Foreground-focus emulation is recorded in the evidence.
+- Controlled delayed audio completion and a delayed actual worker resume
+  response verify cancellation. The worker-response race uses an injected
+  blur event; both host and worker remain paused after the stale reply.
+
+No JavaScript or console errors were observed; tested implementation/Wasm
+hashes match. Help text was then updated to document the shortcut. The final
+broader regression passes in
+`build/browser-check/2026-11-19T02-24-10-881Z-51087/evidence.json`: native
+600-frame framebuffer equality, SRAM import/export/reload and original-byte
+restoration, real AudioContext/AudioWorklet processing, and pause/resume pacing.
+Source hashes match and no unsafe-WebGPU flag is needed. An earlier isolated
+attempt failed before main execution with connection resets fetching modules;
+its diagnostics remain in
+`build/browser-check/2026-11-19T02-22-56-526Z-49919/evidence.json`. The cause was
+not established and the subsequent run passed without an application workaround.
+
+Physical controller operation and Safari were not retested for this feature.
+The private Wasm, user launcher, and supplied controller profile are unchanged.
+
+## Playback menu states and paused-screen overlay
+
+The primary DKM command now switches between Start Game, Pause Game, and
+Resume Game in desktop and compact menus. The worker owns an explicit
+`hasStarted` state: a successful resume sets it before frame one, diagnostic
+advancement sets it, and a new successful initialization resets it. Invalid ROM
+validation before replacing the current instance preserves the existing state.
+
+An informational overlay inside `.screen-wrap` shows Ready to Start for a
+fresh loaded game or Paused after starting, plus the active input and saved
+Start binding. It is absent while unloaded/loading/running, remains in
+fullscreen, does not modify framebuffer pixels, and lets pointer events reach
+the canvas. Keyboard hints use committed bindings; controller hints filter
+unavailable mappings and offer Space when no usable Start is available. Menu,
+dialog, and focus prerequisites are stated. Fatal errors disable playback and
+show browser-page recovery guidance, including Escape before leaving fullscreen.
+The overlay represents browser host pause rather than DKC's internal pause.
+
+Seven new pure presentation tests pass alongside the existing twenty-two input
+tests (29 total). They cover first-start versus frame-zero pause, saved mappings,
+controller availability, contextual prerequisites, and busy/error presentation.
+
+Six focused Chrome integration groups pass in
+`build/pause-overlay-check/2026-11-19T02-50-34-723Z-52777/evidence.json`:
+unloaded/loading/fresh-ready states, an immediate frame-zero start/pause,
+rejected ROM validation preserving started state, Config before first start,
+desktop/compact DKM transitions, reload reset, committed key remaps and Space
+fallback, standard B9/custom raw B11 input, disconnected/unmapped controllers,
+menu/dialog/focus guidance, and controlled worker-error presentation/recovery.
+The error fixture is a message injection, not an induced watchdog fault.
+There were no unexpected console, JavaScript, or network errors.
+
+Four paused layouts (1440×900 light, 390×844 light, 844×390 dark, 320×568 dark)
+and three screen-only fullscreen layouts (1440×900, 390×844, 844×390) fit without
+clipping. Screenshots were inspected. Overlay pointer events reach the canvas,
+there are no game-area buttons, and the single navigation element is preserved.
+The browser framebuffer at frame 600 still exactly matches the native oracle.
+
+Earlier isolated attempts failed before app execution with module socket
+errors. The local server was changed from HTTP/1.0 to HTTP/1.1 persistent
+connections; a direct check reused one connection for five resources and
+verified four source/hidden/ROM/traversal exclusions remain 404. Six subsequent
+cache-disabled browser reloads pass with zero network/JavaScript/console errors
+in `build/pause-overlay-check/2026-11-19T02-51-47-245Z-52842/evidence.json`.
+The evidence pins `scripts/serve.py` as well as served browser sources. This
+verifies those six reloads; it is not a guarantee about all browser networking.
+
+Help was updated after the focused runs. Safari and the physical controller
+were not retested. The private Wasm, user launcher, and supplied controller
+profile remain unchanged.
+
+The broader regression initially still saw a pre-execution module socket
+failure with HTTP/1.1 alone in
+`build/browser-check/2026-11-19T02-53-05-052Z-52892/evidence.json`.
+The server's pending accept queue was then raised from Python's default 5 to
+64 for parallel browser connections. The final broader regression passes in
+`build/browser-check/2026-11-19T02-54-06-692Z-52989/evidence.json`: native
+600-frame oracle, SRAM import/export/page reload/restoration, real stereo
+AudioWorklet processing (1.8 seconds, zero observed underruns/overruns), and
+pause/resume pacing. All source/Wasm hashes match, no unsafe-WebGPU flag was
+needed, and no JavaScript or console errors were observed. This run includes
+the updated Help text and the final server configuration.
+
+Six further cache-disabled reloads also pass with the final HTTP/1.1/64-accept
+configuration in
+`build/pause-overlay-check/2026-11-19T02-54-44-668Z-53041/evidence.json`.
+The user's unchanged `web/start-app.command` invokes Python's default server,
+so these server changes apply to the documented `scripts/serve.py` launch
+path. That separate launcher path was not retested for startup reliability.
+
+## Favicon
+
+A gold transparent favicon was generated from the existing DK coin and
+exported with native image tools to PNG64 and ICO16/32/48. Both sizes and all
+ICO PNG payload entries were checked, and the small artwork was inspected.
+Chrome fetched `/favicon.ico` with HTTP 200 in the passing WebGPU smoke run
+`build/browser-check/2026-11-19T03-28-59-192Z-53948/evidence.json`, with no
+JavaScript/console errors and no unsafe-WebGPU flag. The menu/About PNG was
+preserved. No game regression was rerun for this document-head/asset change.
+
+## Initial private repository baseline
+
+The private standalone repository is `pipebrain/DKC1RecompWeb`, with the
+browser snapshot committed directly above pinned upstream `3eb9a10`. Its
+74-commit ancestry, original MIT license/notices, native source tree, and
+`snesrecomp` gitlink are preserved. The browser and upstream ignore rules are
+combined. The original upstream README is retained as `README.upstream.md`.
+The root project's `origin` points to the private repository and `upstream`
+points to `elliotttate/DKC1Recomp`; the tested build still uses `.local/upstream`.
+
+Before the initial push, independent audits checked the browser allowlist
+and final index: no ROM/save/Wasm/generated-game paths or detected credentials
+were included. The 454-entry index retains upstream license/notices exactly.
+All 29 pure input/presentation tests pass. After naming the repository and
+adding its About link, Chrome's WebGPU smoke check passes without an unsafe
+flag or JavaScript/console errors in
+`build/browser-check/2026-11-19T04-56-30-969Z-55878/evidence.json`.
+This packaging/link change did not rerun the full game regression; the earlier
+recorded frame/save/audio evidence remains applicable to unchanged game code.
+
+## Limits
+
+No full playthrough, completed-level gate, agent-operated physical controller
+test, long-duration timing/audio run, detailed Candy save/load playtest, other
+OS test, or induced game-watchdog failure test is recorded. The user reported
+Safari/Chrome functional acceptance before the interface overhaul; browser
+versions were not supplied. Agent controller checks use injected inputs.
+The redesigned interface needs visible user review in Safari/Chrome, and
+physical iPhone/iPad behavior has not been verified.
