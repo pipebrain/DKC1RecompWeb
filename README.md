@@ -19,6 +19,15 @@ The upstream native tree remains available. Browser sources live in `web/`,
 `runtime/`, and `cmake/native/` / `cmake/wasm/`; the tested browser build still
 uses its separate pinned source checkout under ignored `.local/upstream/`.
 
+## Play on Mac
+
+With the local build ready, double-click **Play.command** in the project root
+or run `./Play.command` in Terminal. It opens Chrome at `http://localhost:8000/`,
+the same address as the original Mac launcher for access to saved games and input
+profiles. Choose **DKM → Load ROM**, select your USA v1.0 ROM, then choose
+**DKM → Start Game**. Keep Terminal open while playing. Press **Control-C** there
+to stop the server.
+
 ## Local build
 
 The current bootstrap targets Apple Silicon macOS. Build tools are allowed;

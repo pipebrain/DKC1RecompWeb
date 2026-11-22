@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import errno
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import subprocess
+import sys
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1] / 'web'
@@ -47,12 +50,29 @@ class Server(ThreadingHTTPServer):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument('--open-chrome', action='store_true', help='Open the player in Google Chrome on macOS.')
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error('--port must be between 1 and 65535')
-    with Server(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT))) as server:
-        print(f'Open http://127.0.0.1:{args.port}/ in Chrome. Ctrl-C stops the server.', flush=True)
+    if args.open_chrome and not (ROOT / 'dkc.wasm').is_file():
+        sys.exit('Missing web/dkc.wasm. Follow the Local build steps in README.md, then run Play.command again.')
+    try:
+        server = Server(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT)))
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE:
+            sys.exit(f'Port {args.port} is in use. Stop the server using it and try again, or choose another port with --port.')
+        raise
+    with server:
+        # Match the original Mac launcher's origin for saved games and input profiles.
+        host = 'localhost' if args.open_chrome else '127.0.0.1'
+        url = f'http://{host}:{args.port}/'
+        print(f'Open {url} in Chrome. Ctrl-C stops the server.', flush=True)
         try:
+            if args.open_chrome:
+                try:
+                    subprocess.run(['open', '-a', 'Google Chrome', url], check=True)
+                except (OSError, subprocess.CalledProcessError):
+                    print(f'Open {url} manually to start playing.', file=sys.stderr, flush=True)
             server.serve_forever()
         except KeyboardInterrupt:
             pass

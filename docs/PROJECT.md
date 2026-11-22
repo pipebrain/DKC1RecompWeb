@@ -352,6 +352,12 @@ WebGPU output matched native at every source pixel center on all four frames.
 The standalone core accepts the v1 SRAM and controller profile. See the
 [route hashes and verification procedure](VALIDATION.md#phase-2-stock-v0017).
 
+For manual Mac testing, the root [Play.command](../Play.command) launches the
+built player through the project's loopback server. It opens Chrome at the
+original Mac launcher's `http://localhost:8000/` origin. A Chrome run against
+that launcher URL matched the release-native 600-frame boot on all seven
+fingerprints and passed the audio, SRAM and pause/resume checks.
+
 ## Remaining validation
 
 - Full-game and long-duration timing/audio coverage.
