@@ -145,14 +145,14 @@ python3 scripts/pages_archive.py create --package build/pages \
 The archive is supplied as a release asset to a manual Pages workflow; ROMs,
 saves, generated C, and compiled Wasm remain out of Git. Browser files and Wasm
 are publicly served by Pages. A paired controller or hardware keyboard is
-needed for mobile gameplay. The public test site serves the Phase 2 preview.
+needed for mobile gameplay. The public test site serves the clean v1.1.0 preview.
 The earlier v1 mobile build passed user testing. See [Pages testing instructions](docs/PAGES.md#test-on-a-phone-or-tablet) for the new controller and configuration checks.
 The private repository's account plan does not support Pages for it. The user
 chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
 as the separate public deployment repository, preserving source/history privacy.
 
 To verify a deployment, use the checker and package manifest from the revision
-that produced it. For the public Phase 2 preview, use the private Phase 2 snapshot:
+that produced it. For the clean v1.1.0 preview:
 
 ```sh
 node scripts/browser_check.mjs --url https://pipebrain.github.io/DKC1RecompWeb-Pages/ \

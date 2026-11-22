@@ -401,9 +401,9 @@ native widescreen and display settings, the Dixie build, a local MSU-1 music
 pack reader, macOS HD preview materials and local diagnostics. Desktop Chrome retained the configuration and slot after a
 complete quit and relaunch. The final stock build passed the 8,070-frame Jungle
 comparison and the Candy save/continue route. The official HD pack matched the
-native compositor at Jungle entry. The separate [public mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
-now serves this Phase 2 preview. V1 remains the last user-accepted mobile
-baseline. [Deployment and device test steps](PAGES.md)
+native compositor at Jungle entry. The separate public site hosted this Phase 2
+preview before the clean v1.1.0 deployment. V1 remains the last user-accepted
+mobile baseline. [Deployment and device test steps](PAGES.md)
 [Checks and current limits](VALIDATION.md#phase-2-player-settings)
 
 ## Remaining validation
@@ -434,7 +434,6 @@ The approved scope for browser version **v1.1.0** uses the pinned stock DKC1Reco
 v0.0.17 core. The v1.0.0 player defines the experience. The private Phase 2
 branch is preserved at [41a969f](https://github.com/pipebrain/DKC1RecompWeb/commit/41a969f4de1cc48a728873f77e22a86fdfdc465b).
 The clean build starts from that commit on `codex/phase-3-clean-v1.1.0`.
-The public mobile preview continues to serve Phase 2.
 
 1. Package one stock core, original graphics and soundtrack, original game
    timing, and a centered 4:3 image. Keep the v1 menus, fullscreen, pause
@@ -469,8 +468,10 @@ The user reported every test they ran passed except rumble. On their Bluetooth
 pulse, but the user felt nothing. Replaying the same enemy stomp with the
 new Standard pulse (140 ms, 80% strong and 100% weak) produced vibration
 the user could feel. Config → Devices retains the original pulse as Light.
-The public preview serves Phase 2. Android and iOS device-specific rumble
-results for the clean build are unrecorded.
+The [public mobile preview](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
+now serves the clean build from private commit `d6adeae`, including the
+rumble fix. The next check is physical Android and iOS gameplay, controller
+reconnection, and stomp rumble on devices that expose it. [Deployment](PAGES.md)
 [Clean candidate verification](VALIDATION.md#phase-3-clean-v110-candidate)
 
 ### Phase 4 · independent WebGPU renderer

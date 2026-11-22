@@ -17,15 +17,21 @@ Its commits use the GitHub no-reply identity. The private source repository's
 visibility was not changed.
 
 The [mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/) serves the
-**Phase 2 preview** as of November 22, 2026, at the same address as v1.
-[Preview release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-phase2-1a3d6518c669) ·
-[Deployment run](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45024302063)
+**clean v1.1.0 testing preview**, built from private Phase 3 commit
+`d6adeae2ee325c15fb150c7e9e349be8985ddab4`. It uses the same URL as the
+previous previews. [Preview release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-v1.1.0-preview-16443759c66d) ·
+[Deployment run](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45073717643)
 
-The release archive contains 43 files and has SHA-256
+| Clean preview | SHA-256 |
+| --- | --- |
+| Release archive, 37 files | `16443759c66d6c846c06bc42a8c846d529f0b34031127e223b731a1f1b4948fb` |
+| Pages manifest | `9b8fcdefc6231b4f3b5d8f5dc422b98247599b1e1665615378ccb8c7f2710a30` |
+| Stock Wasm | `3b15c52350846a2ebac4137113f3d3cad2d53cdeaa9496fdeb758a9e1b415f6d` |
+
+Physical Android and iOS testing of this preview is pending. The previous
+43-file archive remains available for rollback with SHA-256
 `1a3d6518c669539d5dc52bcdf98a685f246e43385c15d6e44ac49c264446ae4a`.
-The deployed manifest has SHA-256
-`56860a4dd6f7f1f98e7b0c768990bfbd07c56ba89d4c79c2510c239d16703cc0`.
-Physical Android and iOS results for this preview are pending.
+[Phase 2 release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-phase2-1a3d6518c669)
 
 GitHub initially rejected Pages for the private source repository on the
 account plan (HTTP 422). Public-repository Pages is available on that account,
@@ -47,10 +53,8 @@ python3 scripts/package_pages.py --out build/pages --verify
 For an exact tested build, also provide `--expected-wasm-sha256 HASH`.
 The Phase 3 packager writes a clean archive with one stock Wasm module, the
 browser host, icons, license notices, a checksum manifest and `.nojekyll`.
-The local verifier also accepts the exact v1.0.0 and Phase 2 archive layouts
-for rollback. The public site and its verifier are on the Phase 2 revision.
-Before a future Phase 3 deployment, update its verifier to accept the clean
-layout. ROMs and cartridge saves stay on the player's device.
+The local and public verifiers accept the exact clean, v1.0.0 and Phase 2
+archive layouts. ROMs and cartridge saves stay on the player's device.
 The launcher, controller-profile JSON, generated C, tools, and test evidence
 are excluded. The output stays under ignored `build/`; the Wasm stays out of Git.
 
@@ -117,7 +121,11 @@ remains unrecorded.
 5. Use **Config → Save Config** to download your settings. Change a binding or sound
    setting, use **Load Config** to restore it, then close and reopen the page.
    Check that the setting, input source and controller profile are restored.
-6. Record device, OS, browser and controller connection when reporting results.
+6. Under **Config → Devices**, select the player and choose **Test rumble**.
+   Compare **Standard** and **Light (original)** on an enemy stomp. Check
+   that an ordinary jump stays quiet. Note the displayed status if the browser
+   exposes no rumble output.
+7. Record device, OS, browser and controller connection when reporting results.
    Rotation, app switching, reconnecting the controller and rumble on supported
    devices are useful physical-device checks.
 

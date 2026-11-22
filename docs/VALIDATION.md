@@ -1,10 +1,27 @@
 # Browser verification
 
+## Clean v1.1.0 live Pages preview
+
+After the [Pages deployment](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45073717643),
+desktop Chrome loaded the canonical HTTPS URL. The manifest and all 36
+listed assets matched the approved package before and after play. Boot at
+frame 600 matched all seven native fingerprints. SRAM import/export and
+reload, audio, and pause/resume passed. The local report is
+`build/browser-check/2026-11-22T21-44-41-161Z-27621/evidence.json`.
+
+At 390 × 844, desktop Chrome exercised the compact menu with an injected
+SN30 Pro+ profile, including a raw button and diagonal D-pad hat. The same
+Jungle stomp requested 140 ms on Standard, 55 ms on Light, and no pulse
+when disabled. Test rumble requested 500 ms. Config export, import and
+reopening the hosted page preserved volume, Player 2 routing and Light.
+The local report is
+`build/phase3-pages-live-compact/2026-11-22T21-44-39-538Z-27589/evidence.json`.
+Physical Android and iOS results for this candidate are pending.
+
 ## Phase 3 clean v1.1.0 candidate
 
-Desktop checks use the locally built stock Wasm, the verified USA v1.0 ROM
-and a temporary Chrome profile. The public Pages preview is a separate
-Phase 2 artifact.
+Local desktop checks use the stock Wasm, the verified USA v1.0 ROM
+and a temporary Chrome profile.
 
 - Chrome matched all seven native fingerprints at frame 600 (boot), 5,100
   (title), 7,450 (Jungle entry) and 8,070 (Jungle gameplay). At Candy's,
