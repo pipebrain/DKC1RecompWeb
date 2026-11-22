@@ -27,7 +27,7 @@ and its live-gameplay checkpoint. [Recorded results](VALIDATION.md#phase-2-stock
 
 ## Player features and acceptance
 
-The Phase 2 branch now implements the player settings and the native features in this table. The [settings inventory](SETTINGS.md) lists defaults, menu locations and browser-specific behavior. The evidence column below defines the acceptance work for full parity. See [current checks](VALIDATION.md#phase-2-player-settings) for the exercised subset.
+The archived Phase 2 branch implements the player settings and the native features in this table. The [Phase 2 settings inventory](https://github.com/pipebrain/DKC1RecompWeb/blob/41a969f4de1cc48a728873f77e22a86fdfdc465b/docs/SETTINGS.md) lists defaults, menu locations and browser-specific behavior. The evidence column defines the acceptance work for full parity. See [Phase 2 checks](VALIDATION.md#phase-2-player-settings) for the exercised subset.
 
 | Area | Browser work | Evidence required |
 | --- | --- | --- |

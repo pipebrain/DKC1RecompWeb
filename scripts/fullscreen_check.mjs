@@ -140,33 +140,6 @@ try{
   assert.equal(report.after.canvasFocused,true,'Keyboard focus must return to the game after fullscreen exit.');
   assert.equal(report.after.navigationSeparate,true,'Navigation must remain separate after fullscreen exit.');assert.equal(report.after.removedRegions,0);
   if(rom){assert.equal(report.after.frameCount,600);report.finalSourceHash=await evaluate('window.dkcDebug.frameHash()');assert.deepEqual(report.finalSourceHash,report.sourceHash);}
-  // Change source geometry from each real Config menu. Work through the
-  // compact menu as well, then check windowed and fullscreen containment.
-  report.videoModes=[];
-  for(const [width,height] of [[440,680],[1200,780]]){
-    await client.send('Emulation.setDeviceMetricsOverride',{width,height,screenWidth:width,screenHeight:height,deviceScaleFactor:1,mobile:false});
-    for(const [aspect,pixels] of [['16:9',342],['16:10',308],['4:3',256]]){
-      await openVideo();
-      await selectVideo('aspect',aspect);
-      const pixelAspect=width===440?'square':'snes';
-      await selectVideo('pixelAspect',pixelAspect);
-      const ratio=pixels/224*(pixelAspect==='square'?1:7/6);
-      const checkRatio=()=>poll(()=>evaluate(`window.__lastGameViewport && Math.abs(window.__lastGameViewport[2]/window.__lastGameViewport[3]-${ratio})<.00001`),'wide framebuffer aspect');
-      await checkRatio();
-      const windowed=await evaluate(geometry);
-      await enterFullscreen();await checkRatio();
-      const full=await evaluate(geometry);
-      const [x,y,w,h]=full.gpuViewport;
-      assert(Math.abs(x-(full.buffer.width-w)/2)<.02 && Math.abs(y-(full.buffer.height-h)/2)<.02);
-      assert(x>=-.01 && y>=-.01 && x+w<=full.buffer.width+.01 && y+h<=full.buffer.height+.01);
-      assert(Math.abs(w-full.buffer.width)<.02 || Math.abs(h-full.buffer.height)<.02);
-      assert.equal(full.fullscreenHasNavigation,false);
-      assert.equal(full.navigationSeparate,true);
-      if(rom)assert.equal(full.frameCount,600);
-      report.videoModes.push({width,height,aspect,pixelAspect,windowed:windowed.gpuViewport,fullscreen:full.gpuViewport});
-      await leaveFullscreen();
-    }
-  }
   if(rom){
     await openVideo();await selectVideo('fullscreenOnStart',true);
     await evaluate("document.querySelector('#settings-done').click()");

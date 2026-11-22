@@ -5,7 +5,7 @@ by a handwritten JavaScript host using WebGPU. Donkey Kong Land integration is
 a later phase. Read [the project brief](docs/PROJECT.md) for decisions and
 verified status. The accepted browser baseline is tagged
 [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0).
-The [Phase 2 plan](docs/RELEASE_PARITY.md) targets DKC1Recomp v0.0.17.
+The [private Phase 2 snapshot](https://github.com/pipebrain/DKC1RecompWeb/commit/41a969f4de1cc48a728873f77e22a86fdfdc465b) preserves the feature-parity build. This branch targets **v1.1.0**, a clean browser player using the stock DKC1Recomp v0.0.17 game, original soundtrack and 4:3 presentation.
 
 Repository: [pipebrain/DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb)
 (private). This standalone repository preserves the original
@@ -59,10 +59,7 @@ Node and Binaryen build tools into ignored `.local/`; it obtains the pinned
 Emscripten source there. Node is used for compilation and test automation,
 not by the deployed browser application. Generation logs are under
 `build/DKC1Recomp-v0.0.17/logs/` and Wasm build logs are under
-`build/phase2-wasm/logs/` and `build/phase2-wasm-dixie/logs/`. The default
-build installs both private modules, `web/dkc.wasm` and `web/dkc-dixie.wasm`.
-To rebuild just one core, pass `--variant stock` or `--variant dixie` to the
-build script. Both use the same verified clean ROM.
+`build/phase2-wasm/logs/`. The build installs one stock module at `web/dkc.wasm`.
 
 The Python server serves only `web/` on localhost. The source folder, ROM,
 private generated C, and native evidence are outside its document root.
@@ -79,12 +76,12 @@ Y/run/roll, **Enter** to Start, and **Shift** to Select. **A**, **S**, **Q**,
 and **W** map to A, X, L, and R. Open **Config → Input** to change keyboard
 bindings with **Set key** and **Clear**, then **Save**. **Discard** returns to
 the saved mapping; **Restore defaults** prepares the original keys for saving.
-The menu shows Keyboard (default), Keyboard (custom), or Gamepad as appropriate.
-Choose **Gamepad** as the input device to activate controller mappings. Keep
+Select **Player 1** or **Player 2** to assign a keyboard, a gamepad, or both
+to that SNES port. Player 2 starts disabled. Keep
 the original standard mapping or create a custom button/axis/hat profile.
 Controller profiles can be saved locally, exported, and loaded from JSON. See the
 [controller guide](docs/CONTROLLERS.md) for setup and validation limits.
-Switching tabs or losing focus pauses the game. A screen overlay shows
+Switching tabs or losing focus pauses the game by default. A screen overlay shows
 **Paused**, the active input source, and the saved Start binding to resume.
 
 With the game screen focused, press the selected input's mapped **Start**
@@ -101,7 +98,7 @@ or empty-state controls. A static monochrome DK coin precedes the ZSNES-inspired
 **DKM**, **Config**, **Cheat**, **NetPlay**, and **Misc** groups. **Config** hosts
 Input, Devices, Options, Video, Sound, Paths, Saves, Speed, Load Config and Save Config. The separate Input,
 Devices, and Options menu items select three tabs in one shared settings page.
-Paths manages the remembered ROM and locally supplied HD and music packs. The [settings inventory](docs/SETTINGS.md) covers defaults, native feature ports and the contents of portable configuration files. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
+Paths manages the remembered ROM. The [settings inventory](docs/SETTINGS.md) covers defaults, both input ports, stomp rumble and portable configurations. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
 **Misc → Help** opens keyboard controls separately from Config. Menus also support keyboard navigation,
 with **⌘O** for Load ROM and **⌘,** for Config on Mac.
 The interface follows [the design brief](docs/UI_DESIGN.md) with automatic
@@ -121,6 +118,11 @@ open the same address in the same profile, choose **DKM → Start Game** and sel
 that file in the game. Use **DKM → Export Save** to keep a backup. **Load Save** accepts a 2,048-byte SRAM
 file; choose **Reload Game** to let the game read the imported files. Storage is tied
 to the browser profile and the exact local origin, including port number.
+
+For a snapshot of the current frame, choose one of five slots under **Config → Saves**
+and use **Save State** or **Load State**. Stock Phase 2 slots carry over on the
+same origin. **Config → Input → Save-state shortcuts** lets you bind a key or
+gamepad input to either command.
 
 **DKM → Reload Game** returns the already selected ROM to a fresh, paused boot
 without another file picker. It preserves cartridge SRAM and controller
@@ -149,7 +151,8 @@ The private repository's account plan does not support Pages for it. The user
 chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
 as the separate public deployment repository, preserving source/history privacy.
 
-To verify a published site (with a ROM still selected locally in Chrome):
+To verify a deployment, use the checker and package manifest from the revision
+that produced it. For the public Phase 2 preview, use the private Phase 2 snapshot:
 
 ```sh
 node scripts/browser_check.mjs --url https://pipebrain.github.io/DKC1RecompWeb-Pages/ \
@@ -177,7 +180,8 @@ replay() {
     --rom "$rom" --frames "$frames" "$@" --native-reference "$evidence/comparison.json"
 }
 replay boot 600 && replay title 5100 && \
-  replay jungle 8070 --input tests/fixtures/jungle-route.inputs
+  replay jungle 8070 --input tests/fixtures/jungle-route.inputs && \
+  replay two-player 9376 --input tests/fixtures/two-player-contest.inputs
 ```
 
 The native runner defaults to three independent replays. The browser runner

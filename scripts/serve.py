@@ -27,6 +27,7 @@ class Handler(SimpleHTTPRequestHandler):
         path = (ROOT / relative).resolve()
         if (not path.is_relative_to(ROOT) or
                 any(part.startswith('.') for part in Path(relative).parts) or
+                (path.suffix.lower() == '.wasm' and path != ROOT / 'dkc.wasm') or
                 path.suffix.lower() in {'.smc', '.sfc', '.sav', '.srm'}):
             self.send_error(404)
             return None

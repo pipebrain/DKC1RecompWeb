@@ -1,5 +1,59 @@
 # Browser verification
 
+## Phase 3 clean v1.1.0 candidate
+
+Desktop checks use the locally built stock Wasm, the verified USA v1.0 ROM
+and a temporary Chrome profile. The public Pages preview is a separate
+Phase 2 artifact.
+
+- Chrome matched all seven native fingerprints at frame 600 (boot), 5,100
+  (title), 7,450 (Jungle entry) and 8,070 (Jungle gameplay). At Candy's,
+  the clean build produced byte-identical SRAM. After a full Chrome restart,
+  the remembered ROM reopened and continuing the saved file matched native.
+- Chrome loaded Phase 2 settings and exported a clean config with both player
+  assignments, supported bindings, volume, rumble and slot selection.
+  Config recovery tests exercised a partial write and an interrupted import.
+- Saving to slot 4 at frame 600, quitting Chrome, and launching a second
+  process restored the remembered ROM, preferences and snapshot. The immediate
+  frame hash was `a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd`.
+  Both continuations reached `07e1af55727403d49be41056356242fffe1af477a72494648f6aedb292fcc492`
+  at frame 645.
+- The clean core restored stock states written by the Phase 2 module at
+  frames 600, 5,100 and 7,450. All seven native fingerprints matched both
+  immediately and 60 game ticks later. States saved at 308- and 342-pixel
+  widths restored their center 256 pixels and then matched the stock
+  continuation. Invalid snapshot lengths were rejected before applying the
+  saved game.
+- Chrome exercised simultaneous keyboard/gamepad input on two ports, two
+  controllers reporting the same ID, disconnect/reconnect with a direction
+  held, and raw eight-way hat diagonals. Those tests inject Gamepad API
+  fixtures. Android and iOS Bluetooth reconnection and physical rumble
+  remain device acceptance checks.
+- With Player 1 disabled and Player 2 assigned keyboard and gamepad, both
+  Player 2's mapped Space and controller Start resumed the game. The resume
+  press was consumed until release. The next press delivered Start on port 2
+  alone (`0x8000`).
+- A Jungle enemy stomp at frame 7,579 produced a 55 ms pulse request on
+  the assigned test controller. Replaying the same stomp with rumble off
+  produced none. A stationary jump through takeoff and landing in the
+  stock core produced no stomp event.
+- The 9,376-frame [Two Player Contest route](../tests/fixtures/two-player-contest.inputs)
+  selects the mode, plays until Player 1 loses a life, then enters Jungle
+  Hijinxs using Player 2's Start. Player 2's Right moves DK from world X
+  156 to 192. Replaying that final input on port 1 leaves him at 156.
+  Chrome matched the native route across all seven fingerprints.
+
+To repeat the config checks or restore a snapshot written by the archived
+Phase 2 stock core, use the pinned Node executable. For the cross-build
+check, point the final argument at an extracted Phase 2 runtime package.
+
+```sh
+node=.local/tools/node-v22.16.0-darwin-arm64/bin/node
+"$node" --test tests/*.test.mjs
+"$node" scripts/ui_check.mjs --config --rom '/absolute/path/to/your/dkc1.smc'
+"$node" scripts/check_state.mjs '/absolute/path/to/your/dkc1.smc' --phase2-package /absolute/path/to/phase2-package
+```
+
 ## Phase 2 live Pages preview
 
 The [public Phase 2 test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
@@ -18,6 +72,9 @@ reload. Compact-menu evidence is in
 Android and iOS Bluetooth input and physical rumble still need device testing.
 
 ## Phase 2 player settings
+
+Use the [Phase 2 checkout](https://github.com/pipebrain/DKC1RecompWeb/tree/41a969f4de1cc48a728873f77e22a86fdfdc465b)
+to reproduce the historical settings and optional-feature checks below.
 
 The config suite runs the production app in a fresh Chrome profile. Supply the
 same verified ROM used for the build.

@@ -35,7 +35,7 @@ source beside the menu command. The keyboard profile can be edited with Set
 key/Clear and saved, discarded, or restored to defaults. Selecting Gamepad
 activates the existing controller editor and its separate stored profiles.
 Other settings pages do not display this tab strip. The user confirmed that
-unavailable features should remain visible but disabled. Config → Paths manages the remembered ROM and imported material and music packs.
+unavailable menu groups should remain visible but disabled. Config → Paths manages the remembered ROM.
 Config → Load Config and Save Config transfer the origin’s player and input settings.
 The [player settings inventory](SETTINGS.md) lists controls and defaults for each
 sheet. File pickers and validation messages belong to the initiating command.
@@ -92,7 +92,7 @@ Space as a fallback when Start is unassigned or the controller is unavailable
 or incompatible. Fatal errors show Game stopped with browser reload guidance.
 This indicates host pause; DKC's internal Start pause leaves the host running.
 
-The selected input's mapped Start is also a quick start/resume shortcut when
+Either active player's mapped Start is also a quick start/resume shortcut when
 the foreground game screen has focus. Consume that press through release so
 it cannot also activate SNES Start. During play, later Start presses go to DKC
 normally. Menus, dialogs, capture, unsaved drafts, loading, and errors block

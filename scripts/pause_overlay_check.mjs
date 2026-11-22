@@ -135,6 +135,22 @@ try{
   await viewport(1440,900,'dark');await evaluate('document.querySelector(".screen-wrap").requestFullscreen()');await poll(()=>evaluate('document.fullscreenElement?.classList.contains("screen-wrap")'),'screen-only fullscreen');for(const [width,height] of [[1440,900],[390,844],[844,390]]){await viewport(width,height,'dark');await focus();await shown(/paused/i);await bounds(`fullscreen-${width}x${height}`);}await evaluate('document.exitFullscreen()');await settle();
   report.checks.push('Compact DKM state toggles, native 600-frame oracle, four responsive paused layouts, and three screen-only fullscreen layouts pass; overlays contain no controls and keep one navigation.');
 
+  // The original game still receives a separate Start bit for each SNES port.
+  const p2Start=8<<12;
+  await pad([]);await input();await setValue('#input-source','none');await settle();
+  await setValue('#input-player',1);await settle();await setValue('#input-source','both');await settle();
+  await click('[data-keyboard-learn="start"]');await press('Space');await click('#keyboard-save');await done();
+  visible=await shown(/paused/i);assert.match(visible.input,/Player 2/);assert.match(visible.hint,/Space/);assert.match(visible.hint,/B9/);
+  await resetRecords();await key('down','Space');await poll(async()=>(await state()).running,'Player 2 mapped Space resumes');
+  assert.equal(await resumeCount(),1);assert(!await evaluate('window.__pauseTest.inputs.some(mask=>mask&0x8008)'));
+  await key('up','Space');await key('down','Space');await inputBits(p2Start,'second Space reaches port 2 Start only');
+  assert((await state()).running);await key('up','Space');await inputBits(0,'release Player 2 keyboard Start');
+  await evaluate('dkcDebug.pause()');await focus();await resetRecords();await freshStart();
+  assert.equal(await resumeCount(),1);assert(!await evaluate('window.__pauseTest.inputs.some(mask=>mask&0x8008)'));
+  await pad([]);await pad([9]);await inputBits(p2Start,'second pad Start reaches port 2 only');
+  await pad([]);await inputBits(0,'release Player 2 gamepad Start');await evaluate('dkcDebug.pause()');await focus();
+  report.checks.push('With Player 1 disabled, the overlay shows Player 2’s assigned Space and controller B9. Each can resume once, consumes that press, and sends the next Start exclusively to SNES port 2.');
+
   await viewport(1440,900,'light');await evaluate('window.__pauseTest.deliver({type:"error",error:"Controlled pause-overlay error fixture"})');await settle();await labels('Resume Game',{disabled:true});visible=await shown(/stopped|error/i);assert.doesNotMatch(visible.hint,/press.*(?:B11|Return).*resume/i);report.errorFixture='Controlled worker error message drives UI error presentation; no watchdog or actual core failure induced.';await client.send('Page.reload',{ignoreCache:true});await poll(()=>evaluate('Boolean(window.dkcDebug)&&document.querySelector("#status").textContent.startsWith("Ready")'),'page reload after controlled error');const restored=await state();
   assert(restored.loaded&&!restored.loading&&!restored.running&&!restored.hasStarted&&!restored.playbackError);
   await shown(/ready|start/i);await labels('Start Game');

@@ -1,0 +1,32 @@
+# 9,376 frames from a fresh boot, using only stock controller inputs.
+# Each mask packs Player 2 into bits 12–23 and Player 1 into bits 0–11.
+# Choose a fresh slot, press Down for Two player contest and confirm.
+000000 * 5168
+000008 * 6
+000000 * 120
+000008 * 6
+000000 * 70
+000020 * 4
+000000 * 46
+000008 * 6
+000000 * 25
+000008 * 6
+000000 * 99
+000008 * 6
+000000 * 120
+000008 * 6
+000000 * 1525
+000008 * 8
+000000 * 111
+# P1 walks right into the first enemy, loses a life and yields to P2.
+000080 * 1168
+000000 * 60
+# P2 uses Start to enter Kongo Jungle and Jungle Hijinxs.
+008000 * 4
+000000 * 76
+008000 * 4
+000000 * 76
+008000 * 4
+000000 * 627
+# P2 walks from world X=156 to X=192. The same input on P1 leaves X=156.
+080000 * 25

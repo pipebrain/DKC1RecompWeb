@@ -1,11 +1,11 @@
-import {ACTIONS,DEFAULT_PROFILE,createProfile,validateProfile,parseProfile,serializeProfile,evaluateProfile,bindingLabel,detectBinding,bindingPressed,acceptsSource,CONTROLLER_STORAGE_KEY,defaultControllerSettings,validateControllerSettings} from './gamepad-profiles.js';
+import {ACTIONS,DEFAULT_PROFILE,createProfile,validateProfile,parseProfile,serializeProfile,evaluateProfile,bindingLabel,detectBinding,bindingPressed,acceptsSource,CONTROLLER_STORAGE_KEY,LEGACY_CONTROLLER_KEY,defaultControllerSettings,validateControllerSettings} from './gamepad-profiles.js';
 
 const clone=value=>JSON.parse(JSON.stringify(value));
 const $=id=>document.getElementById(id);
 const baseDeviceKey=pad=>`${pad.id}\u001f${pad.mapping||''}\u001f${pad.buttons.length}:${pad.axes.length}`;
 const snapshot=pad=>pad?{id:pad.id,index:pad.index,mapping:pad.mapping||'',connected:pad.connected!==false,buttons:Array.from(pad.buttons,b=>typeof b==='number'?b:{pressed:Boolean(b.pressed),value:Number(b.value)||0}),axes:Array.from(pad.axes,Number)}:null;
 
-export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>'keyboard',assistEnabled=()=>false}={}) {
+export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>'keyboard'}={}) {
   const panel=$('controller-panel'),message=$('controller-message'),deviceSelect=$('controller-device'),profileSelect=$('controller-profile');
   let settings=defaultControllerSettings(),storedVersion=null,storageAvailable=true,pads=[],selectedKey=null,player=0;
   const deviceSlots=new Map();
@@ -24,8 +24,9 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     catch(error){storageAvailable=false;throw new Error(`Controller profile was not saved: ${error.message}`);}
   }
   try{
-    const raw=storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);
-    if(raw){
+    storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);
+    const raw=storedVersion??localStorage.getItem(LEGACY_CONTROLLER_KEY);
+    if(raw!==null){
       if(raw.length>1048576)throw new Error('Stored controller settings are too large.');
       settings=validateControllerSettings(JSON.parse(raw));
     }
@@ -136,8 +137,8 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     }
     const pad=selectedPad();
     heldAssist.clear();
-    if(assistEnabled())for(const [action,binding] of Object.entries(settings.assistBindings)){
-      if(binding&&pads.some(p=>bindingPressed(binding,p,0.3)))heldAssist.add(action);
+    for(const [action,binding] of Object.entries(settings.assistBindings)){
+      if(binding&&routed.some(p=>p&&bindingPressed(binding,p,0.3)))heldAssist.add(action);
     }
     if(assistCapture){
       const listening=assistCapture;
@@ -332,7 +333,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
   function inputState(n=0){
     const pad=routed[n];if(!pad)return {buttons:0,source:null};
     const active=profileFor(n,pad),zone=route(n).deadzone;
-    const consumed=Array.from(heldAssist,id=>settings.assistBindings[id]);
+    const consumed=Array.from(heldAssist,id=>settings.assistBindings[id]).filter(binding=>bindingPressed(binding,pad,0.3));
     return {buttons:evaluateProfile(active,pad,zone===null?active.deadzone:zone/100,consumed),source:`${deviceKey(pad)}:${pad.index}:${active.id}`};
   }
   resetEditor();updateRumble();
@@ -343,7 +344,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
       settings=validateControllerSettings(value);storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);storageAvailable=true;registerPads(pads);resetEditor();updateRumble();
     },
     setPlayer(n){if(!canClose())return false;player=n;resetEditor();return true;},
-    pulseStomp(){pulse(routed.find(Boolean)||pads[0]).catch(()=>{});},
+    pulseStomp(){pulse(routed.find(Boolean)).catch(()=>{});},
     assistBinding:id=>settings.assistBindings[id],clearAssist:id=>saveAssist(id,null),
     listenAssist(id,callback){
       const pad=selectedPad();if(!pad)throw new Error('Connect and select a controller first.');

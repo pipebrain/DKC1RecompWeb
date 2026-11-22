@@ -47,7 +47,7 @@ async function setValue(selector,value){await evaluate(`(()=>{const element=docu
 async function setFile(selector,path){const {root:document}=await client.send('DOM.getDocument');const {nodeId}=await client.send('DOM.querySelector',{nodeId:document.nodeId,selector});assert(nodeId,`Missing file picker ${selector}`);await client.send('DOM.setFileInputFiles',{nodeId,files:[path]});}
 async function loadRom(){await setFile('#rom-file',rom);await poll(async()=>{const value=await evaluate(`({loaded:window.dkcDebug.status().loaded,loading:window.dkcDebug.status().loading,error:document.querySelector('#status').classList.contains('error'),message:document.querySelector('#status').textContent})`);if(value.error&&!value.loading){const error=new Error(value.message);error.fatal=true;throw error;}return value.loaded&&!value.loading;},'ROM initialization',120000);}
 
-const sourceFiles=['web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/dk-coin.png'];
+const sourceFiles=['web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/worker.js','web/wasm-imports.js','web/dkc.wasm','web/About.md','web/Help.md','web/dk-coin.png'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
 async function keyboard(){return evaluate('window.dkcDebug.keyboard()');}
 async function expected(bits,label){await poll(()=>evaluate(`window.__keyboardTest.inputs.at(-1)===${bits}`),label);}
@@ -64,6 +64,43 @@ async function resume(){
   await menuCommand('dkm','start-game');
   await poll(()=>evaluate("window.dkcDebug.status().running && document.activeElement===document.getElementById('screen')"),'game running with keyboard focus');
 }
+async function checkStompHaptics(){
+  await menuCommand('dkm','reset-game');
+  await poll(()=>evaluate('window.dkcDebug.status().loaded&&!window.dkcDebug.status().loading&&window.dkcDebug.status().frameCount===0'),'fresh stock boot for stomp replay');
+  const route=await readFile(join(root,'tests/fixtures/jungle-entry.inputs'),'utf8');
+  const runs=route.split(/\r?\n/).map(line=>line.split('#')[0].trim()).filter(Boolean).map(line=>{
+    const [mask,frames]=line.split('*');return {buttons:parseInt(mask,16),count:Number(frames)};
+  });
+  // Walk for 85 frames, jump right for 25, and stop four ticks before the stock rebound at frame 7579.
+  runs.push({buttons:128,count:85},{buttons:129,count:25},{buttons:128,count:15});
+  const atFall=await evaluate(`window.dkcDebug.replayFingerprints(${JSON.stringify(runs)})`);
+  assert.equal(atFall.frameCount,7575);
+  await evaluate(`window.__keyboardTest.stompPulses=[];
+    window.__keyboardTest.pads[0].vibrationActuator={playEffect:(kind,params)=>{
+      window.__keyboardTest.stompPulses.push({kind,params});return Promise.resolve('complete');
+    }};`);
+  await menuCommand('config','saves');
+  await click('#app-settings [data-command="quick-save"]');
+  await poll(()=>evaluate('document.querySelector("#save-status").textContent==="Saved state to slot 1."'),'falling snapshot stored');
+  await done();
+  async function playToStomp(count){
+    await evaluate('document.querySelector("#screen").focus();window.__keyboardTest.pads[0].axes[0]=1');
+    await expected(128,'assigned controller holds right before the rebound');
+    await evaluate('window.dkcDebug.resume()');
+    await poll(()=>evaluate(`window.__keyboardTest.stomps===${count}`),'stock game reported a real enemy rebound');
+    await evaluate('window.__keyboardTest.pads[0].axes[0]=0;window.dkcDebug.pause()');
+  }
+  await playToStomp(1);
+  assert.deepEqual(await evaluate('window.__keyboardTest.stompPulses'),[
+    {kind:'dual-rumble',params:{startDelay:0,duration:55,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535}}
+  ]);
+  await menuCommand('config','devices');await click('#controller-rumble');await done();
+  await menuCommand('config','saves');await click('#app-settings [data-command="quick-load"]');
+  await poll(()=>evaluate('document.querySelector("#save-status").textContent==="Loaded state from slot 1."'),'falling snapshot restored');
+  await done();await playToStomp(2);
+  assert.equal(await evaluate('window.__keyboardTest.stompPulses.length'),1,'rumble-off must silence the second real stomp');
+  report.checks.push('Real stock Jungle gameplay rebounds from an enemy at frame 7579. The assigned simulated actuator receives the native pulse once. Restoring the same fall with rumble off produces another stomp and no motor request.');
+}
 async function layout(width,height,theme){await client.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await client.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme},{name:'prefers-reduced-motion',value:'reduce'}]});await client.send('Page.bringToFront');await delay(220);}
 try{
   if(!rom&&!visualOnly)throw new Error('Provide --rom with the verified local ROM.');
@@ -73,7 +110,7 @@ try{
   chrome=spawn(process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--remote-debugging-port=0',`--user-data-dir=${profile}`,'--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--window-size=1440,900','about:blank'],{cwd:root,stdio:['ignore','pipe','pipe']});log(chrome,'chrome.log');
   const endpoint=await poll(async()=>{const [p,path]=(await readFile(join(profile,'DevToolsActivePort'),'utf8')).trim().split('\n');return `ws://127.0.0.1:${p}${path}`;},'Chrome');client=new CDP(endpoint);await client.ready;report.browser=await client.send('Browser.getVersion',{},null);const target=await client.send('Target.createTarget',{url:'about:blank'},null);session=(await client.send('Target.attachToTarget',{targetId:target.targetId,flatten:true},null)).sessionId;
   client.on('Runtime.exceptionThrown',(data,id)=>{if(id===session)report.javascriptErrors.push(data.exceptionDetails);});client.on('Runtime.consoleAPICalled',(data,id)=>{if(id===session&&data.type==='error')report.consoleErrors.push(data.args.map(item=>item.value??item.description).join(' '));});await client.send('Page.enable');await client.send('Runtime.enable');await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});report.foregroundFocusEmulation=true;
-  await client.send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__keyboardTest={inputs:[],pads:[${JSON.stringify(rawPad)}]};Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>window.__keyboardTest.pads});const originalPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.type==='input')window.__keyboardTest.inputs.push(message.buttons);return originalPost.call(this,message,...args);};const originalFetch=window.fetch;window.fetch=function(input,options){const url=String(input?.url||input),variant=sessionStorage.getItem('__helpCase');if(url.endsWith('/Help.md')&&variant){if(variant==='missing')return Promise.resolve(new Response('Not found',{status:404}));if(variant==='empty')return Promise.resolve(new Response('   ',{status:200,headers:{'content-type':'text/markdown'}}));if(variant==='html')return Promise.resolve(new Response('<!doctype html><html><body>Fallback</body></html>',{status:200,headers:{'content-type':'text/html'}}));}return originalFetch.call(this,input,options);};`});
+  await client.send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__keyboardTest={inputs:[],snapshots:0,stomps:0,pads:[${JSON.stringify(rawPad)}]};Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>window.__keyboardTest.pads});const originalPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(!this.__testObserving){this.__testObserving=true;this.addEventListener('message',event=>{if(event.data?.type==='stomp')window.__keyboardTest.stomps++;});}if(message?.type==='input')window.__keyboardTest.inputs.push(message.buttons);if(message?.type==='snapshot')window.__keyboardTest.snapshots++;return originalPost.call(this,message,...args);};const originalFetch=window.fetch;window.fetch=function(input,options){const url=String(input?.url||input),variant=sessionStorage.getItem('__helpCase');if(url.endsWith('/Help.md')&&variant){if(variant==='missing')return Promise.resolve(new Response('Not found',{status:404}));if(variant==='empty')return Promise.resolve(new Response('   ',{status:200,headers:{'content-type':'text/markdown'}}));if(variant==='html')return Promise.resolve(new Response('<!doctype html><html><body>Fallback</body></html>',{status:200,headers:{'content-type':'text/html'}}));}return originalFetch.call(this,input,options);};`});
   await layout(1440,900,'light');await client.send('Page.navigate',{url:origin});await ready();await poll(()=>evaluate('window.dkcDebug.content().help'),'real Help Markdown loaded');
   if(visualOnly){
     for(const [width,height,theme] of [[1440,900,'light'],[390,844,'light'],[844,390,'dark']]){
@@ -92,7 +129,7 @@ try{
   const links=await evaluate('Array.from(document.querySelectorAll("#about-content a")).map(e=>e.href)');assert(links.some(url=>url==='https://github.com/elliotttate/DKC1Recomp'));assert(await evaluate('document.querySelector("#about-content h1")!==null&&document.querySelector("#help-content table")!==null'));assert(await evaluate('document.querySelector("#about-content").textContent.includes("WebAssembly")'));
   const safe=await evaluate(`(async()=>{const {renderMarkdown}=await import('./content-pages.js');const node=document.createElement('div');renderMarkdown(${JSON.stringify('# Safety\n\n<script>window.__markdownExecuted=1</script>\n\n[Bad](javascript:alert(1)) [Good](https://example.com)\n\n<img src=x onerror=window.__markdownExecuted=1>')},node);document.body.append(node);const result={executed:window.__markdownExecuted||null,scripts:node.querySelectorAll('script,img').length,links:[...node.querySelectorAll('a')].map(a=>({href:a.href,rel:a.rel,target:a.target})),text:node.textContent};node.remove();return result;})()`);assert.equal(safe.executed,null);assert.equal(safe.scripts,0);assert.equal(safe.links.length,1);assert.equal(safe.links[0].href,'https://example.com/');assert.match(safe.links[0].rel,/noopener/);report.markdownSafety=safe;
   report.checks.push('About/Help load actual editable Markdown; About uses the DK coin and upstream links; raw HTML and executable links stay inert.');
-  await loadRom();originalSram=await evaluate('window.dkcDebug.saveBytes()');const sentinel=[...originalSram];sentinel[2047]^=0x69;await evaluate(`window.dkcDebug.importSave(${JSON.stringify(sentinel)})`);await evaluate('window.dkcDebug.flushSaves()');const padStorage=await evaluate('localStorage.getItem("dkc.controller-settings.v1")');
+  await loadRom();originalSram=await evaluate('window.dkcDebug.saveBytes()');const sentinel=[...originalSram];sentinel[2047]^=0x69;await evaluate(`window.dkcDebug.importSave(${JSON.stringify(sentinel)})`);await evaluate('window.dkcDebug.flushSaves()');const padStorage=await evaluate('localStorage.getItem("dkc.controller-settings.v2")');
   await resume();await nativeKey('rawKeyDown','KeyZ');await expected(1,'default Z maps B at worker');await nativeKey('keyUp','KeyZ');await expected(0,'Z releases');
   await nativeKey('rawKeyDown','ShiftLeft',8);await expected(4,'left Shift maps Select');await nativeKey('rawKeyDown','ShiftRight',8);await nativeKey('keyUp','ShiftLeft',8);await expected(4,'right Shift keeps Select held');await nativeKey('keyUp','ShiftRight');await expected(0,'both Shifts release');
   await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1}');await delay(180);await expected(0,'held pad ignored while Keyboard selected');await input();assert.equal(await evaluate('window.dkcDebug.status().running'),false);assert.equal(await evaluate('document.querySelector("#keyboard-panel").hidden'),false);assert.equal(await evaluate('document.querySelector("#controller-panel").hidden'),true);
@@ -104,7 +141,7 @@ try{
   await click('[data-keyboard-learn="b"]');await press('Tab');assert.equal((await keyboard()).captureAction,'b');assert.match(await evaluate('document.querySelector("#keyboard-message").textContent'),/reserved/i);await press('Escape');assert.equal((await keyboard()).captureAction,null);assert.equal(await evaluate('document.querySelector("#app-settings").open'),true);
   await click('[data-keyboard-learn="b"]');await press('KeyX');assert.deepEqual((await keyboard()).draftBindings.b,['KeyV']);assert.match(await evaluate('document.querySelector("#keyboard-message").textContent'),/already assigned/i);await press('Escape');
   await click('[data-keyboard-clear="r"]');assert.deepEqual((await keyboard()).draftBindings.r,[]);await click('#keyboard-discard');assert.deepEqual((await keyboard()).draftBindings.r,['KeyW']);
-  await done();await client.send('Page.reload',{ignoreCache:true});await ready();assert.deepEqual((await keyboard()).bindings.b,['KeyV']);assert.equal((await keyboard()).mode,'keyboard');assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel);assert.equal(await evaluate('localStorage.getItem("dkc.controller-settings.v1")'),padStorage);
+  await done();await client.send('Page.reload',{ignoreCache:true});await ready();assert.deepEqual((await keyboard()).bindings.b,['KeyV']);assert.equal((await keyboard()).mode,'keyboard');assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel);assert.equal(await evaluate('localStorage.getItem("dkc.controller-settings.v2")'),padStorage);
   await input();await click('#keyboard-defaults');assert.equal((await keyboard()).dirty,true);await click('#keyboard-save');assert.equal((await keyboard()).isDefault,true);assert.deepEqual((await keyboard()).bindings.b,['KeyZ']);
   await click('[data-keyboard-learn="b"]');await press('Space');assert.deepEqual((await keyboard()).draftBindings.b,['Space']);await click('#keyboard-save');await done();await resume();await nativeKey('rawKeyDown','Space');await expected(1,'Space remapped Jump reaches worker without host pause');assert.equal(await evaluate('window.dkcDebug.status().running'),true);await nativeKey('keyUp','Space');await expected(0,'Space remap releases');await input();await click('#keyboard-defaults');await click('#keyboard-save');
   report.checks.push('Keyboard remap, Save/Discard/defaults, duplicate/reserved rejection, source/tab/close draft guards, and reload persistence pass without altering controller profiles or SRAM.');
@@ -116,21 +153,69 @@ try{
   await poll(()=>evaluate('document.querySelector("#controller-device").options.length===3'),'two identical devices receive distinct selectors');
   await setValue('#controller-device',await evaluate('document.querySelector("#controller-device").options[2].value'));
   await learn('b','KeyJ');await click('#keyboard-save');
+  await click('#assist-shortcuts summary');
+  await click('#assist-shortcut-rows .settings-row:first-child button:nth-child(3)');
+  const padButton=(index,button,down)=>evaluate(`window.__keyboardTest.pads[${index}].buttons[${button}]={pressed:${down},value:${down?1:0}}`);
+  await padButton(1,6,true);
+  await poll(()=>evaluate('document.querySelector("#assist-shortcut-status").textContent==="Controller shortcut saved."'),'capture Player 2 save-state button');
+  await padButton(1,6,false);
   await click('#settings-tab-devices');await setValue('#rumble-player',1);await poll(()=>evaluate('!document.querySelector("#controller-rumble-test").disabled'),'P2 vibration API available');
   await click('#controller-rumble-test');assert.equal(await evaluate('window.__keyboardTest.rumble.at(-1)?.params.duration'),55);
   await done();await resume();
   await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1};window.__keyboardTest.pads[1].buttons[1]={pressed:true,value:1}');
   await nativeKey('rawKeyDown','KeyX');await nativeKey('rawKeyDown','KeyJ');
   await expected(3|(257<<12),'two independent keyboard and pad routes combine into both SNES ports');
+  await evaluate('window.__keyboardTest.pads[1].connected=false');
+  await expected(3|(1<<12),'disconnect clears held Player 2 pad input and preserves keyboard and Player 1');
+  await evaluate('window.__keyboardTest.pads[1].connected=true');
+  await expected(3|(257<<12),'same model reconnects on the assigned port');
+
   await nativeKey('keyUp','KeyJ');await nativeKey('keyUp','KeyX');await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:false,value:0};window.__keyboardTest.pads[1].buttons[1]={pressed:false,value:0}');
   await expected(0,'both player ports release');
+  await evaluate('window.__keyboardTest.pads.push({...structuredClone(window.__keyboardTest.pads[0]),index:2})');
+  await padButton(2,6,true);
+  await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  assert.equal(await evaluate('window.__keyboardTest.snapshots'),0,'unassigned controller triggered a save');
+  await padButton(1,6,true);
+  await poll(()=>evaluate('window.__keyboardTest.snapshots===1'),'assigned controller saves once while unassigned controller holds the same button');
+  await padButton(1,6,false);await padButton(2,6,false);
+  report.checks.push('Disconnecting a held Player 2 pad clears only its input. After reconnection the assigned controller can save a state while an unassigned controller holding the same button is ignored.');
+
+  await checkStompHaptics();
   await input();await setValue('#input-source','none');await setValue('#input-player',0);await setValue('#input-source','keyboard');await done();
   report.checks.push('Player 1 and Player 2 accept simultaneous keyboard and gamepad input on independent SNES ports, including two controllers with identical IDs. Test rumble selects the requested player and sends the native 55 ms pulse to an injected actuator.');
+  const legacy=await evaluate(`(()=>{
+    const keys=JSON.parse(localStorage.getItem('dkc.keyboard-settings.v2'));
+    keys.version=1;keys.assistKeys['rewind-step']='Backspace';keys.assistKeys['fast-forward']='Tab';
+    const pads=JSON.parse(localStorage.getItem('dkc.controller-settings.v2'));
+    pads.assistBindings['fast-forward']={type:'button',index:7,threshold:0.5};
+    for(const [kind,value] of [['keyboard',keys],['controller',pads]]){
+      localStorage.setItem('dkc.'+kind+'-settings.v1',JSON.stringify(value));
+      localStorage.removeItem('dkc.'+kind+'-settings.v2');
+    }
+    return [JSON.stringify(keys),JSON.stringify(pads)];
+  })()`);
+  await reloadCase('');
+  await evaluate(`(()=>{
+    const create=URL.createObjectURL;
+    URL.createObjectURL=function(blob){
+      if(blob.type==='application/json')window.__keyboardTest.exported=blob.text();
+      return create.call(this,blob);
+    };
+  })()`);
+  await menuCommand('config','save-config');
+  const migrated=await poll(()=>evaluate('window.__keyboardTest.exported?.then(JSON.parse)'),'export migrated configuration');
+  assert.deepEqual(migrated.keyboard.player2.bindings.b,['KeyJ']);
+  assert.equal(migrated.controllers.assistBindings['quick-save'].index,6);
+  assert.deepEqual(Object.keys(migrated.keyboard.assistKeys).sort(),['quick-load','quick-save']);
+  assert.deepEqual(Object.keys(migrated.controllers.assistBindings).sort(),['quick-load','quick-save']);
+  assert.deepEqual(await evaluate('[localStorage.getItem("dkc.keyboard-settings.v1"),localStorage.getItem("dkc.controller-settings.v1")]'),legacy);
+  report.checks.push('Previous browser input records reopen with the two player assignments and save shortcut intact. Export drops retired shortcuts and the previous records stay available.');
   for(const [width,height,theme] of [[1440,900,'light'],[390,844,'light'],[844,390,'dark']]){
     await layout(width,height,theme);await input();await screenshot(`keyboard-${width}x${height}.png`);assert(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'));await done();await menuCommand('misc','about');await poll(()=>evaluate('document.querySelector("#about-dialog").open'),'About dialog');await screenshot(`about-${width}x${height}.png`);await click('#about-dialog [data-close-about]');await menuCommand('misc','keyboard');await poll(()=>evaluate('document.querySelector("#help-dialog").open'),'Help dialog');await screenshot(`help-${width}x${height}.png`);const rect=await evaluate('(()=>{const r=document.querySelector("#help-dialog").getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom};})()');assert(rect.x>=-1&&rect.y>=-1&&rect.right<=width+1&&rect.bottom<=height+1);await click('#help-dialog [data-close-help]');
   }
   for(const variant of ['missing','empty','html']){await reloadCase(variant);assert.equal(await evaluate('window.dkcDebug.content().help'),false);assert.equal(await evaluate('window.dkcDebug.content().about'),true);assert.equal(await evaluate('Array.from(document.querySelectorAll("[data-command=keyboard]")).every(button=>button.disabled)'),true);await menuCommand('misc','about');assert.equal(await evaluate('document.querySelector("#about-dialog").open'),true);await click('#about-dialog [data-close-about]');}
-  await evaluate('localStorage.setItem("dkc.keyboard-settings.v1","{invalid")');await reloadCase('');assert.equal((await keyboard()).mode,'keyboard');assert.equal((await keyboard()).isDefault,true);assert.equal((await keyboard()).storageAvailable,false);await input();assert.equal(await evaluate('document.querySelector("#keyboard-save").disabled'),false,'Corrupt fallback must allow saving repaired settings');await click('#keyboard-save');assert.equal((await keyboard()).storageAvailable,true);assert.equal(await evaluate('JSON.parse(localStorage.getItem("dkc.keyboard-settings.v1")).schema'),'dkc.keyboard-settings');await done();report.checks.push('Corrupt keyboard storage safely falls back to default keys and can be repaired with Save; Space can be remapped to a game action without pausing play.');
+  await evaluate('localStorage.setItem("dkc.keyboard-settings.v2","{invalid")');await reloadCase('');assert.equal((await keyboard()).mode,'keyboard');assert.equal((await keyboard()).isDefault,true);assert.equal((await keyboard()).storageAvailable,false);await input();assert.equal(await evaluate('document.querySelector("#keyboard-save").disabled'),false,'Corrupt fallback must allow saving repaired settings');await click('#keyboard-save');assert.equal((await keyboard()).storageAvailable,true);assert.equal(await evaluate('JSON.parse(localStorage.getItem("dkc.keyboard-settings.v2")).schema'),'dkc.keyboard-settings');await done();report.checks.push('Corrupt keyboard storage safely falls back to default keys and can be repaired with Save; Space can be remapped to a game action without pausing play.');
   await reloadCase('');assert.equal(await evaluate('window.dkcDebug.content().help'),true);assert.equal(await evaluate('Array.from(document.querySelectorAll("[data-command=keyboard]")).every(button=>!button.disabled)'),true);await evaluate(`window.dkcDebug.importSave(${JSON.stringify(originalSram)})`);await evaluate('window.dkcDebug.flushSaves()');originalSram=null;
   report.checks.push('Missing, empty, and HTML-fallback Help disables every Help command while About remains usable; restoring Markdown re-enables Help. Desktop/portrait/landscape content and keyboard UI fit.');
   }

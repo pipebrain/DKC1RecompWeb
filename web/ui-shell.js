@@ -236,8 +236,6 @@ export function initAppShell({
       else button.setAttribute('aria-pressed',String(sound));
       if(button.hasAttribute('data-sound-label'))changeLabel(button,sound?'Sound On':'Sound Off');
     }
-    for(const button of document.querySelectorAll('[data-needs-trace]'))button.disabled=!value.diagnostics||!loaded||loading;
-    for(const button of document.querySelectorAll('[data-needs-assist]'))button.disabled=!value.assist||!loaded||loading;
     const fullscreenAvailable=Boolean(value.fullscreenAvailable);
     for(const button of document.querySelectorAll('[data-fullscreen-label]')){
       changeLabel(button,document.fullscreenElement?'Exit Full Screen':'Enter Full Screen');

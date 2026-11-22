@@ -11,16 +11,18 @@ presses during play retain their normal in-game behavior. Quick resume is
 blocked while menus, dialogs, or input editing are active and while the page
 is unfocused. Release a held controller Start after reconnecting or changing
 focus/input source before pressing again. Keyboard quick resume uses its saved
-Start binding (Return by default) when Keyboard is selected.
+Start binding (Return by default) on a keyboard-enabled port.
 
-Keyboard is the initial input source. Select **Gamepad** in **Input device** to
-use the controller editor and activate its mapping. The source choice is saved
-between visits. Selecting Keyboard activates its saved key mapping instead;
-the game does not combine both sources.
+Player 1 starts on Keyboard and Player 2 starts disabled. Under **Config → Input**,
+choose a player, then choose **Keyboard**, **Gamepad**, **Keyboard and gamepad**
+or **Disabled**. Combined mode merges both sources on that player's SNES port.
+For two-player games, assign each player's device and select a two-player mode
+on the game's own menu. Both players' assignments persist between visits.
 
 Keyboard bindings are editable directly with **Set key** / **Clear**,
 **Save**, **Discard**, and **Restore defaults**. Their separate storage key is
-`dkc.keyboard-settings.v1`. Duplicate assignments and reserved host/navigation
+`dkc.keyboard-settings.v2`. On the first visit the clean player also reads
+existing v1 bindings. Duplicate assignments and reserved host/navigation
 keys are rejected. Existing gamepad profiles and SRAM are unchanged by keyboard
 edits. Keyboard defaults and instructions are in [Help.md](../web/Help.md).
 
@@ -63,7 +65,8 @@ those index ranges, not a recording from the user's hardware.
 6. Choose **Done**, then resume. Settings suppresses controller output
    while open; the live mapped-action preview still shows what is being bound.
 
-Profiles use a separate `dkc.controller-settings.v1` localStorage key. Cartridge
+Profiles use a separate `dkc.controller-settings.v2` localStorage key and read
+existing v1 settings on upgrade. Cartridge
 SRAM remains in its existing IndexedDB store. Profile changes do not overwrite
 game saves. Storage belongs to the browser and exact origin (including port);
 use export/import to move profiles between browsers or origins.

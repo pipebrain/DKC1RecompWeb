@@ -18,7 +18,6 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 1, 6))
-    parser.add_argument('--variant', choices=['stock', 'dixie', 'both'], default='both')
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error('--jobs must be positive')
@@ -29,23 +28,17 @@ def main() -> None:
     cmake = shutil.which('cmake')
     if not cmake or not shutil.which('ninja'):
         parser.error('CMake and Ninja must be on PATH.')
-    for variant in (['stock', 'dixie'] if args.variant == 'both' else [args.variant]):
-        build_variant(variant, args.jobs, cmake, emscripten, environment)
-
-
-def build_variant(variant, jobs, cmake, emscripten, environment):
-    dixie = variant == 'dixie'
-    build = ROOT / ('build/phase2-wasm-dixie' if dixie else 'build/phase2-wasm')
-    generated = UPSTREAM / 'generated' / ('snesrecomp_dixie' if dixie else 'snesrecomp')
+    build = ROOT / 'build/phase2-wasm'
+    generated = UPSTREAM / 'generated/snesrecomp'
     logs = build / 'logs'
     logs.mkdir(parents=True, exist_ok=True)
     steps = [
         [cmake, '-S', str(ROOT / 'cmake/wasm'), '-B', str(build), '-G', 'Ninja',
          '-DCMAKE_BUILD_TYPE=Release',
          f'-DDKC1_UPSTREAM_DIR={UPSTREAM}',
-         f'-DDKC1_GENERATED_DIR={generated}', f'-DDKC1_DIXIE={"ON" if dixie else "OFF"}',
+         f'-DDKC1_GENERATED_DIR={generated}',
          f'-DCMAKE_TOOLCHAIN_FILE={emscripten / "cmake/Modules/Platform/Emscripten.cmake"}'],
-        [cmake, '--build', str(build), '--target', 'dkc1_core', '--parallel', str(jobs)],
+        [cmake, '--build', str(build), '--target', 'dkc1_core', '--parallel', str(args.jobs)],
     ]
     for name, command in zip(['wasm-configure', 'wasm-build'], steps):
         print(f'{name}: {logs / (name + ".log")}', flush=True)
@@ -55,7 +48,7 @@ def build_variant(variant, jobs, cmake, emscripten, environment):
         if result.returncode:
             print('\n'.join((logs / (name + '.log')).read_text(errors='replace').splitlines()[-35:]))
             raise RuntimeError(f'{name} failed ({result.returncode}).')
-    wasm = ROOT / 'web' / ('dkc-dixie.wasm' if dixie else 'dkc.wasm')
+    wasm = ROOT / 'web/dkc.wasm'
     # Install only the completed link output. A failed rebuild leaves the
     # previous module available to a browser served from this checkout.
     with tempfile.TemporaryDirectory(dir=wasm.parent, prefix='.wasm-') as staging:

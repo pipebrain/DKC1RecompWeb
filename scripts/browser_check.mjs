@@ -54,10 +54,11 @@ if(options.input){
   const text=await readFile(options.input,'utf8');inputRuns=[];let totalFrames=0;
   for(const [index,raw] of text.split(/\r?\n/).entries()){
     const line=raw.replace(/#.*$|\/\/.*$/g,'').trim();if(!line)continue;
-    const match=/^(?:0x)?([0-9a-f]{1,3})(?:\s*\*\s*([0-9]+))?$/i.exec(line);
+    // Each SNES port occupies twelve bits of the native input word.
+    const match=/^(?:0x)?([0-9a-f]{1,6})(?:\s*\*\s*([0-9]+))?$/i.exec(line);
     if(!match)throw new Error(`Invalid input schedule at line ${index+1}: expected a hex mask or hex*decimal-count.`);
     const buttons=Number.parseInt(match[1],16),count=match[2]?Number(match[2]):1;
-    if(buttons>4095||!Number.isSafeInteger(count)||count<1||totalFrames+count>100000)throw new Error(`Invalid input mask or run length at line ${index+1}.`);
+    if(!Number.isSafeInteger(count)||count<1||totalFrames+count>100000)throw new Error(`Invalid run length at line ${index+1}.`);
     totalFrames+=count;
     const previous=inputRuns.at(-1);if(previous?.buttons===buttons)previous.count+=count;else inputRuns.push({buttons,count});
   }
@@ -73,7 +74,7 @@ const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game'
 let server=null,chrome=null,client=null,session=null,originalSave=null,origin=null,profile=null;
 let pagesManifest=null,pagesManifestBytes=null;
 const streams=[];
-const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/settings.js','web/assist.js','web/video-settings.js','web/video.wgsl','web/msu-player.js','web/music-pack.js','web/hd-pack.js','web/dkc-dixie.wasm','web/dkc.wasm'];
+const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/settings.js','web/assist.js','web/dkc.wasm'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
 
 function normalizeBaseUrl(value){

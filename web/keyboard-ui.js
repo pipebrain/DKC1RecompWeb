@@ -1,5 +1,5 @@
 import {ACTIONS} from './gamepad-profiles.js';
-import {KEYBOARD_STORAGE_KEY,DEFAULT_KEYBOARD_BINDINGS,defaultKeyboardSettings,parseKeyboardSettings,validateKeyboardSettings,
+import {KEYBOARD_STORAGE_KEY,LEGACY_KEYBOARD_KEY,DEFAULT_KEYBOARD_BINDINGS,defaultKeyboardSettings,parseKeyboardSettings,validateKeyboardSettings,
   validateKeyboardBindings,keyboardKeyMap,keyboardCodeLabel,keyboardEventCode,isDefaultKeyboardBindings} from './keyboard-profiles.js';
 
 const clone=value=>JSON.parse(JSON.stringify(value));
@@ -9,7 +9,11 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
   const elements=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
   for(const id of ids)if(!elements[id])throw new Error(`Missing keyboard settings element: ${id}.`);
   let settings=defaultKeyboardSettings(),storedVersion=null,storageAvailable=true,initialError=null;
-  try{const stored=storedVersion=localStorage.getItem(KEYBOARD_STORAGE_KEY);if(stored)settings=parseKeyboardSettings(stored);}
+  try{
+    storedVersion=localStorage.getItem(KEYBOARD_STORAGE_KEY);
+    const stored=storedVersion??localStorage.getItem(LEGACY_KEYBOARD_KEY);
+    if(stored!==null)settings=parseKeyboardSettings(stored);
+  }
   catch(error){storageAvailable=false;initialError=`Keyboard settings could not be loaded: ${error.message}`;}
   let player=0,dirty=false,captureAction=null,append=false;
   const port=(n=player)=>n===1?settings.player2:settings;

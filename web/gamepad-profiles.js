@@ -196,10 +196,10 @@ export function detectBinding(previous,current,{deadzone=0.35,mode='auto',hatDir
     threshold:Math.min(deadzone,Math.abs(value-rest)*0.6)};
 }
 
-export const CONTROLLER_STORAGE_KEY='dkc.controller-settings.v1';
+export const CONTROLLER_STORAGE_KEY='dkc.controller-settings.v2';
+export const LEGACY_CONTROLLER_KEY='dkc.controller-settings.v1';
 export const ASSIST_ACTIONS=Object.freeze({
-  'rewind-step':'Rewind', 'fast-forward':'Fast-forward', 'quick-save':'Quick Save',
-  'quick-load':'Quick Load', 'frame-step':'Advance one frame',
+  'quick-save':'Quick Save', 'quick-load':'Quick Load',
 });
 export const CAPTURE_MODES=['auto','button','axis','axis-value','hat'];
 export const acceptsSource=(mode,source)=>mode===source||mode==='both';
@@ -209,7 +209,7 @@ function defaultRoute(){
 }
 export function defaultControllerSettings(){
   return {...defaultRoute(),profiles:[],player2:defaultRoute(),captureMode:'auto',rumble:true,
-    assistBindings:{'rewind-step':{...button(6),threshold:30/255},'fast-forward':{...button(7),threshold:30/255},'quick-save':null,'quick-load':null,'frame-step':null}};
+    assistBindings:{'quick-save':null,'quick-load':null}};
 }
 function validateRoute(route,available){
   const {assignments,lastDevice,lastProfile='standard',deadzone=null}=route;
@@ -232,7 +232,7 @@ export function validateControllerSettings(value){
   const {player2=defaults.player2,captureMode=defaults.captureMode,rumble=defaults.rumble,assistBindings=defaults.assistBindings}=value;
   keys(player2,routeKeys,'player 2 controller');
   if(!CAPTURE_MODES.includes(captureMode)||typeof rumble!=='boolean')throw new Error('Invalid capture mode or rumble setting.');
-  keys(assistBindings,Object.keys(ASSIST_ACTIONS),'Assist controller bindings');
+  keys(assistBindings,[...Object.keys(ASSIST_ACTIONS),'rewind-step','fast-forward','frame-step'],'controller shortcuts');
   const validated=Object.fromEntries(Object.keys(ASSIST_ACTIONS).map(id=>[id,assistBindings[id]===null?null:validateBinding(assistBindings[id])]));
   const result={...validateRoute(value,available),profiles,player2:validateRoute(player2,available),captureMode,rumble,assistBindings:validated};
   if(JSON.stringify(result).length>1048576)throw new Error('Controller settings exceed the 1 MiB storage limit.');

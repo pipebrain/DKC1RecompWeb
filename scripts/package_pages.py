@@ -23,8 +23,7 @@ WEB_FILES = (
     'keyboard-profiles.js', 'audio-worklet.js', 'worker.js', 'wasm-imports.js',
     'dk-coin.png', 'favicon.ico', 'favicon.png', 'About.md', 'Help.md',
 )
-PHASE2_FILES = ('settings.js', 'video-settings.js', 'video.wgsl', 'assist.js',
-                'music-pack.js', 'msu-player.js', 'hd-pack.js', 'dkc-dixie.wasm')
+CLEAN_PLAYER_FILES = ('settings.js', 'assist.js')
 NOTICE_FILES = (
     'LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses/README.md',
     'licenses/snesrecomp-LICENSE.txt', 'licenses/snesrecomp-THIRD_PARTY_ATTRIBUTION.md',
@@ -35,7 +34,11 @@ NOTICE_FILES = (
     'licenses/compiler-rt-LICENSE.txt',
 )
 BASELINE_FILES = frozenset((*WEB_FILES, *NOTICE_FILES, 'dkc.wasm', '.nojekyll'))
-PACKAGE_FILES = BASELINE_FILES | frozenset(PHASE2_FILES)
+PACKAGE_FILES = BASELINE_FILES | frozenset(CLEAN_PLAYER_FILES)
+# Verify the exact file lists of past mobile previews for archive recovery.
+PHASE2_PACKAGE = PACKAGE_FILES | {'video-settings.js', 'video.wgsl', 'music-pack.js',
+                                 'msu-player.js', 'hd-pack.js', 'dkc-dixie.wasm'}
+APPROVED_PACKAGES = (BASELINE_FILES, PHASE2_PACKAGE, PACKAGE_FILES)
 PACKAGE_DIRS = frozenset(str(parent) for name in PACKAGE_FILES
                          for parent in PurePosixPath(name).parents if str(parent) != '.')
 WASM_HEADER = b'\x00asm\x01\x00\x00\x00'
@@ -154,7 +157,7 @@ def verify_package(output: Path, expected_wasm_sha256: str | None = None) -> dic
         raise PackageError('Pages artifact has missing or unexpected directories.')
     actual = {path.relative_to(output).as_posix() for path in paths if path.is_file()}
     allowed = actual - {MANIFEST}
-    if MANIFEST not in actual or allowed not in (BASELINE_FILES, PACKAGE_FILES):
+    if MANIFEST not in actual or allowed not in APPROVED_PACKAGES:
         raise PackageError('Pages artifact has missing or unexpected files; refusing to replace it.')
     try:
         manifest = json.loads((output / MANIFEST).read_text(encoding='utf-8'))
@@ -192,7 +195,7 @@ def package_pages(root: Path, output: Path, wasm: Path, expected_wasm_sha256: st
         raise PackageError('Pages output must be a subdirectory of this project\'s ignored build/ directory.')
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         verify_package(output)  # Only replace an intact package owned by this tool.
-    files = {name: read_file(root / 'web' / name) for name in (*WEB_FILES, *PHASE2_FILES)}
+    files = {name: read_file(root / 'web' / name) for name in (*WEB_FILES, *CLEAN_PLAYER_FILES)}
     files.update({name: read_file(root / name) for name in NOTICE_FILES})
     files['dkc.wasm'] = read_file(wasm)
     files['.nojekyll'] = b''

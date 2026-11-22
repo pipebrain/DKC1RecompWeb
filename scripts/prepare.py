@@ -63,9 +63,6 @@ def main() -> None:
                 subprocess.run([sys.executable, str(UPSTREAM / 'scripts/generate_snesrecomp.py'),
                                 '--rom', rom['path'], '--analysis-backend', 'python'],
                                cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
-            with (logs / 'dixie-generation.log').open('w') as log:
-                subprocess.run([sys.executable, str(UPSTREAM / 'scripts/generate_dixie_sources.py'),
-                                '--rom', rom['path']], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
             verify_sources()
     output = ROOT / 'build' / UPSTREAM.name / 'preparation.json'
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -45,12 +45,12 @@ python3 scripts/package_pages.py --out build/pages --verify
 ```
 
 For an exact tested build, also provide `--expected-wasm-sha256 HASH`.
-Phase 2 packages use an explicit runtime allowlist. It includes the stock and
-Dixie modules, WebGPU shaders, browser code, icons, license notices, a checksum
-manifest and `.nojekyll`. The local packager and archive verifier also recognize
-the exact v1.0.0 file list. The public deployment repository uses the
-matching verifier for both archive versions. Soundtracks, replacement
-artwork, ROMs and cartridge saves stay on the player's device.
+The Phase 3 packager writes a clean archive with one stock Wasm module, the
+browser host, icons, license notices, a checksum manifest and `.nojekyll`.
+The local verifier also accepts the exact v1.0.0 and Phase 2 archive layouts
+for rollback. The public site and its verifier are on the Phase 2 revision.
+Before a future Phase 3 deployment, update its verifier to accept the clean
+layout. ROMs and cartridge saves stay on the player's device.
 The launcher, controller-profile JSON, generated C, tools, and test evidence
 are excluded. The output stays under ignored `build/`; the Wasm stays out of Git.
 

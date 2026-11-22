@@ -147,7 +147,7 @@ async function assertCoinAndMenus(){
 async function resetAndVerify(menu){
   const original=await evaluate('window.dkcDebug.saveBytes()');
   const sentinel=original.map((value,index)=>(value+index*17+3)&255);
-  const profiles=await evaluate(`localStorage.getItem('dkc.controller-settings.v1')`);
+  const profiles=await evaluate(`localStorage.getItem('dkc.controller-settings.v2')`);
   const beforePickers=fileChoosers.length;
   try{
     await evaluate(`window.dkcDebug.importSave(${JSON.stringify(sentinel)})`);await evaluate('window.dkcDebug.flushSaves()');
@@ -156,7 +156,7 @@ async function resetAndVerify(menu){
     assert.equal(await evaluate('window.dkcDebug.status().running'),false,'Reset should leave the game paused.');
     assert.equal(fileChoosers.length,beforePickers,'Reset prompted for the already selected ROM.');
     assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel,'Reset lost cartridge SRAM.');
-    assert.equal(await evaluate(`localStorage.getItem('dkc.controller-settings.v1')`),profiles,'Reset changed controller profiles.');
+    assert.equal(await evaluate(`localStorage.getItem('dkc.controller-settings.v2')`),profiles,'Reset changed controller profiles.');
     await evaluate('window.dkcDebug.runFrames(600,0)');
     assert.equal((await evaluate('window.dkcDebug.frameHash()')).sha256,'a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd','Reset replay differs from clean native intro.');
   }finally{await evaluate(`window.dkcDebug.importSave(${JSON.stringify(original)})`);await evaluate('window.dkcDebug.flushSaves()');}
@@ -193,9 +193,10 @@ async function configChecks(downloads) {
   }
   const base=await exported();
   assert.deepEqual(Object.keys(base).sort(),['schema','version','player','keyboard','controllers','rememberRom'].sort());
-  assert.equal(base.schema,'dkc.player-config');assert.equal(base.version,1);
+  assert.equal(base.schema,'dkc.player-config');assert.equal(base.version,2);
   assert.equal(base.player.sound,true);assert.equal(base.keyboard.mode,'keyboard');
-  assert.equal(base.player.music,'original');assert.equal(base.player.variant,'stock');
+  const expectedFields=['sound','volume','audioDriftCorrection','audioPreroll','pauseWhenInactive','appearance','fullscreenOnStart','stateSlot'];
+  assert.deepEqual(Object.keys(base.player).sort(),expectedFields.sort());
   const sections=await inPage(()=>Object.fromEntries([...document.querySelectorAll('[data-pref]')].map(el=>[el.dataset.pref,el.closest('[data-settings-pane]')?.dataset.settingsPane])));
   for(const name of Object.keys(base.player)){
     if(name==='sound')continue;
@@ -210,9 +211,9 @@ async function configChecks(downloads) {
     },name,value);
     await closeSettings();
   };
-  await setPref('volume',37);await setPref('appearance','dark');await setPref('pauseWhenInactive',false);await setPref('speed',2);
+  await setPref('volume',37);await setPref('appearance','dark');await setPref('pauseWhenInactive',false);await setPref('audioPreroll',4);
   const changed=await exported();
-  for(const [name,value] of Object.entries({volume:37,appearance:'dark',pauseWhenInactive:false,speed:2}))assert.equal(changed.player[name],value);
+  for(const [name,value] of Object.entries({volume:37,appearance:'dark',pauseWhenInactive:false,audioPreroll:4}))assert.equal(changed.player[name],value);
   const desired=structuredClone(changed);
   desired.player.fullscreenOnStart=true;desired.player.volume=64;desired.player.sound=false;
   desired.rememberRom=false;
@@ -242,98 +243,26 @@ async function configChecks(downloads) {
   assert.deepEqual(await exported(),desired);
   report.checks.push('Wide and compact Config menus downloaded and restored every settings section, rejected invalid files and preserved an unsaved keyboard draft.');
 
+  // Exercise the file picker with retired Phase 2 settings and bindings.
+  const legacy=structuredClone(desired);
+  legacy.version=1;
+  legacy.keyboard.version=1;
+  Object.assign(legacy.keyboard.assistKeys,{'rewind-step':'Backspace','fast-forward':'Tab','frame-step':null});
+  Object.assign(legacy.controllers.assistBindings,{'rewind-step':null,'fast-forward':null,'frame-step':null});
+  Object.assign(legacy.player,{variant:'dixie',music:'msu1',aspect:'16:9',assist:true,speed:3,frameGeneration:'midpoints',hdTextures:true});
+  await imported(legacy);
+  assert.deepEqual(await exported(),desired,'Legacy configuration failed to retain supported fields.');
+  report.checks.push('Phase 2 config migration kept both players and retained settings; the new export contains only clean-player options.');
+
   const stock=structuredClone(base);stock.player.sound=false;
+  stock.keyboard.assistKeys={'quick-save':'KeyU','quick-load':'KeyI'};
   await imported(stock);await pickRom();
-  const stockSave=Array.from({length:2048},(_,i)=>(17*i+31)&255);
-  await inPage(async bytes=>{await dkcDebug.importSave(bytes);await dkcDebug.flushSaves();},stockSave);
-  await setPref('variant','dixie');
-  await command('dkm','reset-game');await poll(()=>inPage(()=>dkcDebug.status().variant==='dixie'&&!dkcDebug.status().loading),'Dixie instance ready',120000);
-  assert.notDeepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
-  // Independent release-native Dixie executable, no SRAM, 5,100-frame title route.
-  const title=await evaluate('dkcDebug.replayFingerprints([{count:5100,buttons:0}])');
-  const nativeDixieTitle={
-    "frame_sha256": "67cb48a8b13c3a2891e1e6b1c16ec5c72c7a7ac52a80933347b23757c3fdc1df",
-    "wram_sha256": "b9bb475f19bc44b70cf0bfd88aa0c44d2a028218c3373fea25a385a7cb07e50b",
-    "vram_sha256": "4ae2c458771b1b6fad4783f4ef46e8af9bc39fd43f2a3562926104a97e0c1b58",
-    "cgram_sha256": "144988d2811e14479ffae87c7831bc05b055caa290e08be91df2730270f42a30",
-    "oam_sha256": "135af2eacc3ead6aa975a1208995b35bcbd50c0a81fd0a8b6bd30c67d44df0bb",
-    "oam_source_sha256": "bf271aada4848812694784c2c823b8b1bff6ab1834574da41eaa5069d1a4537d",
-    "audio_fnv1a": "d035ba629bc04d2c"
-};
-  assert.deepEqual(title.fingerprints,nativeDixieTitle,'Dixie title differs from the release-native core.');
-  report.dixieTitle=title.fingerprints;
-  const jungle=(await readFile(join(root,'tests/fixtures/jungle-entry.inputs'),'utf8')).split(/\r?\n/).filter(line=>line&&!line.startsWith('#')).map(line=>{
-    const [mask,count]=line.split('*');return {buttons:parseInt(mask,16),count:Number(count)};
-  });
-  report.dixieJungle={};
-  for(const [aspect,nativeFrame,nativeAudio] of [
-    [
-        "4:3",
-        "723ba727ae9c141e8b0ba0b900867467e72b0efab1d4bf8256fa574ec15faa90",
-        "9468a57229ee4103"
-    ],
-    [
-        "16:9",
-        "8b67ced9246569b6afa21aa7ee2364b01d29bb87277773383a84ca425428db09",
-        "9468a57229ee4103"
-    ]
-]){
-    await setPref('aspect',aspect);await command('dkm','reset-game');
-    await poll(()=>inPage(()=>dkcDebug.status().frameCount===0&&!dkcDebug.status().loading),'Dixie route reset');
-    const {fingerprints}=await inPage(runs=>dkcDebug.replayFingerprints(runs),jungle);
-    assert.equal(fingerprints.frame_sha256,nativeFrame,'Dixie Jungle framebuffer '+aspect);
-    assert.equal(fingerprints.audio_fnv1a,nativeAudio,'Dixie Jungle PCM '+aspect);
-    report.dixieJungle[aspect]=fingerprints;
-  }
-  await setPref('aspect','4:3');
-  const dixieSave=Array.from({length:2048},(_,i)=>(9*i+7)&255);
-  await inPage(async bytes=>{await dkcDebug.importSave(bytes);await dkcDebug.flushSaves();},dixieSave);
+  // File pickers and other Chrome test windows can temporarily take foreground focus.
+  await client.send('Page.bringToFront');
+  await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});
+  const {verifyStateSlots}=await import('./browser_state_check.mjs');
+  await verifyStateSlots({inPage,command,closeSettings,click,poll,reopen,key,report});
 
-  await reopen();assert.equal(await evaluate('dkcDebug.status().variant'),'dixie');
-  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),dixieSave);
-  await setPref('variant','stock');await command('dkm','reset-game');
-  await poll(()=>inPage(()=>dkcDebug.status().variant==='stock'&&!dkcDebug.status().loading),'stock restored');
-  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
-  report.checks.push('Stock and Dixie booted from the same clean ROM, advanced in Chrome, and retained independent cartridge saves across reloads.');
-
-  // Exercise real archive decoding + persisted blobs using deterministic, locally generated PCM.
-  const fixturePath=join(output,'soundtrack.msu1');
-  const py=spawn(process.env.PYTHON||'python3',['-c',`import sys,zipfile,struct
-with zipfile.ZipFile(sys.argv[1],'w',compression=zipfile.ZIP_DEFLATED) as z:
- for n in range(1,33):
-  z.writestr('pack/track-%d.pcm'%n,b'MSU1'+bytes(4)+struct.pack('<hh',4096,-1024)*16384)`,fixturePath]);
-  assert.equal(await new Promise((yes,no)=>{py.on('error',no);py.on('exit',yes);}),0);
-  await command('config','paths');
-  const {root:doc}=await client.send('DOM.getDocument');
-  const {nodeId}=await client.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'#music-archive'});
-  await client.send('DOM.setFileInputFiles',{nodeId,files:[fixturePath]});
-  await poll(()=>inPage(()=>document.querySelector('#music-pack-status').textContent.includes('32 tracks')),'compressed MSU pack import');
-  await closeSettings();await setPref('music','msu1');await reopen();
-  assert.equal(await evaluate('dkcDebug.status().music'),'msu1');
-  const hashes=[];
-  for(const musicGain of [0,1]){
-    await setPref('musicGain',musicGain);await command('dkm','reset-game');
-    await poll(()=>inPage(()=>dkcDebug.status().frameCount===0&&!dkcDebug.status().loading),'MSU mixer reset');
-    const result=await evaluate('dkcDebug.replayFingerprints([{count:5100,buttons:0}])');
-    hashes.push(result.fingerprints.audio_fnv1a);
-  }
-  assert.notEqual(hashes[0],hashes[1],'Replacement PCM did not change actual emulated audio.');
-  report.musicHashes5100=hashes;
-  await imported(stock);await command('dkm','reset-game');
-  await poll(()=>inPage(()=>dkcDebug.status().music==='original'&&!dkcDebug.status().loading),'original music restored');
-  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
-  await command('config','paths');await click('#forget-music');
-  await poll(()=>inPage(()=>document.querySelector('#music-pack-status').textContent.includes('No music pack')),'music storage cleared');
-  await closeSettings();
-  report.checks.push('A deflated 32-track MSU-1 archive survived reopening, produced distinct mixed PCM for gains 0 and 1 and could be cleared independently of game progress.');
-  await setPref('music','msu1');await reopen();
-  assert.equal(await evaluate('dkcDebug.status().music'),'original','Absent pack should boot original audio.');
-  assert.match(await evaluate('document.querySelector("#soundtrack-status").textContent'),/original soundtrack/);
-  await setPref('music','original');
-  const {verifyAssist}=await import('./browser_assist_check.mjs');
-  await verifyAssist({inPage,command,closeSettings,openMenu,click,poll,reopen,report});
-  const {verifyHd}=await import('./browser_hd_check.mjs');
-  await verifyHd({inPage,command,closeSettings,click,poll,reopen,report});
 }
 
 async function romStorageChecks(){
@@ -528,8 +457,8 @@ async function dkmMenuChecks(){
 
 try{
   const files=['web/index.html','web/style.css','web/ui-shell.js','web/main.js','web/storage.js','web/worker.js','web/controller-ui.js','web/dk-coin.png'];
-  if(configOnly)files.push(...['settings.js','video-settings.js','video.wgsl','assist.js','msu-player.js','music-pack.js','hd-pack.js','graphics.js',
-    'wasm-imports.js','keyboard-profiles.js','gamepad-profiles.js','keyboard-ui.js','dkc.wasm','dkc-dixie.wasm'].map(name=>'web/'+name));
+  if(configOnly)files.push(...['settings.js','assist.js','graphics.js',
+    'wasm-imports.js','keyboard-profiles.js','gamepad-profiles.js','keyboard-ui.js','dkc.wasm'].map(name=>'web/'+name));
   report.sources=Object.fromEntries(await Promise.all(files.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));
   const origin=`http://127.0.0.1:${await unusedPort()}/`;
   server=spawn(process.env.PYTHON||'python3',[join(root,'scripts/serve.py'),'--port',new URL(origin).port],{cwd:root,stdio:['ignore','pipe','pipe']});log(server,'server.log');

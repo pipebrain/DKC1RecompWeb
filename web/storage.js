@@ -1,8 +1,5 @@
-function saveKey(variant) {
-  if (variant === 'stock') return 'dkc1-usa-v1.0';
-  if (variant === 'dixie') return 'dkc1-dixie-v1.0';
-  throw new Error('Unknown cartridge variant.');
-}
+// Use the original stock keys so Candy saves and Phase 2 state slots carry over.
+const CARTRIDGE_KEY = 'dkc1-usa-v1.0';
 let opening;
 function open() {
   if(opening)return opening;
@@ -32,12 +29,11 @@ function sameSave(left,right){
   const other=new Uint8Array(right);
   return new Uint8Array(left).every((value,index)=>value===other[index]);
 }
-export async function loadSave(variant='stock') {
-  const key=saveKey(variant);
+export async function loadSave() {
   const db=await open();
   return new Promise((resolve,reject)=>{
     const transaction=db.transaction('sram','readonly');
-    const request=transaction.objectStore('sram').get(key);
+    const request=transaction.objectStore('sram').get(CARTRIDGE_KEY);
     transaction.oncomplete=()=>{
       if(request.result===undefined)resolve(null);
       else if(validSave(request.result))resolve(request.result);
@@ -48,8 +44,7 @@ export async function loadSave(variant='stock') {
 }
 // Normal play supplies the last committed bytes. An explicit .srm file
 // import may replace the slot even if another tab has since written to it.
-export async function storeSave(buffer,expected,variant='stock') {
-  const key=saveKey(variant);
+export async function storeSave(buffer,expected) {
   if(!validSave(buffer))throw new Error('Cartridge SRAM must be exactly 2,048 bytes.');
   const db=await open();
   return new Promise((resolve,reject)=>{
@@ -58,11 +53,11 @@ export async function storeSave(buffer,expected,variant='stock') {
     let conflict;
     transaction.oncomplete=()=>resolve();
     transaction.onabort=()=>reject(conflict||transaction.error||new Error('Save transaction aborted.'));
-    if(expected===undefined){store.put(buffer,key);return;}
-    const read=store.get(key);
+    if(expected===undefined){store.put(buffer,CARTRIDGE_KEY);return;}
+    const read=store.get(CARTRIDGE_KEY);
     read.onsuccess=()=>{
       if(sameSave(read.result,buffer))return;
-      if(sameSave(read.result,expected)){store.put(buffer,key);return;}
+      if(sameSave(read.result,expected)){store.put(buffer,CARTRIDGE_KEY);return;}
       conflict=new Error('The cartridge save in this browser differs from the one this tab loaded.');
       transaction.abort();
     };
@@ -123,10 +118,9 @@ export function rememberPickedRom(image) {
   });
 }
 
-// Quick states belong to a particular core version and cartridge variant.
-async function stateSlot(variant,slot,write){
-  if(!['stock','dixie'].includes(variant)||!Number.isInteger(slot)||slot<1||slot>5)throw new Error('Invalid state slot.');
-  const key='v0.0.17-web2/'+saveKey(variant)+'/'+slot;
+async function stateSlot(slot,write){
+  if(!Number.isInteger(slot)||slot<1||slot>5)throw new Error('Invalid state slot.');
+  const key='v0.0.17-web2/'+CARTRIDGE_KEY+'/'+slot;
   const db=await new Promise((resolve,reject)=>{
     const open=indexedDB.open('dkc-browser-states',1);
     open.onupgradeneeded=()=>open.result.createObjectStore('slots');
@@ -142,8 +136,8 @@ async function stateSlot(variant,slot,write){
     });
   }finally{db.close();}
 }
-export const loadStateSlot=(variant,slot)=>stateSlot(variant,slot);
-export const storeStateSlot=(variant,slot,snapshot)=>stateSlot(variant,slot,snapshot);
+export const loadStateSlot=slot=>stateSlot(slot);
+export const storeStateSlot=(slot,snapshot)=>stateSlot(slot,snapshot);
 
 // The same IndexedDB transaction that applies the ROM setting removes the
 // import journal. A journal present on restart means the import never committed.

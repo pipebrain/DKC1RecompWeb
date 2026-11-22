@@ -52,8 +52,8 @@ none is imported by the browser host. The only source-compatibility build
 adjustment is `_POSIX_C_SOURCE=200809L` to expose `strdup` and monotonic clocks.
 No upstream/generated game source was edited.
 
-The v0.0.17 stock browser module is 8,067,100 bytes with SHA-256
-`70908a6d7a5b088c92087ab8f2c0e2fb62ea86ad56c2354ad35da083e57732c3`.
+The clean v1.1.0 stock browser module is 7,990,186 bytes with SHA-256
+`3b15c52350846a2ebac4137113f3d3cad2d53cdeaa9496fdeb758a9e1b415f6d`.
 The build links into `build/phase2-wasm/` before installing the module at
 `web/dkc.wasm`. Its linker map, `build/phase2-wasm/dkc.map`, records these
 compiler support archives.
@@ -65,21 +65,19 @@ compiler support archives.
 - `libstandalonewasm-memgrow.a`
 - `libstubs-debug.a`
 
-The browser core uses twelve handwritten imports supplied by
-`web/wasm-imports.js`. The inventory in `build/phase2-evidence/wasm.json`
-also records its exports and 128 MiB initial memory. The optional native HD compositor can grow Wasm memory up to 2 GiB while preloading player-selected materials.
+The clean module imports nine functions. The handwritten host supplies each
+function through `web/wasm-imports.js`. The worker presents the stock PPU
+framebuffer and runs the original audio clock.
 
 | Namespace | Functions |
 | --- | --- |
-| `env` | `emscripten_notify_memory_growth`, `__syscall_getdents64`, `dkc_hd_open`, `dkc_hd_read`, `dkc_hd_close` |
+| `env` | `emscripten_notify_memory_growth`, `__syscall_getdents64` |
 | `wasi_snapshot_preview1` | `clock_time_get`, `fd_close`, `fd_write`, `fd_read`, `environ_sizes_get`, `environ_get`, `fd_seek` |
 
-The HD reader opens an exact filename inside the material pack selected under Config → Paths. Each native read-only stream releases its temporary bytes on close. Optional directory
-discovery explicitly returns unsupported; the environment is empty. Console
-output is routed through the handwritten host. The browser has no POSIX CPU
-clock, so process/thread clock requests use monotonic elapsed time in the
-single game worker for the watchdog. That approximation is documented rather
-than treated as exact native CPU accounting. Unknown imports fail before boot.
+Optional directory enumeration returns unsupported. The host provides an
+empty environment and routes diagnostic output to the console. For the
+watchdog, process and thread clock requests use monotonic elapsed time in
+the single game worker. Unknown imports fail before boot.
 
 Third-party source/license pointers are in [THIRD_PARTY.md](THIRD_PARTY.md).
 

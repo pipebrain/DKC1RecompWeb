@@ -1,7 +1,4 @@
-import {setupHdPaths} from './hd-pack.js';
-import {readMusicPack,setupMusicPaths} from './music-pack.js';
 import {PLAYER_KEY,PLAYER_DEFAULTS,CONFIG_LIMIT,readPlayer,validatePlayer,makeConfig,parseConfig,storeConfig,recoverConfig} from './settings.js';
-import {videoChange} from './video-settings.js';
 import {createPresenter} from './graphics.js';
 import {loadSave,readRememberedRom,readRememberPreference,rememberPickedRom,setRememberRom,storeSave,loadStateSlot,storeStateSlot} from './storage.js';
 import {ASSIST_ACTIONS,acceptsSource,bindingLabel} from './gamepad-profiles.js';
@@ -28,14 +25,16 @@ let state={loaded:false,running:false,hasStarted:false,playbackError:false,pause
 let committedSave=null,pendingSave=null;
 const pressedCodes=new Set();
 const physicalCodes=new Set(),freshKeyEvents=new WeakSet();
-const startShortcuts={keyboard:createStartShortcut(),gamepad:createStartShortcut()};
+const ports=[0,1];
+const startShortcuts=ports.map(()=>({keyboard:createStartShortcut(),gamepad:createStartShortcut()}));
+const startBit=8,portStartMask=port=>startBit<<(12*port);
 let resumeGeneration=0,resumeAttempt=null,pendingPauses=0;
 let lastPausePaint=0;
 let appShell,keyboardUI,contentPages,contentAvailability={about:false,help:false};
 let inputPlayer=0;
 const navigateSettings=createSettingsNavigation();
 const controllerUI=initControllerUI({
-  getMode:n=>keyboardUI?.getMode(n)||'none',assistEnabled:()=>player.assist,
+  getMode:n=>keyboardUI?.getMode(n)||'none',
   onOpen:()=>appShell.openSettings('controllers'),
   onClose:()=>appShell.closeSettings(),
 });
@@ -45,7 +44,7 @@ function keyboardBitsFor(code){
   return [0,1].reduce((mask,n)=>mask|(acceptsSource(keyboardUI.getMode(n),'keyboard')?keyboardUI.bitForCode(code,n)<<(n*12):0),0);
 }
 function fullscreenAvailable(){return Boolean(document.fullscreenElement||(document.fullscreenEnabled&&typeof $('.screen-wrap').requestFullscreen==='function'));}
-function hostState(){return {...state,sound,assist:player.assist,diagnostics:player.diagnostics,loading:loading||importingConfig,fullscreenAvailable:fullscreenAvailable(),resuming:Boolean(resumeAttempt),playbackBusy:Boolean(resumeAttempt)||pendingPauses>0,inputMode:keyboardUI?.getMode()||'keyboard',keyboardCustom:keyboardUI?!keyboardUI.status().isDefault:false,spaceBound:Boolean(keyboardUI&&keyboardBitsFor('Space')),spaceIsStart:Boolean(keyboardUI&&keyboardBitsFor('Space')&8),helpAvailable:contentAvailability.help,aboutAvailable:contentAvailability.about};}
+function hostState(){return {...state,sound,loading:loading||importingConfig,fullscreenAvailable:fullscreenAvailable(),resuming:Boolean(resumeAttempt),playbackBusy:Boolean(resumeAttempt)||pendingPauses>0,inputMode:keyboardUI?.getMode()||'keyboard',keyboardCustom:keyboardUI?!keyboardUI.status().isDefault:false,spaceBound:Boolean(keyboardUI&&keyboardBitsFor('Space')),spaceIsStart:Boolean(keyboardUI&&ports.some(port=>keyboardBitsFor('Space')&portStartMask(port))),helpAvailable:contentAvailability.help,aboutAvailable:contentAvailability.about};}
 function canLeaveInput(){if(!keyboardUI.canClose()||!controllerUI.canClose())return false;assistUI.cancel();return true;}
 async function showInputSource(){
   const mode=keyboardUI.getMode(inputPlayer);assistUI.render();
@@ -87,8 +86,7 @@ function runCommand(command){
     if(command==='load-config')return $('#config-file').click();
     return exportConfig();
   }
-  if(['quick-save','quick-load','frame-step','rewind-step','rewind-on','rewind-off','fast-forward-on','fast-forward-off'].includes(command))return runAssist(command);
-  if(command==='export-repro')return exportRepro();
+  if(command==='quick-save'||command==='quick-load')return runStateCommand(command);
   if(command==='open-rom')return $('#rom-file').click();
   if(command==='start-game')return afterSettingsClosed(()=>state.running?pause():resume());
   if(command==='reset-game')return resetGame();
@@ -109,7 +107,7 @@ function afterSettingsClosed(action){
   return appShell.closeSettings().then(closed=>closed?action():undefined);
 }
 function modalOpen(){return Boolean(document.querySelector('dialog[open]'));}
-function resetStartShortcuts(){for(const shortcut of Object.values(startShortcuts))shortcut.reset();}
+function resetStartShortcuts(){for(const port of startShortcuts)for(const shortcut of Object.values(port))shortcut.reset();}
 function cancelResume({pausePosted=true}={}){
   const attempt=resumeAttempt;resumeGeneration++;resumeAttempt=null;attempt?.cancel();resetStartShortcuts();
   // A posted resume already belongs to the worker. Follow it with an ordered
@@ -121,18 +119,20 @@ function canUseGameInput(){
     !document.hidden&&document.hasFocus()&&document.activeElement===canvas&&!modalOpen()&&
     !appShell.isMenuOpen()&&!appShell.isSettingsBusy()&&!keyboardUI.isEditing()&&!controllerUI.isEditing();
 }
-function canUseStart(mode){return acceptsSource(keyboardUI.getMode(),mode)&&canUseGameInput();}
-function keyboardStartDown(){for(const code of physicalCodes)if(keyboardUI.bitForCode(code)&8)return true;return false;}
-function sampleStart(mode,pressed,source,freshPress=false){
-  const result=startShortcuts[mode].sample(pressed,{allowed:canUseStart(mode),paused:!state.running,source,freshPress});
-  if(result.resume&&(mode==='gamepad'||freshPress))resume({shortcut:mode}).catch(error=>status(error.message,true));
+function canUseStart(port,mode){return acceptsSource(keyboardUI.getMode(port),mode)&&canUseGameInput();}
+function keyboardStartDown(port){for(const code of physicalCodes)if(keyboardUI.bitForCode(code,port)&startBit)return true;return false;}
+function sampleStart(port,mode,pressed,source,freshPress=false){
+  const result=startShortcuts[port][mode].sample(pressed,{allowed:canUseStart(port,mode),paused:!state.running,source,freshPress});
+  if(result.resume&&(mode==='gamepad'||freshPress))resume({shortcut:{port,mode}}).catch(error=>status(error.message,true));
   return result;
 }
 function updatePauseOverlay(force=false){
   const overlay=$('#pause-overlay');if(!overlay)return;
   if(!state.loaded||state.running||loading){overlay.hidden=true;return;}
   const now=performance.now();if(!force&&now-lastPausePaint<100)return;lastPausePaint=now;
-  const value=pausePresentation(hostState(),{keyboard:keyboardUI?.status(),controller:controllerUI.status(0),
+  const value=pausePresentation(hostState(),{keyboard:keyboardUI.status(0),controller:controllerUI.status(0),
+    secondPlayer:{mode:keyboardUI.getMode(1),keyboard:keyboardUI.status(1),controller:controllerUI.status(1)},
+    shortcutKeys:Object.keys(ASSIST_ACTIONS).map(action=>keyboardUI.assistKey(action)),
     foreground:!document.hidden&&document.hasFocus(),focused:document.activeElement===canvas,
     menuOpen:appShell?.isMenuOpen(),dialogOpen:modalOpen(),fullscreen:Boolean(document.fullscreenElement)});
   for(const [id,text] of [['pause-title',value.title],['pause-input',value.input],['pause-hint',value.hint]]){
@@ -152,17 +152,16 @@ function updateState(value){
   if(!value)return;state={...state,...value};
   $('#export-save').disabled=!state.loaded||loading;
   $('#save-file').disabled=!state.loaded||loading;$('#import-label').setAttribute('aria-disabled',String(!state.loaded||loading));
-  if(state.loaded)$('#frame-info').textContent=`${state.width ?? 256} × ${state.height ?? 224} · frame ${state.frameCount.toLocaleString()}`;
   updateShell();
 }
-function persist(buffer,imported=false,variant=state.variant||'stock'){
-  const snapshot={buffer,imported,variant};
+function persist(buffer,imported=false){
+  const snapshot={buffer,imported};
   pendingSave=snapshot;
   saveMessage('Saving cartridge progress…');
   // A failed transaction leaves the live SRAM available for export. A later
   // write can retry from the last bytes that actually committed.
   saveChain=saveChain.catch(()=>{}).then(async()=>{
-    await storeSave(buffer,imported?undefined:committedSave,variant);
+    await storeSave(buffer,imported?undefined:committedSave);
     committedSave=buffer;
     if(pendingSave===snapshot){pendingSave=null;saveMessage('Saved in this browser');}
   });
@@ -181,7 +180,7 @@ worker.onmessage=({data})=>{
     if(sound&&audioNode&&state.running)audioNode.port.postMessage({type:'samples',buffer:data.buffer,rate:data.rate},[data.buffer]);
     else recycle('recycle-audio',data.buffer);return;
   }
-  if(data.type==='sram-changed'){persist(data.buffer,data.imported,data.variant);return;}
+  if(data.type==='sram-changed'){persist(data.buffer,data.imported);return;}
   if(data.type==='stomp'){if(state.running)controllerUI.pulseStomp();return;}
   if(data.type==='stats'){updateState(data);return;}
   if(data.type==='imports'){state.imports=data.imports;return;}
@@ -246,7 +245,7 @@ async function resume({shortcut=null}={}){
     $('.screen-wrap').requestFullscreen().catch(error=>status(error.message,true));
   const generation=resumeGeneration,attempt={cancel:null,promise:null,posted:false};
   const canceled=new Promise(resolve=>{attempt.cancel=()=>resolve(false);});
-  const valid=()=>generation===resumeGeneration&&!loading&&!pendingPauses&&!modalOpen()&&!document.hidden&&(!shortcut||canUseStart(shortcut));
+  const valid=()=>generation===resumeGeneration&&!loading&&!pendingPauses&&!modalOpen()&&!document.hidden&&(!shortcut||canUseStart(shortcut.port,shortcut.mode));
   attempt.promise=(async()=>{
     if(sound){
       const ready=await Promise.race([startAudio().then(()=>true),canceled]);
@@ -278,33 +277,20 @@ async function loadRom(buffer,{preserveSave=false,rememberSelection=false}={}){
       try{await saveChain;}
       catch{
         const failed=pendingSave;
-        persist(failed.buffer,failed.imported,failed.variant);
-        pendingSave.exported=failed.exported;
+        persist(failed.buffer,failed.imported);
         try{await saveChain;}catch{/* The live snapshot and its export warning stay available. */}
       }
     }
-    const variant=player.variant;
-    let pack=null,musicNotice='';
-    if(player.music==='msu1'){
-      try{pack=await readMusicPack();}
-      catch(error){musicNotice='Music storage could not be read. '+error.message;}
-      if(!pack)musicNotice=(musicNotice||'This browser has no music pack.')+' Using the original soundtrack. Choose a pack under Config → Paths, then reload.';
-    }
-    const sameVariant=state.variant===variant;
-    if(pendingSave && !pendingSave.exported && !sameVariant)throw new Error('The current cartridge save could not be stored. Use DKM → Export Save before changing variants.');
     let save=null,readError=null;
-    const useLiveSave=sameVariant&&state.loaded&&(preserveSave||Boolean(pendingSave));
+    const useLiveSave=state.loaded&&(preserveSave||Boolean(pendingSave));
     if(useLiveSave)save=(await request('get-sram')).buffer;
     else{
-      try{save=await loadSave(variant);}
-      catch(error){readError=error;if(state.loaded&&sameVariant)save=(await request('get-sram')).buffer;}
+      try{save=await loadSave();}
+      catch(error){readError=error;if(state.loaded)save=(await request('get-sram')).buffer;}
     }
-    const value=await request('load',{buffer,save,variant,pack,musicGain:player.musicGain},[buffer]);
+    const value=await request('load',{buffer,save},[buffer]);
     updateState({...value,playbackError:false});
-    const musicStatus=$('#soundtrack-status');
-    musicStatus.textContent=musicNotice;musicStatus.hidden=!musicNotice;
-    if(!sameVariant)pendingSave=null;
-    if(!useLiveSave&&(!readError||!sameVariant))committedSave=save;
+    if(!useLiveSave&&!readError)committedSave=save;
     retainedRom=nextRom;
     if(latestFrame){recycle('recycle-frame',latestFrame.buffer);latestFrame=null;}
     presentedFrame=0;presenter.clear();
@@ -326,34 +312,21 @@ function sendInput(){const buttons=(keyBits|gamepadBits|debugBits)&0xffffff;if(b
 function releaseInput(){pressedCodes.clear();keyBits=0;gamepadBits=0;debugBits=0;resetStartShortcuts();sendInput();}
 function refreshKeyboardInput(){keyBits=0;for(const code of pressedCodes)keyBits|=keyboardBitsFor(code);}
 const keyboardAssist=new Set();
-let priorAssist=new Set(),rewindHeld=false,fastHeld=false,rewindPending=false,nextRewind=0;
-function assistCommand(command){
-  return Promise.resolve().then(()=>runCommand(command)).catch(error=>status(error.message,true));
-}
+let priorAssist=new Set();
 function updateAssist(){
   const active=new Set([...keyboardAssist,...controllerUI.heldAssist()]);
-  const allowed=player.assist&&canUseGameInput();
-  if(rewindHeld&&(!allowed||!active.has('rewind-step'))){
-    rewindHeld=false;assistCommand('rewind-off');
-  }
-  if(fastHeld&&(!allowed||!active.has('fast-forward'))){
-    fastHeld=false;assistCommand('fast-forward-off');
-  }
-  if(allowed)for(const action of active){
-    if(priorAssist.has(action))continue;
-    if(action==='rewind-step'){rewindHeld=true;nextRewind=0;if(state.running)assistCommand('rewind-on');}
-    else if(action==='fast-forward'){fastHeld=true;assistCommand('fast-forward-on');}
-    else assistCommand(action);
-  }
-  if(rewindHeld&&!state.running&&!rewindPending&&performance.now()>=nextRewind){
-    nextRewind=performance.now()+110;rewindPending=true;assistCommand('rewind-step').finally(()=>{rewindPending=false;});
+  if(canUseGameInput()){
+    for(const action of active){
+      if(!priorAssist.has(action))runStateCommand(action).catch(error=>status(error.message,true));
+    }
   }
   priorAssist=active;
 }
 window.addEventListener('keydown',event=>{
-  if(!player.assist||event.isComposing||event.metaKey||event.ctrlKey||event.altKey||event.shiftKey&&event.code==='Tab'||!canUseGameInput())return;
+  if(event.isComposing||event.metaKey||event.ctrlKey||event.altKey||event.shiftKey&&event.code==='Tab'||!canUseGameInput())return;
+  if(![0,1].some(port=>acceptsSource(keyboardUI.getMode(port),'keyboard')))return;
   const id=Object.keys(ASSIST_ACTIONS).find(action=>keyboardUI.assistKey(action)===event.code);
-  if(id){event.preventDefault();event.stopImmediatePropagation();keyboardAssist.add(id);updateAssist();}
+  if(id){event.preventDefault();event.stopImmediatePropagation();if(!event.repeat){keyboardAssist.add(id);updateAssist();}}
 },true);
 window.addEventListener('keyup',event=>{
   const id=Object.keys(ASSIST_ACTIONS).find(action=>keyboardUI.assistKey(action)===event.code);
@@ -364,17 +337,23 @@ function gamepad(){
   let pads=[];
   try{pads=navigator.getGamepads?.()||[];}catch{}
   const captureBlocked=controllerUI.isCapturing()||keyboardUI.isCapturing()||assistUI.isListening();
-  controllerUI.poll(pads);const input=controllerUI.inputState(),input2=controllerUI.inputState(1);
+  controllerUI.poll(pads);
   const dialog=$('#app-settings');
   navigateSettings(pads,captureBlocked||dialog?.contains(document.activeElement)&&document.activeElement.matches('input[type=text]'),
     appShell.isSettingsOpen()&&Array.from(pads).some(p=>p&&p.mapping!=='standard')?controllerUI.status().mappedBits:0,
     ()=>{if(canUseGameInput())runCommand('controllers');},
     ()=>requestAnimationFrame(()=>{if(!modalOpen())canvas.focus({preventScroll:true});}));
   updateAssist();
-  const start=sampleStart('gamepad',Boolean(input.buttons&8),input.source);
-  const keyboardStart=sampleStart('keyboard',keyboardStartDown(),'keyboard');
-  if(keyboardStart.suppress&&keyBits&8){keyBits&=~8;}
-  gamepadBits=canUseGameInput()?(input.buttons&~(start.suppress?8:0))|(input2.buttons<<12):0;sendInput();
+  gamepadBits=0;
+  const playingInput=canUseGameInput();
+  for(const port of ports){
+    const input=controllerUI.inputState(port);
+    const start=sampleStart(port,'gamepad',Boolean(input.buttons&startBit),input.source);
+    const keyboardStart=sampleStart(port,'keyboard',keyboardStartDown(port),'keyboard');
+    if(keyboardStart.suppress)keyBits&=~portStartMask(port);
+    if(playingInput)gamepadBits|=(input.buttons&~(start.suppress?startBit:0))<<(port*12);
+  }
+  sendInput();
   const deviceList=$('#device-list'),now=performance.now();
   if(deviceList&&appShell.isSettingsOpen()&&appShell.activeSettingsTab()==='devices'&&now-lastDevicePaint>100){
     lastDevicePaint=now;
@@ -388,22 +367,27 @@ function gamepad(){
 function animate(){
   gamepad();
   updatePauseOverlay();
-  if(latestFrame&&presenter){const frame=latestFrame;latestFrame=null;try{presenter.draw(frame.buffer,frame.width,frame.height);presentedFrame=frame.frameCount;}catch(error){updateState({playbackError:true});status(error.message,true);pause('gpu-error').catch(console.error);}finally{recycle('recycle-frame',frame.buffer);}}
+  if(latestFrame&&presenter){const frame=latestFrame;latestFrame=null;try{presenter.draw(frame.buffer);presentedFrame=frame.frameCount;}catch(error){updateState({playbackError:true});status(error.message,true);pause('gpu-error').catch(console.error);}finally{recycle('recycle-frame',frame.buffer);}}
   requestAnimationFrame(animate);
 }
 window.addEventListener('keydown',event=>{
   if(!physicalCodes.has(event.code)&&!event.repeat)freshKeyEvents.add(event);
   physicalCodes.add(event.code);
-  if(!canUseStart('keyboard'))startShortcuts.keyboard.sample(keyboardStartDown(),{source:'keyboard'});
+  for(const port of ports)if(!canUseStart(port,'keyboard'))startShortcuts[port].keyboard.sample(keyboardStartDown(port),{source:'keyboard'});
 },true);
-window.addEventListener('keyup',event=>{physicalCodes.delete(event.code);sampleStart('keyboard',keyboardStartDown(),'keyboard');},true);
+window.addEventListener('keyup',event=>{
+  physicalCodes.delete(event.code);
+  for(const port of ports)sampleStart(port,'keyboard',keyboardStartDown(port),'keyboard');
+},true);
 window.addEventListener('keydown',event=>{
   if(event.defaultPrevented||event.isComposing||event.metaKey||event.ctrlKey||event.altKey||!state.loaded||document.activeElement!==canvas)return;
   const bit=keyboardBitsFor(event.code);if(!bit)return;
-  if(bit&8){
-    const start=sampleStart('keyboard',keyboardStartDown(),'keyboard',freshKeyEvents.has(event));
-    if(start.suppress){event.preventDefault();return;}
+  let consumed=false;
+  for(const port of ports)if(bit&portStartMask(port)){
+    const start=sampleStart(port,'keyboard',keyboardStartDown(port),'keyboard',freshKeyEvents.has(event));
+    if(start.suppress)consumed=true;
   }
+  if(consumed){event.preventDefault();return;}
   if(!state.running||!canUseGameInput())return;
   event.preventDefault();pressedCodes.add(event.code);refreshKeyboardInput();sendInput();
 });
@@ -504,16 +488,13 @@ function paintPreferences(){
 function applyPreferences(){
   if(sound!==player.sound){sound=player.sound;resetAudio();}
   paintPreferences();applyAppearance();configureAudio();
-  presenter?.configure(player);
-  worker.postMessage({type:'preferences',player});
-  worker.postMessage({type:'music-gain',gain:player.musicGain});
   updateShell();
 }
 function changePreference(key,value){
   if(importingConfig)throw new Error('Wait for the configuration to finish loading.');
   let base=player;
   try{base={...readPlayer(),...unsavedPreferences};}catch{/* Private-session edits can still apply. */}
-  const change=videoChange(key,value);
+  const change={[key]:value};
   const next=validatePlayer({...base,...change});
   try{localStorage.setItem(PLAYER_KEY,JSON.stringify(next));unsavedPreferences={};}
   catch(error){Object.assign(unsavedPreferences,change);status('This setting applies for this session. Could not save preferences: '+error.message,true);}
@@ -535,16 +516,6 @@ function download(blob,name){
   const url=URL.createObjectURL(blob);
   const link=document.createElement('a');link.href=url;link.download=name;link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-async function exportRepro(){
-  const trace=await request('repro');
-  const bytes=new Uint8Array(trace.buffer);
-  const parts=[];
-  for(let i=0;i<bytes.length;i+=16384)parts.push(String.fromCharCode(...bytes.subarray(i,i+16384)));
-  delete trace.buffer;
-  const data={schema:'dkc.web-repro',version:1,core:'v0.0.17',romSha256:ROM_SHA,...trace,
-    checkpointBase64:btoa(parts.join('')),player,host:{presentedFrame,audio:audioStats}};
-  download(new Blob([JSON.stringify(data)],{type:'application/json'}),'DKC-repro-frame-'+trace.endFrame+'.json');
 }
 async function exportConfig(){
   await playerReady;checkConfigReady();
@@ -571,44 +542,32 @@ $('#config-file').addEventListener('change',async event=>{
   }catch(error){status(error.message,true);}
   finally{if(locked){importingConfig=false;$('#app-settings').inert=false;$('#app-menubar').inert=false;updateShell();}}
 });
-let assistBusy=false;
-async function runAssist(command){
-  if(command==='fast-forward-off'||command==='rewind-off'){
-    resetAudio();worker.postMessage({type:command==='rewind-off'?'rewind-held':'fast-forward',held:false});return;
-  }
+let stateCommandBusy=false;
+async function runStateCommand(command){
   if(!state.loaded||loading)throw new Error('Load a game first.');
-  if(['fast-forward-on','rewind-step','rewind-on'].includes(command)&&!player.assist)throw new Error('Turn on Assist in Config → Speed.');
-  if(command==='fast-forward-on'||command==='rewind-on'){
-    resetAudio();worker.postMessage({type:command==='rewind-on'?'rewind-held':'fast-forward',held:true});return;
-  }
-  if(assistBusy)return;
-  assistBusy=true;
-  const slot=player.stateSlot,variant=state.variant;
+  if(stateCommandBusy)return;
+  stateCommandBusy=true;
+  const slot=player.stateSlot;
+  const rom=retainedRom;
   try{
     if(command==='quick-save'){
       const snapshot=await request('snapshot');
-      await storeStateSlot(snapshot.variant,slot,snapshot);
+      await storeStateSlot(slot,snapshot);
       saveMessage('Saved state to slot '+slot+'.');
     }else if(command==='quick-load'){
-      const snapshot=await loadStateSlot(variant,slot);
+      const snapshot=await loadStateSlot(slot);
       if(!snapshot)throw new Error('State slot '+slot+' is empty.');
-      if(loading||state.variant!==variant)throw new Error('The loaded game changed.');
-      await pause('state');await request('restore-state',snapshot,[snapshot.buffer]);
+      await pause('state');
+      if(loading||retainedRom!==rom)throw new Error('The loaded game changed.');
+      await request('restore-state',snapshot,[snapshot.buffer]);
       saveMessage('Loaded state from slot '+slot+'.');
-    }else{
-      await pause(command);
-      await request(command==='frame-step'?'step':'rewind-step',{buttons:0});
     }
-    resetAudio();updateShell();
-  }finally{assistBusy=false;}
+    updateShell();
+  }finally{stateCommandBusy=false;}
 }
 async function exportSave(){
-  const variant=state.variant, {buffer}=await request('get-sram');
-  download(new Blob([buffer],{type:'application/octet-stream'}),variant==='dixie'?'Dixie Kong Country.srm':'Donkey Kong Country.srm');
-  if(pendingSave?.variant===variant){
-    const live=new Uint8Array(buffer);
-    pendingSave.exported=new Uint8Array(pendingSave.buffer).every((byte,index)=>byte===live[index]);
-  }
+  const {buffer}=await request('get-sram');
+  download(new Blob([buffer],{type:'application/octet-stream'}),'Donkey Kong Country.srm');
 }
 $('#export-save').addEventListener('click',()=>exportSave().catch(error=>saveMessage(error.message,true)));
 $('#save-file').addEventListener('change',async event=>{
@@ -661,7 +620,6 @@ async function initializePlayer() {
     if (!window.isSecureContext) throw new Error('Use localhost or HTTPS for WebGPU and local ROM verification.');
     if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over HTTPS or localhost.');
     presenter = await createPresenter(canvas);
-    presenter.configure(player);
     if (storageError) {
       status(storageError, true);
     } else if (remembered.enabled && remembered.image !== undefined) {
@@ -686,5 +644,3 @@ applyPreferences();
 const playerReady = initializePlayer();
 if(preferenceReadError)playerReady.then(()=>status('Could not read player preferences. '+preferenceReadError,true));
 requestAnimationFrame(animate);
-
-setupMusicPaths();setupHdPaths();

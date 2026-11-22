@@ -80,9 +80,8 @@ list(REMOVE_ITEM DKC1_ADAPTER_ENGINE_SOURCES
     "${SNESRECOMP_ROOT}/runner/src/launcher_cache.c"
     "${SNESRECOMP_ROOT}/runner/src/launcher_picker.c")
 set(DKC1_ADAPTER_GAME_SOURCES
-    dkc1_haptics.c dkc1_game.c dkc1_video.c dkc1_hd_scene.c dkc1_hd_sprites.c
-    dkc1_framegen.c dkc1_margin_proxy.c dkc1_ws_trace.c
-    dkc1_debug_dump.c dkc1_msu1.c headless_host.c)
+    dkc1_haptics.c dkc1_video.c dkc1_margin_proxy.c dkc1_ws_trace.c
+    dkc1_debug_dump.c headless_host.c)
 list(TRANSFORM DKC1_ADAPTER_GAME_SOURCES PREPEND "${DKC1_UPSTREAM_DIR}/runner/")
 list(REMOVE_ITEM DKC1_ADAPTER_ENGINE_SOURCES "${SNESRECOMP_ROOT}/runner/src/common_rtl.c")
 list(APPEND DKC1_ADAPTER_ENGINE_SOURCES "${DKC1_PROJECT_ROOT}/runtime/web_audio_state.c")
@@ -91,6 +90,7 @@ add_executable(dkc1_adapter_check
     ${DKC1_ADAPTER_GAME_SOURCES}
     "${DKC1_UPSTREAM_DIR}/runner/input_playback.c"
     "${DKC1_PROJECT_ROOT}/runtime/web_core.c"
+    "${DKC1_PROJECT_ROOT}/runtime/web_stock_game.c"
     "${DKC1_PROJECT_ROOT}/tests/native_adapter_check.c")
 target_include_directories(dkc1_adapter_check PRIVATE
     "${DKC1_PROJECT_ROOT}/runtime"

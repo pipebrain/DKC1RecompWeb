@@ -100,7 +100,7 @@
       </details>
       <details class="controller-live"><summary>Live controller inputs</summary><p class="small">Inputs are shown even while this panel has focus. They are not sent to the game while configuring.</p><h3>Buttons</h3><p id="controller-live-buttons">—</p><h3>Axes</h3><p id="controller-live-axes">—</p><h3>Mapped game actions</h3><p id="controller-mapped">None</p></details>
     </section>
-        <details id="assist-shortcuts"><summary>Assist shortcuts</summary><p class="small">These shortcuts apply when Assist is enabled. Select a shortcut to learn a key or use the selected controller.</p><div id="assist-shortcut-rows"></div><p id="assist-shortcut-status" role="status"></p></details>
+        <details id="assist-shortcuts"><summary>Save-state shortcuts</summary><p class="small">Assign a key or controller input to save or load the slot selected in Config → Saves.</p><div id="assist-shortcut-rows"></div><p id="assist-shortcut-status" role="status"></p></details>
       </section>
       <section id="settings-pane-devices" class="settings-pane" data-settings-pane="devices" role="tabpanel" aria-labelledby="settings-tab-devices" hidden>
         <div class="pane-heading"><h3>Devices</h3><p>Keyboard and controllers available to this browser.</p></div>
@@ -113,62 +113,16 @@
         <div class="settings-group">
           <label class="settings-row"><span>Pause when the window loses focus</span><input type="checkbox" data-pref="pauseWhenInactive"></label>
           <label class="settings-row"><span>Appearance</span><select data-pref="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-          <label class="settings-row"><span>Record diagnostics</span><input type="checkbox" data-pref="diagnostics"></label>
-          <div class="settings-row"><div><h4>Local repro file</h4><p>Includes a game-state checkpoint, input since that checkpoint, and recent worker timings.</p></div><button type="button" data-command="export-repro" data-needs-trace>Export Repro…</button></div>
-          <label class="settings-row"><span>Game on next load</span><select data-pref="variant"><option value="stock">Donkey Kong Country</option><option value="dixie">Dixie variant</option></select></label>
         </div>
       <button type="button" data-command="keyboard" disabled>Keyboard Controls…</button>
       </section>
       </section>
       <section id="settings-pane-video" class="settings-pane" data-settings-pane="video" role="tabpanel" aria-labelledby="settings-tab-video" hidden>
         <div class="pane-heading"><h3>Video</h3></div>
-        <h4>Presentation</h4>
         <div class="settings-group">
-          <label class="settings-row"><span>Display aspect</span><select data-pref="aspect"><option value="4:3">4:3 · stock</option><option value="16:10">16:10 · widescreen</option><option value="16:9">16:9 · widescreen</option></select></label>
-          <label class="settings-row"><span>Pixel shape</span><select data-pref="pixelAspect"><option value="snes">SNES 7:6</option><option value="square">Square</option></select></label>
-          <label class="settings-row"><span>Windowed size</span><select data-pref="windowScale"><option value="fit">Fit window</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select></label>
+          <div class="settings-row"><span>Game display</span><span>256 × 224 · 4:3</span></div>
           <label class="settings-row"><span>Full screen on Start</span><input type="checkbox" data-pref="fullscreenOnStart"></label>
           <div class="settings-row"><span>Full screen</span><button type="button" data-command="fullscreen" data-fullscreen-label>Enter Full Screen</button></div>
-        </div>
-        <h4>Widescreen</h4>
-        <div class="settings-group">
-          <label class="settings-row"><span>Level edges</span><select data-pref="edge"><option value="glide">Glide</option><option value="reflect">Reflect</option><option value="bars">Black bars</option><option value="shift">Shift</option></select></label>
-          <label class="settings-row"><span>Experimental aquatic fixes</span><input type="checkbox" data-pref="aquaticFixes"></label>
-        </div>
-        <h4>Rendering</h4>
-        <div class="settings-group">
-          <label class="settings-row"><span>Phosphor colors</span><select data-pref="screenColor"><option value="raw">Raw</option><option value="crt">CRT</option><option value="composite">Composite</option><option value="trinitron">Trinitron</option></select></label>
-          <label class="settings-row"><span>Display</span><select data-pref="display"><option value="flat">Flat</option><option value="crt">CRT television</option></select></label>
-          <label class="settings-row"><span>Flat display filter</span><select data-pref="upscaler"><option value="nearest">Nearest</option><option value="bilinear">Bilinear</option><option value="sharp-bilinear">Sharp bilinear</option><option value="reconstruct">Reconstruct</option></select></label>
-          <label class="settings-row"><span>Frame generation</span><select data-pref="frameGeneration"><option value="off">Off</option><option value="poses">Smooth poses · 60 Hz</option><option value="midpoints">Smooth poses and motion · 120 Hz</option></select></label>
-        </div>
-        <h4>Reconstruction</h4>
-        <div class="settings-group">
-          <label class="settings-row"><span>Reconstruction mode</span><select data-pref="reconstruction"><option value="sharp">Sharp pixels</option><option value="dither">Dither decoding</option><option value="diagonal">Diagonal edges</option><option value="level-2">Level-2 slopes</option><option value="level-3">Level-3 slopes</option></select></label>
-          <label class="settings-row"><span>Edge strength (%)</span><input type="number" min="0" max="100" step="1" data-pref="strength"></label>
-          <label class="settings-row"><span>Softness (%)</span><input type="number" min="0" max="100" step="1" data-pref="softness"></label>
-          <label class="settings-row"><span>Smooth shading (%)</span><input type="number" min="0" max="100" step="1" data-pref="shading"></label>
-        </div>
-        <h4>CRT television</h4>
-        <div class="settings-group">
-          <label class="settings-row"><span>Preset</span><select data-pref="crtPreset"><option value="living-room">Living room</option><option value="studio">Studio monitor</option><option value="soft">Soft</option><option value="custom">Custom</option></select></label>
-          <label class="settings-row"><span>Scanlines (%)</span><input type="number" min="0" max="100" step="1" data-pref="scanlines"></label>
-          <label class="settings-row"><span>CRT sharpness (%)</span><input type="number" min="0" max="100" step="1" data-pref="sharpness"></label>
-          <label class="settings-row"><span>Phosphor mask</span><select data-pref="mask"><option value="none">None</option><option value="fine">Fine grille</option><option value="coarse">Coarse grille</option><option value="slot">Slot mask</option></select></label>
-          <label class="settings-row"><span>Mask strength (%)</span><input type="number" min="0" max="100" step="1" data-pref="maskStrength"></label>
-          <label class="settings-row"><span>Glow (%)</span><input type="number" min="0" max="100" step="1" data-pref="glow"></label>
-          <label class="settings-row"><span>Halation (%)</span><input type="number" min="0" max="100" step="1" data-pref="halation"></label>
-          <label class="settings-row"><span>Curvature (%)</span><input type="number" min="0" max="100" step="1" data-pref="curvature"></label>
-        </div>
-        <h4>HD materials</h4><div class="settings-group">
-          <label class="settings-row"><span>Use HD textures</span><input type="checkbox" data-pref="hdTextures"></label>
-          <label class="settings-row"><span>Edge cleanup (%)</span><input type="number" min="0" max="100" step="1" data-pref="hdPolish"></label>
-          <label class="settings-row"><span>Grounded finish (%)</span><input type="number" min="0" max="100" step="1" data-pref="hdFinish"></label>
-        </div><p class="settings-footnote">Choose a Materials folder in Config → Paths and reload the game to use it.</p>
-        <h4>Diagnostics</h4>
-        <div class="settings-group">
-          <label class="settings-row"><span>Visible layer</span><select data-pref="layer"><option value="all">All layers</option><option value="bg1">Background 1</option><option value="bg2">Background 2</option><option value="bg3">Background 3</option><option value="objects">Objects</option></select></label>
-          <label class="settings-row"><span>Show widescreen source overlay</span><input type="checkbox" data-pref="provenance"></label>
         </div>
       </section>
       <section id="settings-pane-sound" class="settings-pane" data-settings-pane="sound" role="tabpanel" aria-labelledby="settings-tab-sound" hidden>
@@ -178,40 +132,29 @@
           <label class="settings-row"><span>Volume · <output data-value-for="volume"></output>%</span><input type="range" min="0" max="100" data-pref="volume"></label>
           <label class="settings-row"><span>Audio prebuffer</span><select data-pref="audioPreroll"><option value="1">1 block</option><option value="2">2 blocks</option><option value="3">3 blocks</option><option value="4">4 blocks</option></select></label>
           <label class="settings-row"><span>Correct audio clock drift</span><input type="checkbox" data-pref="audioDriftCorrection"></label>
-          <label class="settings-row"><span>Music on next load</span><select data-pref="music"><option value="original">Original soundtrack</option><option value="msu1">MSU-1 pack</option></select></label>
-          <label class="settings-row"><span>Replacement music gain · <output data-value-for="musicGain"></output>×</span><input type="range" min="0" max="4" step=".01" data-pref="musicGain"></label>
         </div>
-      <p id="soundtrack-status" class="settings-footnote" role="status" hidden></p>
       </section>
       <section id="settings-pane-paths" class="settings-pane" data-settings-pane="paths" role="tabpanel" aria-labelledby="settings-tab-paths" hidden>
         <div class="pane-heading"><h3>Paths</h3></div>
         <div class="settings-group"><div class="settings-row"><div><h4><label for="remember-rom">Remember ROM on this device</label></h4><p id="remember-rom-details">Keep a local copy for your next visit. Turning this off removes the copy and keeps your cartridge saves.</p></div><input id="remember-rom" type="checkbox" checked disabled aria-describedby="remember-rom-details"></div></div>
-        <label class="settings-row"><span>HD materials folder</span><input id="hd-folder" type="file" webkitdirectory multiple></label>
-        <div class="settings-row"><span id="hd-pack-status" role="status">Checking HD storage…</span><button id="forget-hd" type="button" disabled>Forget HD Materials</button></div>
-        <label class="settings-row"><span>Music pack folder</span><input id="music-folder" type="file" webkitdirectory multiple></label>
-        <label class="settings-row"><span>Music pack archive</span><input id="music-archive" type="file" accept=".msu1,.zip"></label>
-        <div class="settings-row"><span id="music-pack-status" role="status">Checking music storage…</span><button id="forget-music" type="button" disabled>Forget Music Pack</button></div>
         <p id="rom-storage-status" class="settings-footnote" role="status">Checking local storage…</p>
       </section>
       <section id="settings-pane-speed" class="settings-pane" data-settings-pane="speed" role="tabpanel" aria-labelledby="settings-tab-speed" hidden>
         <div class="pane-heading"><h3>Speed</h3><p>Game timing and playback.</p></div>
         <div class="settings-group">
-          <label class="settings-row"><span>Game speed</span><select data-pref="speed"><option value="1">Normal · 1×</option><option value="2">Fast · 2×</option><option value="3">Fastest · 3×</option></select></label>
-          <label class="settings-row"><span>Gameplay Assist</span><input type="checkbox" data-pref="assist"></label>
-          <div class="settings-row"><span>Frame control</span><div class="command-buttons"><button type="button" data-needs-assist data-command="rewind-step">Rewind</button><button type="button" data-needs-game data-command="frame-step">Advance one frame</button></div></div>
+          <div class="settings-row"><span>Game speed</span><span>Normal · 1×</span></div>
           <div class="settings-row"><span>Playback</span><button type="button" data-needs-game data-command="toggle" data-toggle-label>Start</button></div>
         </div>
-        <p class="settings-footnote">Assist keeps a short rewind history and enables your assigned shortcuts. Fast playback mutes game audio.</p>
       </section>
       <section id="settings-pane-saves" class="settings-pane" data-settings-pane="saves" role="tabpanel" aria-labelledby="settings-tab-saves" hidden>
-        <div class="pane-heading"><h3>Saves</h3><p>Import or export your cartridge save.</p></div>
+        <div class="pane-heading"><h3>Saves</h3><p>Manage cartridge saves and save states.</p></div>
         <div class="settings-group"><div class="settings-row"><div><h4>Saved in this browser</h4><p>Save at Candy’s in the game. Your cartridge save is kept here automatically.</p></div><span class="row-symbol"><svg viewBox="0 0 24 24"><use href="#icon-save"/></svg></span></div></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Export game save</h4><p>Keep a copy or move your progress to another browser.</p></div><button id="export-save" disabled>Export…</button></div><div class="settings-row"><div><h4>Import game save</h4><p>Choose a 2,048-byte cartridge save, then reopen your ROM.</p></div><label class="button" id="import-label" aria-disabled="true" for="save-file">Choose File…<input id="save-file" type="file" accept=".srm,.sav" hidden disabled></label></div></div>
+        <div class="settings-group"><div class="settings-row"><div><h4>Export game save</h4><p>Keep a copy or move your progress to another browser.</p></div><button id="export-save" disabled>Export…</button></div><div class="settings-row"><div><h4>Import game save</h4><p>Choose a 2,048-byte cartridge save, then choose Reload Game.</p></div><label class="button" id="import-label" aria-disabled="true" for="save-file">Choose File…<input id="save-file" type="file" accept=".srm,.sav" hidden disabled></label></div></div>
         <div class="settings-group">
           <label class="settings-row"><span>Save state slot</span><select data-pref="stateSlot"><option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option><option value="4">Slot 4</option><option value="5">Slot 5</option></select></label>
           <div class="settings-row"><span>Game state</span><div class="command-buttons"><button type="button" data-command="quick-save" data-needs-game>Save State</button><button type="button" data-command="quick-load" data-needs-game>Load State</button></div></div>
         </div>
-        <p class="settings-footnote">Saves belong to this browser and local address. Export a copy before clearing browser data.</p>
+        <p class="settings-footnote">Save states stay in this browser. Export Save downloads your cartridge progress.</p>
       </section>
 
     </div>
@@ -219,7 +162,7 @@
 </dialog>
 <dialog id="help-dialog" class="help-sheet" aria-labelledby="help-title">
   <div class="sheet-header"><h2 id="help-title">Help</h2><button type="button" class="primary compact-button" data-close-help>Done</button></div>
-  <div class="help-content"><div id="help-content" class="markdown-content"></div><p id="frame-info" class="technical-note">256 × 224</p></div>
+  <div class="help-content"><div id="help-content" class="markdown-content"></div></div>
 </dialog>
 <dialog id="about-dialog" class="about-sheet" aria-labelledby="about-title"><button class="about-close icon-button" data-close-about aria-label="Close about">×</button><span class="dk-coin" role="img" aria-label="DK coin"></span><h2 id="about-title">About</h2><div id="about-content" class="markdown-content"></div><button class="primary" data-close-about>Done</button></dialog>
 </body>

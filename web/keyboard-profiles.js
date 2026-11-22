@@ -2,8 +2,9 @@
 import {ACTIONS,ASSIST_ACTIONS} from './gamepad-profiles.js';
 
 export const KEYBOARD_SCHEMA='dkc.keyboard-settings';
-export const KEYBOARD_VERSION=1;
-export const KEYBOARD_STORAGE_KEY='dkc.keyboard-settings.v1';
+export const KEYBOARD_VERSION=2;
+export const KEYBOARD_STORAGE_KEY='dkc.keyboard-settings.v2';
+export const LEGACY_KEYBOARD_KEY='dkc.keyboard-settings.v1';
 export const MAX_KEYBOARD_BYTES=65536;
 export const DEFAULT_KEYBOARD_BINDINGS=Object.freeze({
   b:Object.freeze(['KeyZ']),y:Object.freeze(['KeyX']),
@@ -69,7 +70,7 @@ export function validateKeyboardBindings(value){
 export function defaultKeyboardSettings(){
   return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,mode:'keyboard',bindings:clone(DEFAULT_KEYBOARD_BINDINGS),
     player2:{mode:'none',bindings:Object.fromEntries(ACTIONS.map(({id})=>[id,[]]))},
-    assistKeys:{'rewind-step':'Backspace','fast-forward':'Tab','quick-save':null,'quick-load':null,'frame-step':null}};
+    assistKeys:{'quick-save':null,'quick-load':null}};
 }
 
 function validatePort(port){
@@ -79,15 +80,16 @@ function validatePort(port){
 export function validateKeyboardSettings(value){
   if(!record(value))throw new Error('Keyboard settings must be an object.');
   for(const key of Object.keys(value))if(!['schema','version','mode','bindings','player2','assistKeys'].includes(key))throw new Error(`Unknown keyboard settings field: ${key}.`);
-  if(value.schema!==KEYBOARD_SCHEMA||value.version!==KEYBOARD_VERSION)throw new Error('Unsupported keyboard settings format.');
+  if(value.schema!==KEYBOARD_SCHEMA||![1,KEYBOARD_VERSION].includes(value.version))throw new Error('Unsupported keyboard settings format.');
   const defaults=defaultKeyboardSettings(),{player2=defaults.player2,assistKeys=defaults.assistKeys}=value;
   if(!record(player2)||Object.keys(player2).some(key=>!['mode','bindings'].includes(key)))throw new Error('Invalid player 2 keyboard settings.');
-  if(!record(assistKeys)||Object.keys(assistKeys).some(key=>!own(ASSIST_ACTIONS,key)))throw new Error('Invalid Assist keyboard settings.');
+  const legacyActions=value.version===1?['rewind-step','fast-forward','frame-step']:[];
+  if(!record(assistKeys)||Object.keys(assistKeys).some(key=>!own(ASSIST_ACTIONS,key)&&!legacyActions.includes(key)))throw new Error('Invalid keyboard shortcut settings.');
   const normalized={},seen=new Set();
   for(const id of Object.keys(ASSIST_ACTIONS)){
     const code=assistKeys[id];
-    if(code!==null&&code!=='Tab'&&!isBindableKeyboardCode(code))throw new Error('Invalid Assist key.');
-    if(code&&seen.has(code))throw new Error('Choose a different key for each Assist shortcut.');
+    if(code!==null&&code!=='Tab'&&!isBindableKeyboardCode(code))throw new Error('Invalid save-state shortcut key.');
+    if(code&&seen.has(code))throw new Error('Choose a different key for each save-state shortcut.');
     normalized[id]=code;if(code)seen.add(code);
   }
   return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,...validatePort(value),player2:validatePort(player2),assistKeys:normalized};

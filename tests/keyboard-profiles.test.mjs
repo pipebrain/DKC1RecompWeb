@@ -91,9 +91,9 @@ test('labels expose familiar key names and default comparisons accept reordered 
   assert(isDefaultKeyboardBindings(bindings));
 });
 
-test('old keyboard settings migrate and a second player, alternate keys and Assist survive a transfer',()=>{
+test('v1 keyboard settings migrate and both players and save-state shortcuts survive a transfer',()=>{
   const original=defaultKeyboardSettings();
-  const legacy={schema:original.schema,version:original.version,mode:'gamepad',bindings:original.bindings};
+  const legacy={schema:original.schema,version:1,mode:'gamepad',bindings:original.bindings};
   const next=validateKeyboardSettings(legacy);
   assert.equal(next.mode,'gamepad');assert.equal(next.player2.mode,'none');
   assert.deepEqual(next.assistKeys,original.assistKeys);
