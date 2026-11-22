@@ -124,7 +124,8 @@ python3 scripts/pages_archive.py create --package build/pages \
 The archive is supplied as a release asset to a manual Pages workflow; ROMs,
 saves, generated C, and compiled Wasm remain out of Git. Browser files and Wasm
 are publicly served by Pages. A paired controller or hardware keyboard is
-needed for mobile gameplay; physical Android/iOS testing remains outstanding.
+needed for mobile gameplay. On 2026-11-22 the user reported that the mobile
+test site passes all checks; device/browser details were not supplied.
 The private repository's account plan does not support Pages for it. The user
 chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
 as the separate public deployment repository, preserving source/history privacy.

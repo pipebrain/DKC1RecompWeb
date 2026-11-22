@@ -1,7 +1,9 @@
 # GitHub Pages and mobile testing
 
-GitHub Pages hosting is part of the version-1 scope. Physical Android/iOS
-gameplay testing remains a separate validation step.
+GitHub Pages hosting is part of the version-1 scope. On 2026-11-22 the user
+reported: "Mobile test site passes all checks." The mobile test-site baseline
+is user-accepted; specific devices, OS/browser versions, input methods, and
+test duration were not supplied.
 
 ## Hosting status
 
@@ -83,8 +85,10 @@ The first deployed preview is `pages-v1-ac77be235c22`. Its archive SHA-256 is
 `ac77be235c22f3d55945287c37a4560779d6be09740d8c283f29bce79d934e0b`.
 [Deployment run](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/44516231581).
 The live HTTPS site passes the native 600-frame, save/audio/pause checks and
-matches all packaged asset hashes. Physical Android/iOS gameplay remains
-unverified; see `docs/VALIDATION.md` for the recorded checks.
+matches all packaged asset hashes. The user subsequently accepted the mobile
+test-site baseline on 2026-11-22. See `docs/VALIDATION.md` for the distinction
+between automated evidence and the user report; detailed device coverage
+remains unrecorded.
 
 ## Test on a phone or tablet
 

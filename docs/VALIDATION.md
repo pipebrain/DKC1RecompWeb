@@ -568,14 +568,29 @@ all 35 file identities and manifest match before/after, the native 600-frame
 oracle matches, SRAM transport/reload/restoration and actual AudioWorklet
 processing pass, and pause/resume pacing holds. Unsupported fullscreen is
 checked using a capability mock; native capabilities are restored afterward.
-No unsafe-WebGPU flag was needed. Actual Android/iOS hardware remains untested.
+No unsafe-WebGPU flag was needed. That automated run did not operate mobile
+hardware; the later user acceptance is recorded below.
+
+## User-reported mobile acceptance — 2026-11-22
+
+The user reported: "Mobile test site passes all checks."
+The mobile test-site functional baseline is recorded as user-accepted. This
+updates the previously outstanding mobile acceptance milestone; it is separate
+from the agent-operated desktop Chrome and capability-fixture checks above.
+
+Device models, Android/iOS coverage, OS/browser versions, input methods,
+test duration, and individual case results were not supplied. The report does
+not establish a specific platform support matrix, full-game playthrough,
+long-duration run, or agent-operated mobile hardware test.
 
 ## Limits
 
 No full playthrough, completed-level gate, agent-operated physical controller
-test, long-duration timing/audio run, detailed Candy save/load playtest, other
-OS test, or induced game-watchdog failure test is recorded. The user reported
-Safari/Chrome functional acceptance before the interface overhaul; browser
+test, long-duration timing/audio run, detailed Candy save/load playtest,
+device-specific support matrix, or induced game-watchdog failure test is
+recorded. The user reported Safari/Chrome functional acceptance before the
+interface overhaul; browser
 versions were not supplied. Agent controller checks use injected inputs.
-The redesigned interface needs visible user review in Safari/Chrome, and
-physical iPhone/iPad behavior has not been verified.
+The user accepted the mobile test-site baseline on 2026-11-22; its device and
+browser details remain unrecorded. This acceptance does not replace the more
+specific coverage evidence listed above.

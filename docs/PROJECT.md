@@ -1,6 +1,6 @@
 # DKC1RecompWeb / DKC and DKL browser project
 
-Updated: 2026-11-19 (America/Toronto).
+Updated: 2026-11-22 (America/Toronto).
 
 ## Goal and scope
 
@@ -69,8 +69,10 @@ The user added GitHub Pages hosting for Android/iOS testing to version 1.
   pausing or leaving the game, including audio waits and posted worker commands.
 - Start with desktop Chrome on the user's Mac; expand compatibility after a
   working baseline.
-- Version 1 includes an HTTPS GitHub Pages test site. Physical Android/iOS
-  validation is still required. The user chose a separate public deployment
+- Version 1 includes an HTTPS GitHub Pages test site. On 2026-11-22 the user
+  reported that the mobile test site passes all checks; its baseline is
+  user-accepted. Device/platform details were not supplied. The user chose a
+  separate public deployment
   repository, [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages),
   while this source repository stays private. The test site is
   https://pipebrain.github.io/DKC1RecompWeb-Pages/. It publicly serves the
@@ -328,17 +330,21 @@ of SNES pixels are not implemented.
   The canvas explicitly takes focus on a pointer tap. The live HTTPS Pages
   site passes the same asset/native-frame/save/audio/pause checks. The public
   deployment repository contains six tooling files with no private ancestry;
-  its commits use a GitHub no-reply identity. Android/iOS hardware testing
-  remains outstanding.
+  its commits use a GitHub no-reply identity. On 2026-11-22 the user reported:
+  "Mobile test site passes all checks." The mobile test-site baseline is
+  user-accepted. Device models, OS/browser versions, input methods, duration,
+  and individual case results were not supplied; no agent-operated mobile
+  hardware test is implied.
 
 Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
 
 ## Remaining validation
 
 - Full-game and long-duration timing/audio coverage.
-- The redesigned interface needs the user's visible Safari/Chrome review.
-  Agent controller tests use injected fixtures; the user's later functional
-  acceptance is distinct from an agent-operated physical hardware test.
+- The mobile test-site baseline is user-accepted as of 2026-11-22. Detailed
+  device/browser/input coverage remains unrecorded. Agent controller tests use
+  injected fixtures; user acceptance is distinct from agent-operated hardware
+  testing.
   See [CONTROLLERS.md](CONTROLLERS.md).
 - Long-session sound/timing behavior. Visible keyboard, sound on/off, and
   pause/resume were accepted by the user in Safari and Chrome.
@@ -351,24 +357,12 @@ Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
 
 ## Next milestone
 
-The user accepted the prior functional baseline and then revised the GUI to
-require menus as the sole main interface controls. That composition and its
-Chrome UI/game-host regressions are complete. The requested ZSNES-style
-regrouping and static coin are implemented; obtain the user's visible review
-in Safari and Chrome. The user confirmed separate Input/Devices/Options menu
-entries opening three tabs in one settings page, and visible disabled entries
-for unavailable features.
-About/Help content and editable default keyboard input are implemented. The
-DKC1RecompWeb repository and About link are established, with the pinned
-upstream ancestry preserved. The version-1 Pages test site is live through
-DKC1RecompWeb-Pages, while the source repository remains private. Obtain
-physical Android/iOS testing using the hosted URL and record device/browser,
-input, sound, saves, rotation, and background/resume results. Native release
-parity and Land integration remain separate work.
-Mapped Start quick start/resume is implemented and checked in Chrome; obtain
-the user's physical controller and Safari review alongside the current GUI.
-The DKM playback states and informational pause/resume-input overlay are now
-implemented and checked in Chrome, including compact and fullscreen layouts.
+The version-1 browser/Pages functional baseline is user-accepted. On
+2026-11-22 the user reported that the mobile test site passes all checks.
+Mobile acceptance is no longer an outstanding baseline milestone.
+
 Continue broader gameplay, long-session audio/timing, and normal in-game save
-coverage separately from interface acceptance.
+coverage separately from the accepted baseline. Record device/browser/input
+details when supplied; they were not included in the mobile acceptance report.
+Native release parity and Donkey Kong Land integration remain separate work.
 Continue recording exact source/build identities, inputs, evidence, and limits.
