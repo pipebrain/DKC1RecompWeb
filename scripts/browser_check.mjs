@@ -407,9 +407,13 @@ try{
     await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(originalSave)});await window.dkcDebug.flushSaves();})()`);
     await reopenCartridge();bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),originalSave,'Original SRAM was not restored persistently.');
     report.saveRestored=true;originalSave=null;report.checks.push('2,048-byte SRAM import/export and IndexedDB page-reload persistence; original bytes restored.');
-    const before=await evaluate('window.dkcDebug.refresh()');
-    await evaluate('window.dkcDebug.enableSound(true)');
-    await evaluate('window.dkcDebug.resume()');await delay(1800);
+    const before=await evaluate('window.dkcDebug.status()');
+    if(!options.url)assert.equal(before.sound,true,'Sound should be on before the first Start.');
+    assert.equal(before.audioContextState,'not-created','A paused fresh boot should wait for Start to initialize audio.');
+    if(!before.sound)await evaluate('window.dkcDebug.enableSound(true)'); // Published v1 starts muted.
+    await dkmCommand('start-game');
+    await poll(()=>evaluate('window.dkcDebug.status().running'),'DKM Start Game playback');
+    await delay(1800);
     const playing=await evaluate('window.dkcDebug.status()');
     const paused=await evaluate('window.dkcDebug.pause()');
     await evaluate('window.dkcDebug.enableSound(false)');
@@ -417,8 +421,8 @@ try{
     assert.equal(playing.audioContextState,'running','AudioContext did not run.');
     assert.equal(playing.audioStats.type,'audio-stats','AudioWorklet did not report processing during real-time play.');
     for(const key of ['queuedFrames','underruns','overruns'])assert(Number.isInteger(playing.audioStats[key])&&playing.audioStats[key]>=0,`AudioWorklet did not report a valid ${key} count.`);
-    report.audio={contextState:playing.audioContextState,stats:playing.audioStats,observationMs:1800,listeningQualityAssessed:false};
-    report.checks.push('AudioContext and PCM AudioWorklet run during play and report queue/underrun/overrun counters; sound reset afterward.');
+    report.audio={defaultOn:before.sound,contextBeforeStart:before.audioContextState,contextState:playing.audioContextState,stats:playing.audioStats,observationMs:1800,listeningQualityAssessed:false};
+    report.checks.push('DKM Start Game plays through the AudioContext and PCM AudioWorklet. The sound control mutes afterward.');
     assert.equal(await evaluate('window.dkcDebug.status().sound'),false,'Sound did not disable after the audio check.');
     assert(paused.frameCount>before.frameCount,'Resume did not advance game frames.');assert(paused.frameCount-before.frameCount<240,'Fixed-step game ran implausibly fast.');
     await delay(200);const still=await evaluate('window.dkcDebug.refresh()');assert.equal(still.frameCount,paused.frameCount,'Game advanced while paused.');

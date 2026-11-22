@@ -155,6 +155,8 @@ a bounded source-discovery finding, not proof that none exists. See the
   Display refresh does not advance the game. Hidden/blurred tabs pause.
 - Game step, PPU drawing, and PCM consumption preserve the native order.
   Audio is stereo signed 16-bit at 32,040 Hz, resampled by an AudioWorklet.
+  Sound defaults to on each time the player opens. Starting the game activates
+  audio, and Config → Sound can mute or unmute it for the current session.
 - Keyboard input and configurable Gamepad API profiles support standard
   layouts and raw button/axis/hat bindings. The standard mapping remains the
   built-in default. Custom profiles use separate local storage and JSON
@@ -377,7 +379,14 @@ On Mac Chrome, slot 1 advanced from 00:12 / 09% to 00:14 / 09% at Candy’s
 barrel. After a full Chrome quit, a fresh process reopened the ROM, showed
 the updated slot in game and loaded Candy’s map. The 2,048 restored bytes and
 the continued game’s video, memory and cumulative audio matched native.
+The user also confirmed the remembered-ROM and Candy save milestone passed.
 [Route and reproduction](VALIDATION.md#phase-2-cartridge-storage-and-candys-save-point)
+
+Chrome verified that the first Return press and DKM → Start Game both start the
+game and its audio output with sound enabled by default. When Chrome required
+a gesture on a controller-only launch, clicking Start Game activated audio.
+A test analyser measured game audio on first playback, silence while muted,
+and game audio again after unmuting.
 
 ## Remaining validation
 

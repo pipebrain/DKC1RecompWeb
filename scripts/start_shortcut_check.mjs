@@ -38,7 +38,7 @@ class CDP{
 }
 function log(child,name){const stream=createWriteStream(join(output,name));streams.push(stream);child.stdout?.on('data',data=>stream.write(data));child.stderr?.on('data',data=>stream.write(data));}
 async function poll(action,name,timeout=20000){let last;const deadline=Date.now()+timeout;while(Date.now()<deadline){try{const value=await action();if(value)return value;}catch(error){last=error;if(error.fatal)throw error;}await delay(60);}throw new Error(`Timed out: ${name}${last?` (${last.message})`:''}`);}
-async function evaluate(expression){const result=await client.send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true,userGesture:true});if(result.exceptionDetails)throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result?.value;}
+async function evaluate(expression){const result=await client.send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw new Error(result.exceptionDetails.exception?.description||result.exceptionDetails.text);return result.result?.value;}
 async function screenshot(name){const result=await client.send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});await writeFile(join(output,name),Buffer.from(result.data,'base64'));}
 async function unusedPort(){const holder=createServer();await new Promise((yes,no)=>{holder.once('error',no);holder.listen(0,'127.0.0.1',yes);});const value=holder.address().port;await new Promise(yes=>holder.close(yes));return value;}
 async function click(selector){await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await delay(60);}
@@ -79,6 +79,39 @@ async function keyboardResume(code='Enter'){
 async function rawBindStart(){
   await setValue('#controller-bind-action','start');await setValue('#controller-bind-type','button');await setValue('#controller-bind-index',11);await click('#controller-bind-add');
 }
+
+async function checkFirstControllerStart(){
+  // Begin a new document without any click or key. The saved input profile
+  // and remembered ROM make a controller-only first Start possible.
+  await client.send('Page.navigate',{url:'about:blank'});
+  await client.send('Page.navigate',{url:origin});
+  await poll(()=>evaluate('window.dkcDebug?.status().loaded && document.querySelector("#status").textContent.startsWith("Ready")'),'remembered cartridge');
+  await focus();
+  const ready=await state();
+  assert.equal(ready.inputMode,'gamepad');
+  assert.equal(ready.sound,true);
+  assert.equal(ready.audioContextState,'not-created');
+  assert.equal(await evaluate('navigator.userActivation.hasBeenActive'),false);
+  await evaluate(`window.AudioContext=class extends AudioContext{
+    constructor(...args){super(...args);window.__startTest.audioContext=this;}
+  }`);
+  await pad([]);await pad([9]);
+  await poll(()=>evaluate('document.querySelector("#status").classList.contains("error")'),'audio gesture guidance on first controller Start');
+  assert.match(await evaluate('document.querySelector("#status").textContent'),/Start Game/i);
+  assert.equal(await resumeCount(),0);
+  assert.equal((await state()).hasStarted,false);
+  await pad([]);
+  const point=await evaluate(`(()=>{
+    const item=document.querySelector('#menu-dkm [data-command="start-game"]');
+    item.scrollIntoView({block:'nearest'});const rect=item.getBoundingClientRect();
+    return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};
+  })()`);
+  await client.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point});
+  await client.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point});
+  await poll(async()=>{const s=await state();return s.running && s.audioContextState==='running' && s.audioStats?.type==='audio-stats';},'DKM click unlocks playback and game audio');
+  assert.equal(await resumeCount(),1);
+  report.checks.push('On a remembered-ROM launch with gamepad selected, Chrome required a gesture. A real DKM Start Game click unlocked the original soundtrack and started playback.');
+}
 try{
   if(!rom)throw new Error('Provide --rom with the verified local ROM.');
   report.sources=await sourceHashes();origin=`http://127.0.0.1:${await unusedPort()}/`;
@@ -92,10 +125,12 @@ try{
   await client.send('Page.enable');await client.send('Runtime.enable');await client.send('Emulation.setFocusEmulationEnabled',{enabled:true});report.foregroundFocusEmulation=true;
   await client.send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__startTest={inputs:[],commands:[],pads:[${JSON.stringify(rawPad)}]};Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>window.__startTest.pads});const originalPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.type==='input')window.__startTest.inputs.push(message.buttons);if(['resume','pause','input'].includes(message?.type))window.__startTest.commands.push({...message});if(message?.type==='resume'&&window.__startTest.deferWorkerResume)window.__startTest.resumeId=message.id;return originalPost.call(this,message,...args);};const onmessage=Object.getOwnPropertyDescriptor(Worker.prototype,'onmessage');Object.defineProperty(Worker.prototype,'onmessage',{configurable:true,get(){return onmessage.get.call(this)},set(handler){onmessage.set.call(this,event=>{if(window.__startTest.deferWorkerResume&&event.data?.type==='response'&&event.data.id===window.__startTest.resumeId){window.__startTest.finishWorkerResume=()=>handler.call(this,event);return;}handler.call(this,event);});}});`});
   await client.send('Page.navigate',{url:origin});await client.send('Page.bringToFront');await poll(()=>evaluate('Boolean(window.dkcDebug)&&document.querySelector("#status").textContent.startsWith("Ready")'),'host ready');
+  const initial=await state();assert.equal(initial.sound,true);assert.equal(initial.audioContextState,'not-created');
   await focus();await press('Enter');assert.equal(await resumeCount(),0,'Unloaded Start requested resume');
   await loadRom();await focus();await key('down','Enter',false,2);await paused('Ctrl+Return resumed game');await key('up','Enter');await keyboardResume();
+  await poll(async()=>{const s=await state();return s.sound&&s.audioContextState==='running'&&s.audioStats?.type==='audio-stats';},'default Return starts the audio worklet');
   await key('down','Enter');await inputBits(8,'running Enter reaches SNES');assert.equal((await state()).running,true);await key('up','Enter');await inputBits(0,'running Start release');
-  report.checks.push('Default Return quick-starts and is swallowed through key repeat/release; the next press during play reaches SNES Start without host pause.');
+  report.checks.push('Default Return starts playback and a running audio worklet with sound already enabled. The press is consumed through release; subsequent Start reaches the game.');
 
   await evaluate('window.dkcDebug.pause()');await focus();await key('down','Enter');await poll(async()=>(await state()).running,'second resume');await evaluate('window.dkcDebug.pause()');await key('down','Enter',true);await paused('Held/repeating Start resumed after pause');await key('up','Enter');await keyboardResume();
   report.checks.push('Pausing while Start is held requires release and a fresh press before another resume.');
@@ -114,6 +149,7 @@ try{
   await input();await setValue('#input-source','gamepad');await pad([9]);await done();await paused('Held Start resumed on input-source/sheet transition');await resetRecords();await freshStart();assert.equal(await resumeCount(),1);assert.equal(await evaluate('window.__startTest.inputs.some(bits=>(bits&8)!==0)'),false,'Gamepad resume Start leaked');
   await settle();assert.equal(await resumeCount(),1,'Held gamepad repeatedly requested resume');await pad([]);await pad([9]);await inputBits(8,'running pad Start reaches SNES');assert.equal((await state()).running,true);await press('KeyP');assert.equal((await state()).running,true);await pad([]);await inputBits(0,'pad Start releases');
   report.checks.push('Selected standard gamepad quick-resumes once, consumes Start until release, then passes running Start through; source changes with held Start require release.');
+  await checkFirstControllerStart();
 
   await evaluate('window.dkcDebug.pause()');await click('[aria-controls="menu-config"]');await pad([9]);await click('[aria-controls="menu-config"]');await focus();await paused('Held Start resumed after menu close');await freshStart();await pad([]);
   await input();await pad([9]);await done();await paused('Held Start resumed after Input close');await freshStart();await pad([]);
@@ -139,7 +175,7 @@ try{
   report.workerRaceLimit='Dispatch-to-reply cancellation is forced by delaying only the actual worker resume response; cancellation uses an injected blur event.';
   report.checks.push('Blur after worker resume dispatch queues pause; releasing a delayed stale resume response leaves both host and worker paused.');
 
-  await input();await setValue('#input-source','keyboard');await done();await evaluate('window.dkcDebug.enableSound(true)');
+  await input();await setValue('#input-source','keyboard');await done();await evaluate('window.__startTest.audioContext.suspend()');
   await evaluate(`(()=>{const original=AudioContext.prototype.resume;window.__startTest.originalAudioResume=original;AudioContext.prototype.resume=function(){if(window.__startTest.deferAudio){window.__startTest.audioCalls=(window.__startTest.audioCalls||0)+1;return new Promise(resolve=>window.__startTest.finishAudio=()=>original.call(this).then(resolve));}return original.call(this);};window.__startTest.deferAudio=true;})()`);
   await resetRecords();await key('down','KeyP');await poll(()=>evaluate('Boolean(window.__startTest.finishAudio)'),'deferred audio resume');await key('down','KeyP',true);assert.equal(await evaluate('window.__startTest.audioCalls'),1,'Repeated key duplicated pending audio resume');await input();await evaluate('window.__startTest.deferAudio=false;window.__startTest.finishAudio()');await key('up','KeyP');await paused('Stale audio completion resumed behind settings');assert.equal(await resumeCount(),0,'Stale resume reached worker');await done();await keyboardResume('KeyP');
   await evaluate('AudioContext.prototype.resume=window.__startTest.originalAudioResume');await evaluate('window.dkcDebug.enableSound(false)');
@@ -148,5 +184,8 @@ try{
   await evaluate('window.dkcDebug.pause()');await screenshot('paused.png');report.finalState=await state();report.sourcesAfter=await sourceHashes();report.sourceUnchanged=JSON.stringify(report.sources)===JSON.stringify(report.sourcesAfter);assert(report.sourceUnchanged,'Production source changed during verification.');assert.equal(report.javascriptErrors.length,0);assert.equal(report.consoleErrors.length,0);report.result='passed';
 }catch(error){report.result='failed';report.error={message:error.message,stack:error.stack};process.exitCode=1;if(client&&session)try{report.failureState=await evaluate('({keyboard:window.dkcDebug?.keyboard(),controllers:window.dkcDebug?.controllers(),state:window.dkcDebug?.status(),active:document.activeElement?.outerHTML,input:window.__startTest?.inputs.slice(-12),commands:window.__startTest?.commands.slice(-20)})');await screenshot('failure.png');}catch{}}
 finally{
-  if(client){try{await client.send('Browser.close',{},null,5000);}catch{}client.socket.close();}if(chrome?.exitCode===null){await Promise.race([new Promise(yes=>chrome.once('exit',yes)),delay(3000)]);if(chrome.exitCode===null)chrome.kill('SIGTERM');}for(const stream of streams)stream.end();if(server?.exitCode===null)server.kill('SIGTERM');await rm(profile,{recursive:true,force:true,maxRetries:4,retryDelay:100}).catch(()=>{});report.finished=new Date().toISOString();await writeFile(join(output,'evidence.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({result:report.result,checks:report.checks,error:report.error?.message,evidence:join(output,'evidence.json')},null,2));
+  if(client){try{await client.send('Browser.close',{},null,5000);}catch{}client.socket.close();}if(chrome?.exitCode===null){await Promise.race([new Promise(yes=>chrome.once('exit',yes)),delay(3000)]);if(chrome.exitCode===null)chrome.kill('SIGTERM');}
+  // Chrome's updater can inherit its stdout and stderr after the browser exits.
+  chrome?.stdout?.destroy();chrome?.stderr?.destroy();
+  for(const stream of streams)stream.end();if(server?.exitCode===null)server.kill('SIGTERM');await rm(profile,{recursive:true,force:true,maxRetries:4,retryDelay:100}).catch(()=>{});report.finished=new Date().toISOString();await writeFile(join(output,'evidence.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({result:report.result,checks:report.checks,error:report.error?.message,evidence:join(output,'evidence.json')},null,2));
 }

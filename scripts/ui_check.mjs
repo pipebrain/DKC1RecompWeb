@@ -43,6 +43,27 @@ function log(child,name){const stream=createWriteStream(join(output,name));strea
 async function poll(action,name,timeout=20000){let last;const deadline=Date.now()+timeout;while(Date.now()<deadline){try{const value=await action();if(value)return value;}catch(error){last=error;if(error.fatal)throw error;}await delay(60);}throw new Error(`Timed out: ${name}${last?` (${last.message})`:''}`);}
 async function evaluate(expression){const data=await client.send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true,userGesture:true});if(data.exceptionDetails)throw new Error(data.exceptionDetails.exception?.description||data.exceptionDetails.text);return data.result?.value;}
 async function click(selector){await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});if(!element)throw new Error('Missing '+${JSON.stringify(selector)});element.click();})()`);await delay(75);}
+async function assertSound(enabled){
+  const actual=await inPage(()=>{
+    const button=document.querySelector('[data-sound-label]');
+    return [window.dkcDebug.status().sound,button.getAttribute('aria-pressed'),button.textContent.trim()];
+  });
+  assert.deepEqual(actual,[enabled,String(enabled),enabled?'Sound On':'Sound Off']);
+}
+async function outputPeak(duration){
+  return inPage(async milliseconds=>{
+    const analyser=window.__uiTest.outputAnalyser;
+    const samples=new Float32Array(analyser.fftSize);
+    const end=performance.now()+milliseconds;
+    let peak=0;
+    do {
+      analyser.getFloatTimeDomainData(samples);
+      for(const sample of samples)peak=Math.max(peak,Math.abs(sample));
+      await new Promise(requestAnimationFrame);
+    } while(performance.now()<end);
+    return peak;
+  },duration);
+}
 async function pointerClick(selector){const point=await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);await client.send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});await client.send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});await delay(75);}
 async function screenshot(name){const data=await client.send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false});await writeFile(join(output,name),Buffer.from(data.data,'base64'));}
 async function unusedPort(){const holder=createServer();await new Promise((yes,no)=>{holder.once('error',no);holder.listen(0,'127.0.0.1',yes);});const value=holder.address().port;await new Promise(yes=>holder.close(yes));return value;}
@@ -410,13 +431,34 @@ try{
     await poll(()=>evaluate(`window.dkcDebug.status().loading||window.dkcDebug.status().loaded`),'ROM file begins loading');
     await poll(async()=>{const state=await evaluate(`({loaded:window.dkcDebug.status().loaded,loading:window.dkcDebug.status().loading,error:document.querySelector('#status').classList.contains('error'),message:document.querySelector('#status').textContent})`);if(state.error&&!state.loading){const error=new Error(state.message);error.fatal=true;throw error;}return state.loaded&&!state.loading;},'ROM and Wasm',120000);
     await evaluate('window.dkcDebug.runFrames(600,0)');report.frame=await evaluate('window.dkcDebug.frameHash()');assert.equal(report.frame.sha256,'a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd');
+    // Observe the worklet's rendered signal through a pass-through analyser.
+    await inPage(()=>{
+      const connect=AudioWorkletNode.prototype.connect;
+      AudioWorkletNode.prototype.connect=function(destination,...args){
+        if(destination!==this.context.destination)return connect.call(this,destination,...args);
+        const analyser=this.context.createAnalyser();
+        connect.call(this,analyser);
+        window.__uiTest.outputAnalyser=analyser;
+        return analyser.connect(destination,...args);
+      };
+    });
     await command('game','toggle');await poll(()=>evaluate('window.dkcDebug.status().running'),'Game menu starts game');
+    const initialPeak=await poll(()=>outputPeak(180),'default sound reaches the audio output');
     await command('game','toggle');await poll(()=>evaluate('!window.dkcDebug.status().running'),'Game menu pauses game');
-    await command('game','audio');assert.equal(await evaluate('window.dkcDebug.status().sound'),true);
-    await command('game','audio');assert.equal(await evaluate('window.dkcDebug.status().sound'),false);
+    await assertSound(true);
+    await command('game','audio');await assertSound(false);
+    await command('file','start-game');await poll(()=>evaluate('window.dkcDebug.status().running'),'DKM resumes while muted');
+    await assertSound(false);
+    const mutedPeak=await outputPeak(400);
+    assert.equal(mutedPeak,0,'Rendered sound must be silent while muted.');
+    await command('game','audio');await assertSound(true);
+    await command('file','start-game');await poll(()=>evaluate('window.dkcDebug.status().running'),'DKM resumes with sound restored');
+    const unmutedPeak=await poll(()=>outputPeak(180),'unmuted sound reaches the audio output');
+    await command('file','start-game');await poll(()=>evaluate('!window.dkcDebug.status().running'),'DKM pauses after audio check');
+    report.soundOutput={initialPeak,mutedPeak,unmutedPeak};
     await fileCommand('file','import-save','save-file');
     await resetAndVerify('file');
-    report.checks.push('ROM600 framebuffer stays native-exact; Game menu play/pause and sound toggles reach existing runtime.');
+    report.checks.push('The 600-frame framebuffer matches native. Sound is on at first playback, the rendered signal is silent while muted, and Config → Sound restores it.');
   }
 
   await command('app','settings');await poll(()=>evaluate(`document.querySelector('#app-settings').open`),'Settings modal');
@@ -496,8 +538,8 @@ try{
     await fileCommand('mobile','import-save','save-file');
     await command('game','toggle');await poll(()=>evaluate('window.dkcDebug.status().running'),'compact Config Speed starts game');
     await command('game','toggle');await poll(()=>evaluate('!window.dkcDebug.status().running'),'compact Config Speed pauses game');
-    await command('game','audio');assert.equal(await evaluate('window.dkcDebug.status().sound'),true);
-    await command('game','audio');assert.equal(await evaluate('window.dkcDebug.status().sound'),false);
+    await command('game','audio');await assertSound(false);
+    await command('game','audio');await assertSound(true);
     await resetAndVerify('mobile');
   }
   const compactInvalidMessage=await evaluate(`window.dkcDebug.loadRom(new ArrayBuffer(1)).then(()=>null,error=>error.message)`);assert.match(compactInvalidMessage,/4,194,304/);

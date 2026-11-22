@@ -44,7 +44,7 @@ python3 scripts/serve.py
 
 Open [the local player](http://localhost:8000/) in Chrome. Choose **DKM → Load ROM**
 (or **Menu → Load ROM**), select the same ROM, then use **DKM → Start Game**
-or press **Space** with the game focused. Use **Config → Sound** to enable audio.
+or press **Space** with the game focused. Sound starts on. Use **Config → Sound** to mute or unmute.
 The ROM is read locally
 and is not uploaded or embedded in the page.
 

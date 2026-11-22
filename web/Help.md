@@ -4,7 +4,8 @@
 
 1. On your first visit, choose **DKM → Load ROM** and select your headerless Donkey Kong Country USA v1.0 ROM. On later visits, the player opens your remembered ROM at **Ready to Start**.
 2. Choose **DKM → Start Game**, or focus the game screen and press your mapped **Start** input (Return with the default keyboard profile).
-3. Choose **Config → Sound** to enable the original stereo soundtrack and sound effects.
+
+Sound is on by default. Use **Config → Sound** to mute or unmute the game.
 
 The ROM is checked locally. The supported file is 4,194,304 bytes with SHA-256 `fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15`.
 
@@ -54,7 +55,7 @@ The built-in standard controller profile can be duplicated. Custom profiles supp
 - **DKM → Reload Game** starts a fresh paused boot of the selected ROM without another file picker. Cartridge saves and input profiles are preserved.
 - **Config → Video** provides fullscreen. Escape returns to the normal view. Only the game screen becomes fullscreen; the complete 4:3 image remains visible.
 
-Enable Sound through Config first. If the browser requires audio interaction again, use a click or keyboard press to enable Sound before resuming with a controller.
+If the browser asks for a click or tap when using a controller, choose **DKM → Start Game** (or **Resume Game**) to activate audio.
 
 ## Cartridge saves
 
@@ -75,7 +76,7 @@ Use an HTTPS site in a browser with WebGPU support: current Chrome on a supporte
 1. Make the verified ROM available in your device's Files picker, then choose **Menu → Load ROM**. The ROM is read locally, not uploaded.
 2. Pair a controller or connect a hardware keyboard. Touch menus are available; touch game controls are not implemented.
 3. For a controller, choose **Config → Input**, select **Gamepad**, and select/configure its profile. A new browser profile starts with Keyboard selected.
-4. Close Config, tap the game screen to focus it, then use **DKM → Start Game** or the displayed Start binding. Enable Sound through Config with a tap.
+4. Close Config, tap the game screen to focus it, then use **DKM → Start Game** or the displayed Start binding.
 
 Fullscreen is disabled when the browser does not support fullscreen for the game screen. Returning from another app/tab leaves the game paused. Rotate the device and check that the complete 4:3 image remains visible.
 

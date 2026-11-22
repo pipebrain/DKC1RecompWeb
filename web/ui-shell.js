@@ -215,7 +215,7 @@ export function initAppShell({
     revealInMenu(menu.querySelector('.menu-notices'));
   }
   function update(value=getState()) {
-    const {loaded=false,running=false,hasStarted=false,sound=false,loading=false,playbackBusy=false,playbackError=false,pausedReason,helpAvailable=false,aboutAvailable=false,inputMode='keyboard',keyboardCustom=false}=value;
+    const {loaded=false,running=false,hasStarted=false,sound=true,loading=false,playbackBusy=false,playbackError=false,pausedReason,helpAvailable=false,aboutAvailable=false,inputMode='keyboard',keyboardCustom=false}=value;
     document.body.dataset.running=String(running);document.body.dataset.loaded=String(loaded);document.body.dataset.sound=String(sound);
     for(const button of document.querySelectorAll('[data-needs-game]'))button.disabled=!loaded||loading;
     for(const button of document.querySelectorAll('[data-start-game]')){

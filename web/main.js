@@ -12,7 +12,8 @@ const canvas=$('#screen'),statusElement=$('#status'),saveStatus=$('#save-status'
 const worker=new Worker(new URL('./worker.js',import.meta.url),{type:'module'});
 const ROM_SIZE=4194304,ROM_SHA='fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15';
 let nextId=1,pending=new Map(),presenter=null,latestFrame=null,presentedFrame=0,loading=false,retainedRom=null,lastDevicePaint=0;
-let audioContext=null,audioNode=null,sound=false,keyBits=0,gamepadBits=0,debugBits=0,lastInput=-1;
+let audioContext=null,audioNode=null,audioSetup=null,sound=true;
+let keyBits=0,gamepadBits=0,debugBits=0,lastInput=-1;
 let state={loaded:false,running:false,hasStarted:false,playbackError:false,paused:true,frameCount:0},logs=[],audioStats={},saveChain=Promise.resolve();
 let committedSave=null,pendingSave=null;
 const pressedCodes=new Set();
@@ -158,21 +159,42 @@ worker.onmessage=({data})=>{
 worker.onerror=event=>{cancelResume({pausePosted:false});releaseInput();const error=new Error(event.message||'Game worker failed.');status(error.message,true);for(const value of pending.values())value.reject(error);pending.clear();updateState({running:false,paused:true,playbackError:true,pausedReason:'error'});};
 
 function resetAudio(){audioNode?.port.postMessage({type:'reset'});}
-async function enableSound(enabled){
-  if(enabled){
-    if(!audioContext){
-      const context=new AudioContext({latencyHint:'interactive'});
-      try{
-        await context.audioWorklet.addModule(new URL('./audio-worklet.js',import.meta.url));
-        const node=new AudioWorkletNode(context,'dkc-audio',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
-        node.port.onmessage=({data})=>{if(data.type==='recycle-audio')recycle('recycle-audio',data.buffer);else if(data.type==='audio-stats')audioStats=data;};
-        node.connect(context.destination);audioContext=context;audioNode=node;
-      }catch(error){await context.close().catch(()=>{});throw error;}
-    }
-    await audioContext.resume();
-    if(audioContext.state!=='running')throw new Error('The browser did not start audio. Enable Sound again in Config.');
+async function connectAudio(context){
+  try{
+    await context.audioWorklet.addModule(new URL('./audio-worklet.js',import.meta.url));
+    const node=new AudioWorkletNode(context,'dkc-audio',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});
+    node.port.onmessage=({data})=>{if(data.type==='recycle-audio')recycle('recycle-audio',data.buffer);else if(data.type==='audio-stats')audioStats=data;};
+    node.connect(context.destination);audioNode=node;
+  }catch(error){
+    await context.close().catch(()=>{});
+    audioContext=null;audioSetup=null;
+    throw error;
   }
-  sound=enabled;resetAudio();updateShell();return sound;
+}
+async function unlockAudio(context){
+  const hint=`Click or tap DKM → ${state.hasStarted?'Resume Game':'Start Game'} to start audio.`;
+  let timer;
+  try{
+    await Promise.race([context.resume(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(hint)),1500);})]);
+    if(context.state!=='running')throw new Error(hint);
+  }catch(error){
+    if(error.name==='NotAllowedError')throw new Error(hint);
+    throw error;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+async function startAudio(){
+  const context=audioContext??=new AudioContext({latencyHint:'interactive'});
+  // Request playback during the Start gesture, before waiting for the worklet download.
+  const unlocked=unlockAudio(context);
+  audioSetup??=connectAudio(context);
+  await Promise.all([unlocked,audioSetup]);
+}
+async function enableSound(enabled){
+  sound=enabled;resetAudio();updateShell();
+  if(enabled)await startAudio();
+  return sound;
 }
 async function pause(reason='paused'){
   cancelResume({pausePosted:false});releaseInput();pendingPauses++;updateShell();
@@ -192,12 +214,8 @@ async function resume({shortcut=null}={}){
   const valid=()=>generation===resumeGeneration&&!loading&&!pendingPauses&&!modalOpen()&&!document.hidden&&(!shortcut||canUseStart(shortcut));
   attempt.promise=(async()=>{
     if(sound){
-      let timeout;
-      try{
-        const ready=await Promise.race([audioContext.resume().then(()=>true),canceled,new Promise((resolve,reject)=>{timeout=setTimeout(()=>reject(new Error('Audio needs a click or key press. Enable Sound again in Config, then start the game.')),1500);})]);
-        if(!ready||!valid())return state;
-        if(audioContext.state!=='running')throw new Error('Enable Sound again in Config before starting the game.');
-      }finally{clearTimeout(timeout);}
+      const ready=await Promise.race([startAudio().then(()=>true),canceled]);
+      if(!ready||!valid())return state;
     }
     if(!valid())return state;
     resetAudio();attempt.posted=true;const value=await request('resume');
