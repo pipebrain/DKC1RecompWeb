@@ -24,4 +24,9 @@ uint8_t *dkc_sram(void);
 unsigned dkc_sram_size(void);
 const char *dkc_last_error(void);
 
+/* Fresh-boot route diagnostics. Fold PCM exactly once per diagnostic step,
+ * then request the native headless fingerprints for that checkpoint. */
+void dkc_debug_hash_audio(void);
+const char *dkc_debug_fingerprints(void);
+
 #endif

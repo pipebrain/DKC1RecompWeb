@@ -92,8 +92,12 @@ The user added GitHub Pages hosting for Android/iOS testing to version 1.
 
 ## Verified upstream references
 
-These revisions were obtained and built in this workspace on 2026-11-18.
-[upstream.lock.json](../upstream.lock.json) also pins the tool sources and versions.
+Phase 2 uses DKC1Recomp v0.0.17 at `559bab62596a97e91f389b39cdeb6cda981ab7c9`
+and snesrecomp at `75223f35b16e4c904cea78453b9cd1fcefbcd7f2`. The native
+source tree, root submodule pin and isolated build checkout agree.
+[Source and tool lock](../upstream.lock.json) · [Upstream release](https://github.com/elliotttate/DKC1Recomp/releases/tag/v0.0.17)
+
+The tagged v1.0.0 browser baseline used these revisions on 2026-11-18.
 
 | Component | Revision | Evidence |
 | --- | --- | --- |
@@ -198,7 +202,7 @@ separately approved and tested; its actual archives/imports are recorded in
 [the runtime decision](RUNTIME_DECISION.md). Full save states and GPU generation
 of SNES pixels are not implemented.
 
-## Current status
+## Version 1 implementation and verification
 
 - The ROM is verified; 2,176 private C units were generated using upstream's
   supported Python analyzer. Pinned upstream tracked sources remain unchanged.
@@ -338,6 +342,16 @@ of SNES pixels are not implemented.
 
 Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
 
+## Phase 2 stock core
+
+The v0.0.17 release-native host, native browser adapter and production Wasm
+worker agree on all seven framebuffer, memory and cumulative audio fingerprints
+at 600-frame boot, 5,100-frame title, and the 8,070-frame Jungle route.
+The 7,450-frame checkpoint also verifies visible Jungle gameplay. Chrome's
+WebGPU output matched native at every source pixel center on all four frames.
+The standalone core accepts the v1 SRAM and controller profile. See the
+[route hashes and verification procedure](VALIDATION.md#phase-2-stock-v0017).
+
 ## Remaining validation
 
 - Full-game and long-duration timing/audio coverage.
@@ -352,17 +366,15 @@ Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
   SRAM transport and browser reload persistence are verified automatically.
 - Other browsers/OSes beyond the user's Safari/Chrome checks, lower-performance
   devices, and background recovery.
-- Wasm frame hashes match the native cases tested; full browser WRAM/VRAM/audio
-  fingerprint equality and an induced game-watchdog failure were not tested.
+- Extended routes and an induced game-watchdog failure remain open beyond the
+  four Phase 2 checkpoints recorded above.
 
 ## Next milestone
 
 The private source tag [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0)
 marks the user-accepted browser/Pages baseline at `543fbe1`.
 
-Phase 2 targets DKC1Recomp v0.0.17. First build its stock core on native and
-Wasm and compare the boot, title and Jungle routes with the release-native
-reference. The [release parity plan](RELEASE_PARITY.md) maps the Windows
-player and bundled Mac HD preview to browser milestones, validation cases and
-open decisions about widescreen and input routing. Donkey Kong Land follows
-the release parity work.
+The verified stock v0.0.17 build is the Phase 2 comparison baseline. The
+next planned milestone is ROM and cartridge-save handling, including a
+normal Candy save, close, reopen and load. The [release parity plan](RELEASE_PARITY.md)
+tracks the remaining player features and the Mac HD preview.

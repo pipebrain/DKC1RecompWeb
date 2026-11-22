@@ -6,7 +6,7 @@ The root `LICENSE` and `THIRD_PARTY_NOTICES.md` are included separately.
 
 | Files | Source revision and path |
 | --- | --- |
-| `snesrecomp-LICENSE.txt`, `snesrecomp-THIRD_PARTY_ATTRIBUTION.md` | snesrecomp `de94587464524ebac8dcd62e14618bf0d3953644`, root license/attribution |
+| `snesrecomp-LICENSE.txt`, `snesrecomp-THIRD_PARTY_ATTRIBUTION.md` | snesrecomp `75223f35b16e4c904cea78453b9cd1fcefbcd7f2`, root license/attribution |
 | `psxrecomp-color-lut-LICENSE-*.txt` | Same snesrecomp revision, `third_party/psxrecomp_color_lut/` |
 | `emscripten-LICENSE.txt` | Emscripten `7a2d97d627ff4945eae28847ce0387ac52b92c09`, root `LICENSE` |
 | `musl-COPYRIGHT.txt` | Same Emscripten revision, `system/lib/libc/musl/COPYRIGHT` |

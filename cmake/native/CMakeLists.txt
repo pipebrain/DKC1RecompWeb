@@ -6,7 +6,9 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 get_filename_component(DKC1_PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
-set(DKC1_UPSTREAM_DIR "${DKC1_PROJECT_ROOT}/.local/upstream/DKC1Recomp"
+file(READ "${DKC1_PROJECT_ROOT}/upstream.lock.json" DKC1_LOCK)
+string(JSON DKC1_TAG GET "${DKC1_LOCK}" dkc1recomp tag)
+set(DKC1_UPSTREAM_DIR "${DKC1_PROJECT_ROOT}/.local/upstream/DKC1Recomp-${DKC1_TAG}"
     CACHE PATH "Pinned DKC1Recomp checkout")
 set(DKC1_GENERATED_DIR "${DKC1_UPSTREAM_DIR}/generated/snesrecomp"
     CACHE PATH "Private generated game C sources")
@@ -20,8 +22,7 @@ if(NOT DKC1_GENERATED_SOURCES)
     message(FATAL_ERROR "Generate the private game C sources from the verified ROM first")
 endif()
 
-# Reuse the pinned engine and upstream's headless host, without configuring
-# desktop SDL, Objective-C, or any browser runtime dependency.
+# Build the upstream headless host independently of SDL and the browser adapter.
 include("${SNESRECOMP_ROOT}/runner/runner.cmake")
 set(DKC1_ENGINE_SOURCES ${SNESRECOMP_RUNNER_SOURCES})
 list(REMOVE_ITEM DKC1_ENGINE_SOURCES
@@ -32,9 +33,9 @@ set(DKC1_GAME_SOURCES
     desktop_sram.c
     dkc1_game.c
     dkc1_video.c
-    dkc1_baby_kong.c
-    dkc1_baby_kong_animation.c
-    dkc1_baby_kong_movement.c
+    dkc1_hd_scene.c
+    dkc1_hd_sprites.c
+    dkc1_framegen.c
     dkc1_dixie_mod.c
     dkc1_margin_proxy.c
     dkc1_ws_trace.c
@@ -64,6 +65,12 @@ target_compile_definitions(dkc1_native_reference PRIVATE
     SNESRECOMP_EXTERNAL_RAM_ROUTINE_GUARDS=1
     SYSTEM_VOLUME_MIXER_AVAILABLE=0)
 target_link_libraries(dkc1_native_reference PRIVATE ${SNESRECOMP_RUNNER_LIBRARIES})
+if(APPLE)
+    enable_language(OBJC)
+    target_sources(dkc1_native_reference PRIVATE "${DKC1_UPSTREAM_DIR}/runner/macos_hd_scene.m")
+    target_link_libraries(dkc1_native_reference PRIVATE
+        "-framework Foundation" "-framework CoreFoundation" "-framework Metal")
+endif()
 
 # Exercise the exact standalone-Wasm adapter and source subset natively before
 # attributing a mismatch to the browser compiler or its host imports.
@@ -73,13 +80,14 @@ list(REMOVE_ITEM DKC1_ADAPTER_ENGINE_SOURCES
     "${SNESRECOMP_ROOT}/runner/src/launcher_cache.c"
     "${SNESRECOMP_ROOT}/runner/src/launcher_picker.c")
 set(DKC1_ADAPTER_GAME_SOURCES
-    dkc1_game.c dkc1_video.c dkc1_baby_kong.c dkc1_baby_kong_animation.c
-    dkc1_baby_kong_movement.c dkc1_margin_proxy.c dkc1_ws_trace.c
+    dkc1_game.c dkc1_video.c dkc1_hd_scene.c dkc1_hd_sprites.c
+    dkc1_framegen.c dkc1_margin_proxy.c dkc1_ws_trace.c
     dkc1_debug_dump.c headless_host.c)
 list(TRANSFORM DKC1_ADAPTER_GAME_SOURCES PREPEND "${DKC1_UPSTREAM_DIR}/runner/")
 add_executable(dkc1_adapter_check
     ${DKC1_ADAPTER_ENGINE_SOURCES} ${DKC1_GENERATED_SOURCES}
     ${DKC1_ADAPTER_GAME_SOURCES}
+    "${DKC1_UPSTREAM_DIR}/runner/input_playback.c"
     "${DKC1_PROJECT_ROOT}/runtime/web_core.c"
     "${DKC1_PROJECT_ROOT}/tests/native_adapter_check.c")
 target_include_directories(dkc1_adapter_check PRIVATE

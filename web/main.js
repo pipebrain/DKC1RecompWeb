@@ -311,6 +311,12 @@ window.dkcDebug={
   content:()=>contentPages.state(),
   async step(buttons=0){await pause('debug-step');const result=await request('step',{buttons});updateState(result);return result;},
   async runFrames(count,buttons=0){await pause('debug-run');const result=await request('run-frames',{count,buttons});updateState(result);return result;},
+  async replayFingerprints(runs){
+    await pause('debug-run');
+    const result=await request('replay-fingerprints',{runs});
+    updateState(await request('get-state'));
+    return result;
+  },
   setInput(buttons){debugBits=buttons;sendInput();},
   refresh:()=>request('get-state'),
   frameHash:()=>request('frame-hash'),

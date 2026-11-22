@@ -16,7 +16,11 @@ The release is eight upstream commits ahead of the browser's native base. Freeze
 
 ## First milestone · stock game on the release core
 
-1. Start a private integration branch from the documented baseline. Use separate upstream checkouts and build outputs. The browser builds against `.local/upstream/DKC1Recomp`, and `scripts/prepare.py` checks the revision of an existing checkout. Updating the root Git tree alone cannot change the compiled core.
+Completed on `codex/phase-2-stock-v0.0.17` on November 22, 2026.
+All seven fingerprints matched for boot, title, the recorded Jungle route
+and its live-gameplay checkpoint. [Recorded results](VALIDATION.md#phase-2-stock-v0017)
+
+1. Start a private integration branch from the documented baseline. Use separate upstream checkouts and build outputs. The v0.0.17 browser build uses `.local/upstream/DKC1Recomp-v0.0.17`. The preparation script verifies its revision before generating game code.
 2. Reconcile the native source and submodule with the release. Update `upstream.lock.json`, the revision checks in `scripts/native_reference.py`, both CMake source lists and the third-party notices together. Both lists reference three `dkc1_baby_kong*.c` files removed upstream. Regenerate private C from the verified ROM and check actual Wasm imports against the handwritten loader.
 3. Build the release headless reference, native browser adapter and stock Wasm separately. Replay clean boot at 600 frames, title at 5,100 and the same Jungle route at 8,070. Record release-native framebuffer, memory and audio fingerprints. Compare the adapter and browser against that reference, and explain any differences from v1.0.0 before accepting new expected hashes. [Existing fixtures and evidence](VALIDATION.md)
 4. Pass the v1 browser checks for input, pause/resume, audio, SRAM persistence and fullscreen with enhancements off. Exercise an existing v1 save and input profile. This milestone establishes the upgraded stock build as the control for every subsequent comparison.

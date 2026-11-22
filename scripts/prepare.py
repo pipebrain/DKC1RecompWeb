@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / 'upstream.lock.json').read_text())
-UPSTREAM = ROOT / '.local/upstream/DKC1Recomp'
+UPSTREAM = ROOT / '.local/upstream' / f"DKC1Recomp-{LOCK['dkc1recomp']['tag']}"
 
 
 def git(*args: str, cwd: Path = ROOT) -> str:
@@ -57,14 +57,14 @@ def main() -> None:
         subprocess.run(['git', '-C', str(UPSTREAM), 'submodule', 'update', '--init', '--recursive'], check=True)
         verify_sources()
         if args.generate:
-            logs = ROOT / 'build/logs'
+            logs = ROOT / 'build' / UPSTREAM.name / 'logs'
             logs.mkdir(parents=True, exist_ok=True)
             with (logs / 'generation.log').open('w') as log:
                 subprocess.run([sys.executable, str(UPSTREAM / 'scripts/generate_snesrecomp.py'),
                                 '--rom', rom['path'], '--analysis-backend', 'python'],
                                cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
             verify_sources()
-    output = ROOT / 'build/preparation.json'
+    output = ROOT / 'build' / UPSTREAM.name / 'preparation.json'
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps({'rom': rom, 'source_lock': LOCK,
                                  'analysis_backend': 'python' if args.generate else None}, indent=2) + '\n')

@@ -74,6 +74,13 @@ async function initialize(buffer){
   loaded=true;hasStarted=false;frameCount=0;input=0;previousSram=null;pausedReason='ready';droppedPresentations=0;lateTicks=0;
   present();return state();
 }
+async function runDiagnosticFrames(count,buttons,collectAudioHash=false){
+  for(let i=0;i<count;i++){
+    advance(buttons,false,false);
+    if(collectAudioHash)wasm.exports.dkc_debug_hash_audio();
+    if(frameCount%120===0)await new Promise(resolve=>setTimeout(resolve,0));
+  }
+}
 async function command(data){
   switch(data.type){
     case 'load':return initialize(data.buffer);
@@ -84,8 +91,23 @@ async function command(data){
     case 'run-frames':{
       if(!loaded)throw new Error('Load a ROM first.');
       const count=Number(data.count);if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Frame count must be an integer from 0 to 100,000.');
-      stop('debug-run');for(let i=0;i<count;i++){advance(data.buttons&4095,false,false);if(i%120===119)await new Promise(resolve=>setTimeout(resolve,0));}
+      stop('debug-run');await runDiagnosticFrames(count,data.buttons&4095);
       present();checkSave();return state();
+    }
+    case 'replay-fingerprints':{
+      if(!loaded||running||frameCount!==0)throw new Error('Fingerprint replay requires a freshly loaded, paused game.');
+      if(!Array.isArray(data.runs)||!data.runs.length)throw new Error('A fingerprint replay requires input runs.');
+      let total=0;
+      for(const {count,buttons} of data.runs){
+        if(!Number.isSafeInteger(count)||count<1||!Number.isInteger(buttons)||buttons<0||buttons>4095)
+          throw new Error('Invalid input run.');
+        total+=count;
+        if(total>100000)throw new Error('Fingerprint replay exceeds 100,000 frames.');
+      }
+      stop('debug-run');
+      for(const {count,buttons} of data.runs)await runDiagnosticFrames(count,buttons,true);
+      present();
+      return {frameCount,fingerprints:JSON.parse(cString(wasm.exports.dkc_debug_fingerprints()))};
     }
     case 'get-state':return state();
     case 'get-sram':if(!loaded)throw new Error('Load a ROM first.');return {buffer:heap().slice(wasm.exports.dkc_sram(),wasm.exports.dkc_sram()+wasm.exports.dkc_sram_size()).buffer};

@@ -1,10 +1,11 @@
 {
   "dkc1recomp": {
     "url": "https://github.com/elliotttate/DKC1Recomp.git",
-    "revision": "3eb9a10c49cb210df2bd63addafe2a78cf9f4e22"
+    "tag": "v0.0.17",
+    "revision": "559bab62596a97e91f389b39cdeb6cda981ab7c9"
   },
   "snesrecomp": {
-    "revision": "de94587464524ebac8dcd62e14618bf0d3953644"
+    "revision": "75223f35b16e4c904cea78453b9cd1fcefbcd7f2"
   },
   "recomp_net": {
     "revision": "6d848d6f9a7269d511e6e97d943c2ef0774779b0"

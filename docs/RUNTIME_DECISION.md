@@ -16,9 +16,9 @@ before a browser game build can link C runtime support.
 
 Source evidence at the pinned revisions:
 
-- [SNES initialization and allocation](https://github.com/elliotttate/snesrecomp/blob/de94587464524ebac8dcd62e14618bf0d3953644/runner/src/snes/snes.c#L39).
-- [Frame guard using setjmp](https://github.com/elliotttate/snesrecomp/blob/de94587464524ebac8dcd62e14618bf0d3953644/runner/src/common_rtl.c#L488).
-- [Watchdog unwind using longjmp](https://github.com/elliotttate/snesrecomp/blob/de94587464524ebac8dcd62e14618bf0d3953644/runner/src/common_cpu_infra.c#L649).
+- [SNES initialization and allocation](https://github.com/elliotttate/snesrecomp/blob/75223f35b16e4c904cea78453b9cd1fcefbcd7f2/runner/src/snes/snes.c#L39).
+- [Frame guard using setjmp](https://github.com/elliotttate/snesrecomp/blob/75223f35b16e4c904cea78453b9cd1fcefbcd7f2/runner/src/common_rtl.c#L492).
+- [Watchdog unwind using longjmp](https://github.com/elliotttate/snesrecomp/blob/75223f35b16e4c904cea78453b9cd1fcefbcd7f2/runner/src/common_cpu_infra.c#L649).
 
 ## Approved option: compiled C support only
 
@@ -52,7 +52,11 @@ none is imported by the browser host. The only source-compatibility build
 adjustment is `_POSIX_C_SOURCE=200809L` to expose `strdup` and monotonic clocks.
 No upstream/generated game source was edited.
 
-The actual linker map at ignored `build/wasm/dkc.map` identifies:
+The v0.0.17 stock browser module is 8,067,100 bytes with SHA-256
+`70908a6d7a5b088c92087ab8f2c0e2fb62ea86ad56c2354ad35da083e57732c3`.
+The build links into `build/phase2-wasm/` before installing the module at
+`web/dkc.wasm`. Its linker map, `build/phase2-wasm/dkc.map`, records these
+compiler support archives.
 
 - `libc-debug.a`
 - `libclang_rt.builtins-legacysjlj.a`
@@ -61,8 +65,9 @@ The actual linker map at ignored `build/wasm/dkc.map` identifies:
 - `libstandalonewasm-memgrow.a`
 - `libstubs-debug.a`
 
-The Wasm imports exactly these functions, all implemented explicitly in
-`web/wasm-imports.js`:
+The module instantiated with all nine imports supplied by
+`web/wasm-imports.js`. The inventory in `build/phase2-evidence/wasm.json`
+also records its exports and 128 MiB initial memory.
 
 | Namespace | Functions |
 | --- | --- |

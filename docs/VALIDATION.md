@@ -1,6 +1,56 @@
-# First browser build verification
+# Browser verification
 
-Date: 2026-11-18. Source/tool pins: [upstream.lock.json](../upstream.lock.json).
+## Phase 2 stock v0.0.17
+
+On November 22, 2026 the stock game ran through the normal ROM picker, worker, standalone Wasm
+and WebGPU presenter on desktop Chrome 158.0.8127.36 using Apple Metal 3.
+The clean release checkout and its engine match the revisions in the
+[source lock](../upstream.lock.json). The verified USA v1.0 ROM generated
+2,176 private C files. The linked module is 8,067,100 bytes, SHA-256
+`70908a6d7a5b088c92087ab8f2c0e2fb62ea86ad56c2354ad35da083e57732c3`.
+Its nine imports resolve through the existing handwritten host.
+
+For each row, three fresh runs of the upstream headless executable and three
+of the C browser adapter produced identical results. Chrome replayed the
+same schedule in the browser worker at stock 256×224. At each checkpoint all
+seven fingerprints matched native and the archived v1 reference. These cover
+the framebuffer, WRAM, VRAM, CGRAM, PPU OAM, source OAM and cumulative
+stereo PCM. The audio hash covers every generated sample from boot through
+the checkpoint, before resampling.
+
+| Checkpoint | Frames | Framebuffer SHA-256 | PCM FNV-1a (64-bit) | Evidence directory under `build/browser-check/` |
+| --- | ---: | --- | --- | --- |
+| Boot, no input | 600 | `a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd` | `5c226d2c8297cb8e` | `2026-11-22T10-04-56-755Z-19146` |
+| Title, no input | 5,100 | `60878dca94a5a87f77729991bdd301e211e94738ec1fb1556812aa4b5f63ff70` | `aee00a1c3f2b2831` | `2026-11-22T10-05-22-031Z-19344` |
+| Live Jungle gameplay, five lives | 7,450 | `506dbc580397d38d4fbd5331b18a732393da7467ae7455ffcf31193e11548d43` | `ee60837a362b30da` | `2026-11-22T10-05-55-603Z-19714` |
+| Full recorded Jungle route, after losing a life | 8,070 | `9e8c67590fe4b11ca5886f5dd4884e685ab195cea07d174f6902c952a7579ea5` | `fc07ebba6af7974a` | `2026-11-22T10-05-38-279Z-19499` |
+
+The unobscured WebGPU screenshots matched the corresponding native RGB
+captures at all 57,344 source pixel centers in each case. The title and Jungle
+captures were visually inspected. Each Chrome run also passed SRAM
+import/export, reload and restoration, pause/resume, and 1.8 seconds of
+AudioWorklet playback with zero reported underruns or overruns.
+
+The native reports are under `build/phase2-evidence/{boot,title,jungle-entry,jungle}/`.
+Each browser directory contains `evidence.json`, `display-comparison.json`
+and `unobscured-game.png`. The [replay commands](../README.md#reference-checks)
+regenerate the game and audio comparisons from source. The [full input
+recording](../tests/fixtures/jungle-route.inputs) and [gameplay
+prefix](../tests/fixtures/jungle-entry.inputs) contain controller inputs.
+
+An isolated same-origin upgrade check imported the existing 2,048-byte
+save and saved the supplied 8BitDo SN30 Pro+ profile through the v1 host.
+The Phase 2 host reopened the same browser storage, loaded the exact SRAM
+bytes, restored the selected profile and delivered its mapped B press and
+release to the worker. Evidence is in
+`build/phase2-upgrade-check/2026-11-22T10-05-45-877Z-19579/evidence.json`.
+Controller signals were injected. The earlier mobile acceptance applies to
+the deployed v1 build. A full playthrough and long-duration audio test remain
+open for Phase 2.
+
+## First browser build · November 18, 2026
+
+Date: 2026-11-18. [Source and tool pins for browser v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/blob/v1.0.0/upstream.lock.json).
 The supplied USA v1.0 ROM passed the expected size and SHA-256 checks.
 Upstream and generated game sources were not edited.
 

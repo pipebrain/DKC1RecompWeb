@@ -8,8 +8,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
-from prepare import verify_sources
+from prepare import UPSTREAM, verify_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,12 +28,14 @@ def main() -> None:
     cmake = shutil.which('cmake')
     if not cmake or not shutil.which('ninja'):
         parser.error('CMake and Ninja must be on PATH.')
-    build = ROOT / 'build/wasm'
-    logs = ROOT / 'build/logs'
+    build = ROOT / 'build/phase2-wasm'
+    logs = build / 'logs'
     logs.mkdir(parents=True, exist_ok=True)
     steps = [
         [cmake, '-S', str(ROOT / 'cmake/wasm'), '-B', str(build), '-G', 'Ninja',
          '-DCMAKE_BUILD_TYPE=Release',
+         f'-DDKC1_UPSTREAM_DIR={UPSTREAM}',
+         f'-DDKC1_GENERATED_DIR={UPSTREAM / "generated/snesrecomp"}',
          f'-DCMAKE_TOOLCHAIN_FILE={emscripten / "cmake/Modules/Platform/Emscripten.cmake"}'],
         [cmake, '--build', str(build), '--target', 'dkc1_core', '--parallel', str(args.jobs)],
     ]
@@ -45,8 +48,12 @@ def main() -> None:
             print('\n'.join((logs / (name + '.log')).read_text(errors='replace').splitlines()[-35:]))
             raise RuntimeError(f'{name} failed ({result.returncode}).')
     wasm = ROOT / 'web/dkc.wasm'
-    if not wasm.is_file():
-        raise RuntimeError('The expected private Wasm output was not produced.')
+    # Install only the completed link output. A failed rebuild leaves the
+    # previous module available to a browser served from this checkout.
+    with tempfile.TemporaryDirectory(dir=wasm.parent, prefix='.wasm-') as staging:
+        staged = Path(staging) / wasm.name
+        shutil.copyfile(build / wasm.name, staged)
+        staged.replace(wasm)
     print(f'Built {wasm} ({wasm.stat().st_size:,} bytes).')
 
 

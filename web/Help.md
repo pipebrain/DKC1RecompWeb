@@ -83,4 +83,4 @@ Video currently uses the original 4:3 presentation and nearest scaling. Speed us
 
 ## Documentation source
 
-The game's identity, original control foundation, and cartridge-save guidance come from the [DKC1Recomp README](https://github.com/elliotttate/DKC1Recomp/blob/3eb9a10c49cb210df2bd63addafe2a78cf9f4e22/README.md) and [upstream save documentation](https://github.com/elliotttate/DKC1Recomp/blob/3eb9a10c49cb210df2bd63addafe2a78cf9f4e22/docs/INGAME_SAVES.md). The menu paths, editable keyboard input, browser storage, and browser limitations above describe this edition.
+The game's identity, original control foundation, and cartridge-save guidance come from the [DKC1Recomp README](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/README.md) and [upstream save documentation](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/docs/INGAME_SAVES.md). The menu paths, editable keyboard input, browser storage, and browser limitations above describe this edition.

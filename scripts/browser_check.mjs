@@ -17,23 +17,29 @@ const NATIVE_FRAMES={
   3600:'7e6fee75bf9eada584bc414d140805999cd635baacea7d6bedbf1156551bce24',
   5100:'60878dca94a5a87f77729991bdd301e211e94738ec1fb1556812aa4b5f63ff70',
 };
-const options={frames:600,smoke:false,rom:null,input:null,expectedFrame:null,url:null,manifest:null};
+const options={frames:600,smoke:false,rom:null,input:null,expectedFrame:null,url:null,manifest:null,nativeReference:null};
 for(let i=2;i<process.argv.length;i++){
   const arg=process.argv[i];
   if(arg==='--smoke')options.smoke=true;
   else if(arg==='--rom')options.rom=resolve(process.argv[++i]||'');
   else if(arg==='--input')options.input=resolve(process.argv[++i]||'');
   else if(arg==='--expected-frame')options.expectedFrame=(process.argv[++i]||'').toLowerCase();
+  else if(arg==='--native-reference'){
+    const path=process.argv[++i];
+    if(!path||path.startsWith('--'))throw new Error('--native-reference requires a native comparison.json path.');
+    options.nativeReference=resolve(path);
+  }
   else if(arg==='--frames')options.frames=Number(process.argv[++i]);
   else if(arg==='--url'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--url requires a site directory URL.');options.url=normalizeBaseUrl(value);}
   else if(arg==='--manifest'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--manifest requires a local Pages manifest path.');options.manifest=resolve(value);}
-  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256]\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
+  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256] [--native-reference comparison.json]\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
   else throw new Error(`Unknown argument: ${arg}`);
 }
 if(!options.smoke&&!options.rom)throw new Error('--rom is required unless --smoke is selected.');
 if(!Number.isInteger(options.frames)||options.frames<0||options.frames>100000)throw new Error('--frames must be an integer from 0 to 100,000.');
 if(options.expectedFrame!==null&&!/^[0-9a-f]{64}$/.test(options.expectedFrame))throw new Error('--expected-frame must contain exactly 64 hexadecimal characters.');
 if(options.smoke&&(options.input||options.expectedFrame))throw new Error('--input and --expected-frame require a game check, not --smoke.');
+if(options.nativeReference&&(options.smoke||options.frames===0))throw new Error('--native-reference requires a game check of at least one frame.');
 if(options.manifest&&!options.url)throw new Error('--manifest requires --url.');
 if(options.rom)await stat(options.rom);
 let inputRuns=null,inputSummary=null;
@@ -60,7 +66,7 @@ const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game'
 let server=null,chrome=null,client=null,session=null,originalSave=null,origin=null,profile=null;
 let pagesManifest=null,pagesManifestBytes=null;
 const streams=[];
-const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/audio-worklet.js','web/graphics.js','web/dkc.wasm'];
+const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/dkc.wasm'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
 
 function normalizeBaseUrl(value){
@@ -73,6 +79,29 @@ function normalizeBaseUrl(value){
   return url.href;
 }
 function sha256(bytes){return createHash('sha256').update(bytes).digest('hex');}
+async function loadNativeReference(){
+  const bytes=await readFile(options.nativeReference);
+  const reference=JSON.parse(bytes);
+  const lock=JSON.parse(await readFile(join(root,'upstream.lock.json'),'utf8'));
+  assert.equal(reference.passed,true,'Native comparison must have passed.');
+  assert.equal(reference.frames,options.frames,'Native frame count differs from requested replay.');
+  assert.equal(reference.input_sha256,inputSummary?.sha256??null,'Native input schedule differs from browser replay.');
+  assert.equal(reference.rom_sha256,lock.rom.sha256,'Native ROM differs from the locked game.');
+  assert.equal(reference.upstream_revision,lock.dkc1recomp.revision,'Native reference uses another game revision.');
+  assert.equal(reference.engine_revision,lock.snesrecomp.revision,'Native reference uses another engine revision.');
+  const fingerprints={};
+  for(const field of ['frame_sha256','wram_sha256','vram_sha256','cgram_sha256','oam_sha256','oam_source_sha256','audio_fnv1a']){
+    const digest=reference.runs?.[0]?.[field];
+    const format=field==='audio_fnv1a'?/^[0-9a-f]{16}$/:/^[0-9a-f]{64}$/;
+    assert.equal(typeof digest,'string',`Missing native ${field}.`);
+    assert(format.test(digest),`Invalid native ${field}.`);
+    fingerprints[field]=digest;
+  }
+  if(options.expectedFrame)assert.equal(fingerprints.frame_sha256,options.expectedFrame,'Conflicting native framebuffer oracles.');
+  return {path:options.nativeReference,sha256:sha256(bytes),upstream:reference.upstream_revision,
+    engine:reference.engine_revision,romSha256:reference.rom_sha256,frames:reference.frames,
+    inputSha256:reference.input_sha256,fingerprints};
+}
 async function loadPagesManifest(){
   pagesManifestBytes=await readFile(options.manifest);
   pagesManifest=JSON.parse(pagesManifestBytes.toString('utf8'));
@@ -245,6 +274,7 @@ async function checkUnavailableFullscreen(){
 
 try{
   report.toolIdentity={path:'scripts/browser_check.mjs',sha256:sha256(await readFile(fileURLToPath(import.meta.url)))};
+  if(options.nativeReference)report.nativeReference=await loadNativeReference();
   if(options.url){
     origin=options.url;
     if(options.manifest){await loadPagesManifest();report.sources=await verifyRemoteAssets('before-browser');report.checks.push('Every remote Pages asset and its manifest match the supplied local manifest SHA-256 and byte counts.');}
@@ -272,17 +302,35 @@ try{
     report.initial=await selectRom();report.imports=report.initial.imports;
     assert.equal(report.initial.loaded,true);assert.equal(report.initial.running,false);
     report.checks.push('ROM picker verifies supported local ROM and initializes standalone Wasm paused.');
-    if(inputRuns){
+    if(report.nativeReference){
+      const runs=inputRuns??[{count:options.frames,buttons:0}];
+      const replay=await evaluate(`window.dkcDebug.replayFingerprints(${JSON.stringify(runs)})`);
+      report.fingerprints=replay.fingerprints;
+      assert.equal(replay.frameCount,options.frames,'Fingerprint replay did not reach the requested frame.');
+      assert.deepEqual(report.fingerprints,report.nativeReference.fingerprints,'Browser fingerprints differ from the native replay.');
+      report.checks.push('The framebuffer, WRAM, VRAM, CGRAM, hardware OAM, source OAM and cumulative PCM match the native reference.');
+      report.run=await evaluate('window.dkcDebug.refresh()');
+    }else if(inputRuns){
       for(const run of inputRuns)report.run=await evaluate(`window.dkcDebug.runFrames(${run.count},${run.buttons})`);
       if(!inputRuns.length)report.run=await evaluate('window.dkcDebug.refresh()');
       assert.equal(report.run.frameCount,options.frames,'Replayed input schedule did not produce exactly --frames frames.');
       report.checks.push(`Exact ${options.frames}-frame input schedule replayed in ${inputRuns.length} runs.`);
     }else report.run=await evaluate(`window.dkcDebug.runFrames(${options.frames},0)`);
     report.frame=await evaluate('window.dkcDebug.frameHash()');assert.equal(report.frame.frameCount,options.frames);
-    const expectedFrame=options.expectedFrame||(!inputRuns&&NATIVE_FRAMES[options.frames]);
+    const expectedFrame=report.nativeReference?.fingerprints.frame_sha256||options.expectedFrame||(!inputRuns&&NATIVE_FRAMES[options.frames]);
     if(expectedFrame){assert.equal(report.frame.sha256,expectedFrame,`${options.frames}-frame framebuffer differs from native oracle.`);report.checks.push(`${options.frames}-frame browser framebuffer matches the native oracle.`);}
     await poll(()=>evaluate(`window.dkcDebug.status().presentedFrame>=${options.frames}`),'WebGPU presentation of final frame');
     await screenshot('game.png');
+    if(report.nativeReference){
+      // Keep the original paused view and capture the same rendered frame
+      // unobscured, without stepping the game or changing its framebuffer.
+      report.presentation=await evaluate(`(()=>{const canvas=document.querySelector('#screen');return {
+        bounds:canvas.getBoundingClientRect().toJSON(),width:canvas.width,height:canvas.height,
+        dpr:devicePixelRatio,frame:window.dkcDebug.status().presentedFrame};})()`);
+      const previous=await evaluate(`(()=>{const node=document.querySelector('#pause-overlay');const old=node.style.visibility;node.style.visibility='hidden';return old;})()`);
+      try{await screenshot('unobscured-game.png');}
+      finally{await evaluate(`document.querySelector('#pause-overlay').style.visibility=${JSON.stringify(previous)}`);}
+    }
     originalSave=await evaluate('window.dkcDebug.saveBytes()');assert.equal(originalSave.length,2048);
     const invalid=await evaluate(`(async()=>{try{await window.dkcDebug.importSave([1,2]);return false;}catch(error){return /2,048/.test(error.message);}})()`);
     assert(invalid,'Incorrectly sized SRAM was not rejected.');

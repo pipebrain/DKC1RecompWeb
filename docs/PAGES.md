@@ -43,7 +43,7 @@ compiled `dkc.wasm`, a checksum manifest, `.nojekyll`, and exact license/notices
 The launcher, controller-profile JSON, generated C, tools, and test evidence
 are excluded. The output stays under ignored `build/`; the Wasm stays out of Git.
 
-The current known-good Wasm SHA-256 is
+The deployed v1.0.0 baseline's Wasm SHA-256 is
 `dcc015d75e943aac3eb179309426b0caa90321f88731effe85e8922b3de3a014`.
 
 Create the transport and record the printed archive SHA-256:

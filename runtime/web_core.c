@@ -5,6 +5,7 @@
 #include "dkc1_game.h"
 #include "dkc1_video.h"
 #include "sha256.h"
+#include "snes/ppu.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +39,9 @@ static uint8_t *s_rom;
 static int s_attempted;
 static int s_ready;
 static char s_error[192];
+/* Each instance initializes one game. Diagnostic PCM starts at the FNV-1a
+ * offset basis and is collected only when a replay requests it. */
+static uint64_t s_debug_audio_fnv1a = UINT64_C(14695981039346656037);
 
 static int SetError(int status, const char *message) {
   (void)snprintf(s_error, sizeof s_error, "%s", message);
@@ -123,3 +127,47 @@ unsigned dkc_audio_rate(void) { return kAudioRate; }
 uint8_t *dkc_sram(void) { return s_ready ? g_sram : NULL; }
 unsigned dkc_sram_size(void) { return s_ready ? (unsigned)g_sram_size : 0; }
 const char *dkc_last_error(void) { return s_error; }
+
+void dkc_debug_hash_audio(void) {
+  for (unsigned i = 0; i < s_audio_frames * 2u; i++) {
+    uint16_t sample = (uint16_t)s_audio[i];
+    s_debug_audio_fnv1a ^= (uint8_t)sample;
+    s_debug_audio_fnv1a *= UINT64_C(1099511628211);
+    s_debug_audio_fnv1a ^= (uint8_t)(sample >> 8);
+    s_debug_audio_fnv1a *= UINT64_C(1099511628211);
+  }
+}
+
+static void HashHex(const void *data, size_t size, char hex[65]) {
+  static const char digits[] = "0123456789abcdef";
+  uint8_t hash[32];
+  sha256_compute(data, size, hash);
+  for (size_t i = 0; i < sizeof hash; i++) {
+    hex[2 * i] = digits[hash[i] >> 4];
+    hex[2 * i + 1] = digits[hash[i] & 15];
+  }
+  hex[64] = '\0';
+}
+
+const char *dkc_debug_fingerprints(void) {
+  static char result[640];
+  if (!s_ready)
+    return NULL;
+  uint8_t oam[sizeof g_ppu->oam + sizeof g_ppu->highOam];
+  memcpy(oam, g_ppu->oam, sizeof g_ppu->oam);
+  memcpy(oam + sizeof g_ppu->oam, g_ppu->highOam, sizeof g_ppu->highOam);
+  char frame[65], wram[65], vram[65], cgram[65], oam_hash[65], oam_source[65];
+  HashHex(s_pixels, sizeof s_pixels, frame);
+  HashHex(g_ram, 0x20000, wram);
+  HashHex(g_ppu->vram, sizeof g_ppu->vram, vram);
+  HashHex(g_ppu->cgram, sizeof g_ppu->cgram, cgram);
+  HashHex(oam, sizeof oam, oam_hash);
+  HashHex(g_ram + 0x200, sizeof oam, oam_source);
+  snprintf(result, sizeof result,
+           "{\"frame_sha256\":\"%s\",\"wram_sha256\":\"%s\",\"vram_sha256\":\"%s\","
+           "\"cgram_sha256\":\"%s\",\"oam_sha256\":\"%s\",\"oam_source_sha256\":\"%s\","
+           "\"audio_fnv1a\":\"%016llx\"}",
+           frame, wram, vram, cgram, oam_hash, oam_source,
+           (unsigned long long)s_debug_audio_fnv1a);
+  return result;
+}

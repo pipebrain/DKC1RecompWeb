@@ -8,7 +8,9 @@ if(NOT EMSCRIPTEN)
   message(FATAL_ERROR "Configure this target with the pinned Emscripten toolchain")
 endif()
 get_filename_component(DKC1_PROJECT_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
-set(DKC1_UPSTREAM_DIR "${DKC1_PROJECT_ROOT}/.local/upstream/DKC1Recomp"
+file(READ "${DKC1_PROJECT_ROOT}/upstream.lock.json" DKC1_LOCK)
+string(JSON DKC1_TAG GET "${DKC1_LOCK}" dkc1recomp tag)
+set(DKC1_UPSTREAM_DIR "${DKC1_PROJECT_ROOT}/.local/upstream/DKC1Recomp-${DKC1_TAG}"
     CACHE PATH "Pinned DKC1Recomp checkout")
 set(DKC1_GENERATED_DIR "${DKC1_UPSTREAM_DIR}/generated/snesrecomp"
     CACHE PATH "Private generated game C sources")
@@ -33,15 +35,14 @@ list(REMOVE_ITEM DKC1_ENGINE_SOURCES
 # Preserve the pinned game's host adapters. Diagnostic file paths remain
 # inactive in the browser's empty environment. No SDL or launcher is linked.
 set(DKC1_GAME_SOURCES
-  dkc1_game.c dkc1_video.c dkc1_baby_kong.c dkc1_baby_kong_animation.c
-  dkc1_baby_kong_movement.c dkc1_margin_proxy.c dkc1_ws_trace.c
+  dkc1_game.c dkc1_video.c dkc1_hd_scene.c dkc1_hd_sprites.c
+  dkc1_framegen.c dkc1_margin_proxy.c dkc1_ws_trace.c
   dkc1_debug_dump.c headless_host.c)
 list(TRANSFORM DKC1_GAME_SOURCES PREPEND "${DKC1_UPSTREAM_DIR}/runner/")
 
 add_executable(dkc1_core ${DKC1_ENGINE_SOURCES} ${DKC1_GENERATED_SOURCES}
   ${DKC1_GAME_SOURCES} "${DKC1_PROJECT_ROOT}/runtime/web_core.c")
-set_target_properties(dkc1_core PROPERTIES OUTPUT_NAME "dkc" SUFFIX ".wasm"
-  RUNTIME_OUTPUT_DIRECTORY "${DKC1_PROJECT_ROOT}/web")
+set_target_properties(dkc1_core PROPERTIES OUTPUT_NAME "dkc" SUFFIX ".wasm")
 target_include_directories(dkc1_core PRIVATE
   "${DKC1_PROJECT_ROOT}/runtime" "${DKC1_UPSTREAM_DIR}/runner"
   "${DKC1_UPSTREAM_DIR}/recomp" ${SNESRECOMP_RUNNER_INCLUDE_DIRS})
@@ -64,6 +65,7 @@ target_link_options(dkc1_core PRIVATE
   "-sERROR_ON_UNDEFINED_SYMBOLS=1")
 foreach(export IN ITEMS dkc_alloc dkc_free dkc_init dkc_step dkc_framebuffer
     dkc_width dkc_height dkc_pitch dkc_audio_buffer dkc_audio_frames
-    dkc_audio_rate dkc_sram dkc_sram_size dkc_last_error)
+    dkc_audio_rate dkc_sram dkc_sram_size dkc_last_error
+    dkc_debug_hash_audio dkc_debug_fingerprints)
   target_link_options(dkc1_core PRIVATE "-Wl,--export=${export}")
 endforeach()

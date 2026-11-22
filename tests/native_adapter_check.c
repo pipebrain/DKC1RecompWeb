@@ -3,6 +3,7 @@
  * asset bytes are embedded in this test. This is not browser validation. */
 #include "web_core.h"
 #include "common_rtl.h"
+#include "input_playback.h"
 #include "sha256.h"
 #include "snes/ppu.h"
 
@@ -25,13 +26,13 @@ static void PrintHash(const char *key, const void *memory, size_t size) {
 }
 
 int main(int argc, char **argv) {
-  if (argc < 2 || argc > 3) {
-    fprintf(stderr, "usage: dkc1_adapter_check <verified-rom> [frames]\n");
+  if (argc < 2 || argc > 4) {
+    fprintf(stderr, "usage: dkc1_adapter_check <verified-rom> [frames [input-file]]\n");
     return 2;
   }
   char *end = NULL;
-  const long frames = argc == 3 ? strtol(argv[2], &end, 10) : 600;
-  if ((argc == 3 && (!end || *end)) || frames < 1 || frames > 1000000) return 2;
+  const long frames = argc >= 3 ? strtol(argv[2], &end, 10) : 600;
+  if ((argc >= 3 && (!end || *end)) || frames < 1 || frames > 1000000) return 2;
 
   if (!Require(dkc_step(0) != 0, "step before initialization must fail") ||
       !Require(dkc_init(NULL, 0) != 0, "bad ROM size must fail")) return 3;
@@ -62,8 +63,18 @@ int main(int argc, char **argv) {
 
   uint64_t audio_fnv1a = UINT64_C(14695981039346656037);
   uint64_t audio_frames = 0;
+  Dkc1InputPlayback playback = {0};
+  if (argc == 4) {
+    char error[192];
+    if (!Dkc1InputPlaybackLoad(argv[3], &playback, error, sizeof error)) {
+      fprintf(stderr, "unable to load inputs: %s\n", error);
+      return 2;
+    }
+    if (!Require(playback.count == (size_t)frames, "input schedule frame count")) return 2;
+  }
   for (long frame = 0; frame < frames; ++frame) {
-    if (!Require(dkc_step(0) == 0, "game step")) return 4;
+    if (!Require(dkc_step(Dkc1InputPlaybackFrame(&playback, (size_t)frame)) == 0,
+                 "game step")) return 4;
     const unsigned count = dkc_audio_frames();
     if (!Require(count == 533 || count == 534, "audio frame count")) return 4;
     const int16_t *audio = dkc_audio_buffer();
@@ -75,6 +86,7 @@ int main(int argc, char **argv) {
       audio_fnv1a *= UINT64_C(1099511628211);
     }
   }
+  Dkc1InputPlaybackFree(&playback);
   uint8_t oam[544];
   memcpy(oam, g_ppu->oam, sizeof g_ppu->oam);
   memcpy(oam + sizeof g_ppu->oam, g_ppu->highOam, sizeof g_ppu->highOam);

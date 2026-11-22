@@ -48,8 +48,10 @@ Both the preparation script and browser validate it.
 The bootstrap checks the LLVM/lld version and downloads checksum-verified
 Node and Binaryen build tools into ignored `.local/`; it obtains the pinned
 Emscripten source there. Node is used for compilation and test automation,
-not by the deployed browser application. Build logs are in ignored
-`build/logs/`; the Wasm output is `web/dkc.wasm` (excluded from Git).
+not by the deployed browser application. Generation logs are under
+`build/DKC1Recomp-v0.0.17/logs/` and Wasm build logs are under
+`build/phase2-wasm/logs/`. A successful link installs the private
+module at `web/dkc.wasm`.
 
 The Python server serves only `web/` on localhost. The source folder, ROM,
 private generated C, and native evidence are outside its document root.
@@ -144,17 +146,28 @@ and pause/resume. It does not replace physical phone/tablet testing.
 
 ## Reference checks
 
-The unchanged native headless host can be rebuilt and replayed without SDL:
+To rebuild the stock release headless host and native browser adapter, then
+replay the same inputs in desktop Chrome, use a fresh evidence directory for
+each case. Run the local build above first.
 
 ```sh
-python3 scripts/native_reference.py --rom '/absolute/path/to/your/dkc1.smc' \
-  --out build/native-reference/evidence/new-check
+rom='/absolute/path/to/your/dkc1.smc'
+replay() {
+  evidence="build/stock-replay/$1"
+  frames="$2"
+  shift 2
+  python3 scripts/native_reference.py --rom "$rom" --check-adapter \
+    --frames "$frames" "$@" --out "$evidence" || return 1
+  .local/tools/node-v22.16.0-darwin-arm64/bin/node scripts/browser_check.mjs \
+    --rom "$rom" --frames "$frames" "$@" --native-reference "$evidence/comparison.json"
+}
+replay boot 600 && replay title 5100 && \
+  replay jungle 8070 --input tests/fixtures/jungle-route.inputs
 ```
 
-This defaults to three clean 600-frame, no-input runs and preserves each run's
-frame/memory/audio fingerprints. Use a new evidence directory each time.
-The C browser adapter has also been compared natively against that oracle.
-These checks alone do not establish browser correctness or a full playthrough.
+The native runner defaults to three independent replays. The browser runner
+compares the framebuffer, WRAM, VRAM, CGRAM, hardware OAM, source OAM and
+cumulative audio against that route's native report.
 
 The browser's debug hooks are available through `window.dkcDebug` for controlled
 stepping and integration checks. Browser validation status and limits belong

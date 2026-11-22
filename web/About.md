@@ -24,12 +24,12 @@ The browser host has no frontend framework or third-party JavaScript runtime dep
 
 ## Credits and provenance
 
-DKC1Recomp provides the native recompilation foundation. Its structure draws on DKC2Recomp and the Yoshifanatic1 Donkey Kong Country disassembly. This browser edition uses DKC1Recomp revision `3eb9a10c49cb210df2bd63addafe2a78cf9f4e22` and snesrecomp revision `de94587464524ebac8dcd62e14618bf0d3953644`.
+DKC1Recomp provides the native recompilation foundation. Its structure draws on DKC2Recomp and the Yoshifanatic1 Donkey Kong Country disassembly. This browser edition uses stock DKC1Recomp v0.0.17 at revision `559bab62596a97e91f389b39cdeb6cda981ab7c9` and snesrecomp revision `75223f35b16e4c904cea78453b9cd1fcefbcd7f2`.
 
-- [DKC1Recomp README used for this edition](https://github.com/elliotttate/DKC1Recomp/blob/3eb9a10c49cb210df2bd63addafe2a78cf9f4e22/README.md)
-- [DKC1Recomp license](https://github.com/elliotttate/DKC1Recomp/blob/3eb9a10c49cb210df2bd63addafe2a78cf9f4e22/LICENSE)
-- [DKC1Recomp third-party notices](https://github.com/elliotttate/DKC1Recomp/blob/3eb9a10c49cb210df2bd63addafe2a78cf9f4e22/THIRD_PARTY_NOTICES.md)
-- [snesrecomp license and attribution](https://github.com/elliotttate/snesrecomp/blob/de94587464524ebac8dcd62e14618bf0d3953644/THIRD_PARTY_ATTRIBUTION.md)
+- [DKC1Recomp README used for this edition](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/README.md)
+- [DKC1Recomp license](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/LICENSE)
+- [DKC1Recomp third-party notices](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/THIRD_PARTY_NOTICES.md)
+- [snesrecomp license and attribution](https://github.com/elliotttate/snesrecomp/blob/75223f35b16e4c904cea78453b9cd1fcefbcd7f2/THIRD_PARTY_ATTRIBUTION.md)
 
 Donkey Kong Country and the Nintendo and Rare names and artwork belong to their respective owners. This is an independent fan project. Supply your own verified, headerless SNES USA v1.0 ROM; ROM files and game assets are not included or uploaded.
 
