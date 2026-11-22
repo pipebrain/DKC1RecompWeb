@@ -357,12 +357,12 @@ Detailed evidence and limits: [VALIDATION.md](VALIDATION.md).
 
 ## Next milestone
 
-The version-1 browser/Pages functional baseline is user-accepted. On
-2026-11-22 the user reported that the mobile test site passes all checks.
-Mobile acceptance is no longer an outstanding baseline milestone.
+The private source tag [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0)
+marks the user-accepted browser/Pages baseline at `543fbe1`.
 
-Continue broader gameplay, long-session audio/timing, and normal in-game save
-coverage separately from the accepted baseline. Record device/browser/input
-details when supplied; they were not included in the mobile acceptance report.
-Native release parity and Donkey Kong Land integration remain separate work.
-Continue recording exact source/build identities, inputs, evidence, and limits.
+Phase 2 targets DKC1Recomp v0.0.17. First build its stock core on native and
+Wasm and compare the boot, title and Jungle routes with the release-native
+reference. The [release parity plan](RELEASE_PARITY.md) maps the Windows
+player and bundled Mac HD preview to browser milestones, validation cases and
+open decisions about widescreen and input routing. Donkey Kong Land follows
+the release parity work.

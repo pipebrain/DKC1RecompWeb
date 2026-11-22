@@ -3,7 +3,9 @@
 Phase 1 ports the pinned DKC1Recomp C core to standalone WebAssembly, presented
 by a handwritten JavaScript host using WebGPU. Donkey Kong Land integration is
 a later phase. Read [the project brief](docs/PROJECT.md) for decisions and
-verified status.
+verified status. The accepted browser baseline is tagged
+[v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0).
+The [Phase 2 plan](docs/RELEASE_PARITY.md) targets DKC1Recomp v0.0.17.
 
 Repository: [pipebrain/DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb)
 (private). This standalone repository preserves the original
