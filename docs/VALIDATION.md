@@ -48,6 +48,23 @@ Controller signals were injected. The earlier mobile acceptance applies to
 the deployed v1 build. A full playthrough and long-duration audio test remain
 open for Phase 2.
 
+All 29 input and pause-presentation unit tests passed. Desktop Chrome also
+passed six fullscreen configurations, the pause overlay checks and all ten
+Start shortcut checks. Their evidence directories under `build/` are
+`fullscreen-check/2026-11-22T10-05-04-761Z-19201`,
+`pause-overlay-check/2026-11-22T10-06-06-557Z-20014` and
+`start-shortcut-check/2026-11-22T10-06-06-557Z-20013`.
+
+The keyboard and controller drivers now use DKM playback and check canvas
+focus before testing live input. Earlier runs sent keys while Config held
+focus, or expected gameplay input after a page reload with no ROM loaded.
+Keyboard remapping, saved source selection and content checks passed in
+`keyboard-content-check/2026-11-22T10-09-50-550Z-21824`. Standard/raw
+controller mapping and release of a held button on disconnect passed with a
+running game in `controller-check/2026-11-22T10-11-04-432Z-22554`.
+The unloaded controller preview and input guard passed in
+`controller-check/2026-11-22T10-11-04-432Z-22556`.
+
 ## First browser build · November 18, 2026
 
 Date: 2026-11-18. [Source and tool pins for browser v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/blob/v1.0.0/upstream.lock.json).

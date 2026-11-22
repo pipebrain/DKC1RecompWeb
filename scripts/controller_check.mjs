@@ -47,7 +47,16 @@ async function openPanel(){await click('[aria-controls="menu-config"]');await cl
 async function closePanel(){await click('#settings-done');await poll(async()=>!(await controllers()).open,'controller panel close');}
 async function snapshot(pad){await evaluate(`window.__controllerTest.pads=${JSON.stringify(pad?[pad]:[])}`);await delay(100);}
 function raw(buttons=[],axes={}){const pad=structuredClone(rawPad);for(const index of buttons)pad.buttons[index]={pressed:true,touched:true,value:1};for(const [index,value]of Object.entries(axes))pad.axes[index]=value;return pad;}
-async function expectInput(bits,label){await poll(()=>evaluate(`window.__controllerTest.inputs.at(-1)===${bits}`),label);assert.equal((await controllers()).outputBits,bits,label);}
+async function expectInput(bits,label){
+  await poll(async()=>(await controllers()).outputBits===bits,label);
+  const expectedWorkerBits=rom?bits:0;
+  await poll(()=>evaluate(`(window.__controllerTest.inputs.at(-1)??0)===${expectedWorkerBits}`),label);
+}
+async function startPlay(){
+  await click('[aria-controls="menu-dkm"]');
+  await click('#menu-dkm [data-command="start-game"]');
+  await poll(()=>evaluate("window.dkcDebug.status().running && document.activeElement===document.getElementById('screen')"),'game running with controller focus');
+}
 async function bind(action,type,index,extra={}){
   await setValue('#controller-bind-action',action);await setValue('#controller-bind-type',type);await setValue('#controller-bind-index',index);
   if(type==='axis-negative'||type==='axis-positive'){await setValue('#controller-bind-rest',extra.rest??0);await setValue('#controller-bind-threshold',extra.threshold??.35);}
@@ -80,7 +89,7 @@ try{
   await poll(async()=>(await controllers()).device?.id===RAW_ID,'raw controller discovery');
   assert.equal((await controllers()).device.mapping,'');
   report.checks.push('Representative raw controller is discovered and displayed despite mapping="".');
-  if(rom){await loadRom();await evaluate('window.dkcDebug.runFrames(600,0)');assert.equal((await evaluate('window.dkcDebug.frameHash()')).sha256,'a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd');}
+  if(rom){await loadRom();await evaluate('window.dkcDebug.runFrames(600,0)');assert.equal((await evaluate('window.dkcDebug.frameHash()')).sha256,'a7366146a96b47e75d48d3814bfe0859c71f68bcc3fac3d7429befb9b50430dd');await startPlay();}
   const standard={...structuredClone(rawPad),id:'Representative standard controller',mapping:'standard',buttons:Array.from({length:17},()=>({pressed:false,touched:false,value:0})),axes:[0,0,0,0]};
   await snapshot(standard);await poll(async()=>(await controllers()).device?.id===standard.id,'standard controller selection');
   standard.buttons[0]={pressed:true,touched:true,value:1};await snapshot(standard);await expectInput(1,'unchanged standard B button reaches worker');
@@ -110,7 +119,7 @@ try{
   const saved=await controllers();report.savedProfile=saved.profile;
   assert(saved.savedProfiles.some(item=>item.name==='SN30 representative raw'));
   await evaluate(`document.querySelector('#controller-panel').scrollIntoView({block:'start'})`);await screenshot('profile-editor.png');await closePanel();
-  await evaluate(`document.querySelector('#screen').focus({preventScroll:true})`);assert.equal(await evaluate(`document.activeElement===document.querySelector('#screen')`),true);
+  if(rom)await startPlay();
   await snapshot(raw([0,7,10,11]));await expectInput(15,'raw B0/B7/B10/B11 mapping reaches worker');
   await snapshot(raw([2]));await expectInput(256,'learned button binding reaches worker');
   await snapshot(raw([],{0:.7,1:-.7}));await expectInput(144,'raw stick diagonal reaches worker');
@@ -119,10 +128,11 @@ try{
   await snapshot(raw([],{9:-5/7}));await expectInput(144,'8-way hat diagonal activates Up and Right');
   await snapshot(raw([],{9:0}));await expectInput(512,'exact axis-value binding supports arbitrary hat conventions');
   await snapshot(raw());await expectInput(0,'out-of-range hat neutral releases all controls');
+  await snapshot(raw([0]));await expectInput(1,'button held before disconnect');
   await snapshot(null);await expectInput(0,'disconnect releases input');await snapshot(raw());
-  report.checks.push('Custom raw button, learned button, signed axes0/1/2/5, deadzone, exact axis values, hat diagonal/neutral, and disconnect masks reach the actual worker input boundary.');
+  report.checks.push(rom?'Custom button, stick, deadzone, axis-value, hat and disconnect mappings reach the running worker.':'Custom button, stick, deadzone, axis-value, hat and disconnect mappings update the controller preview while the unloaded worker receives no gameplay input.');
   if(rom){
-    await evaluate('window.dkcDebug.resume()');await snapshot(raw([0]));await expectInput(1,'controller input while game runs');await delay(120);await openPanel();
+    await snapshot(raw([0]));await expectInput(1,'controller input while game runs');await delay(120);await openPanel();
     assert.equal((await evaluate('window.dkcDebug.refresh()')).running,false,'Opening controller settings did not pause the game.');await expectInput(0,'editor does not leak bindings to game');
     report.checks.push('Opening profile editor pauses the loaded game and releases controller input.');
     originalSram=await evaluate('window.dkcDebug.saveBytes()');const sentinel=[...originalSram];sentinel[2047]^=0x5a;
@@ -143,6 +153,7 @@ try{
   report.checks.push('New/edit/save/discard, JSON export/download, malformed import rejection, import/save, and loading an existing profile pass through the visible UI.');
   const beforeReload=await controllers();await closePanel();await reload();await poll(async()=>(await controllers()).device?.id===RAW_ID,'raw controller after reload');
   const afterReload=await controllers();assert.equal(afterReload.profile.id,beforeReload.profile.id,'Selected profile did not survive reload.');assert(afterReload.savedProfiles.some(item=>item.name==='Imported representative raw'));
+  if(rom){await loadRom();await startPlay();}
   await snapshot(raw([10,11]));await expectInput(12,'saved raw mapping restored after page reload');await snapshot(raw());
   report.checks.push('Saved profiles and per-controller selection persist across page reload.');
   if(rom){await loadRom();assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),report.sramSentinel,'Controller profile storage changed persisted cartridge SRAM.');await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(originalSram)});await window.dkcDebug.flushSaves();})()`);originalSram=null;delete report.sramSentinel;report.checks.push('Controller save/import/reload leaves the separate cartridge SRAM intact; original test bytes restored.');}

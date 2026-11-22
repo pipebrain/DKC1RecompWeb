@@ -59,7 +59,11 @@ async function ready(){await client.send('Page.bringToFront');await poll(()=>eva
 async function reloadCase(name){await evaluate(`sessionStorage.setItem('__helpCase',${JSON.stringify(name)})`);await client.send('Page.reload',{ignoreCache:true});await ready();await poll(()=>evaluate('Object.keys(window.dkcDebug.content().errors).length>0||window.dkcDebug.content().help'),'content case settled');}
 async function nativeKey(type,code,modifiers=0){await client.send('Page.bringToFront');await poll(()=>evaluate('!document.hidden'),'foreground keyboard target');if(await evaluate('document.activeElement?.id==="screen"&&window.dkcDebug?.status().loaded&&!window.dkcDebug.status().running&&window.dkcDebug.status().pausedReason==="hidden"')){report.headlessForegroundRecoveries=(report.headlessForegroundRecoveries||0)+1;await evaluate('window.dkcDebug.resume()');}const names={ArrowRight:['ArrowRight',39],ArrowLeft:['ArrowLeft',37],ArrowUp:['ArrowUp',38],ArrowDown:['ArrowDown',40],ShiftLeft:['Shift',16],ShiftRight:['Shift',16],Enter:['Enter',13],Space:[' ',32],Escape:['Escape',27],Tab:['Tab',9]};const [key,vk]=names[code]||[code.replace(/^Key/,'').toLowerCase(),code.startsWith('Key')?code.charCodeAt(3):0];await client.send('Input.dispatchKeyEvent',{type:type==='rawKeyDown'?'rawKeyDown':'keyUp',code,key,windowsVirtualKeyCode:vk,nativeVirtualKeyCode:vk,modifiers,location:code==='ShiftRight'?2:code==='ShiftLeft'?1:0});await delay(45);}
 async function press(code){await nativeKey('rawKeyDown',code);await nativeKey('keyUp',code);}
-async function resume(){await client.send('Page.bringToFront');await evaluate('window.dkcDebug.resume()');await poll(()=>evaluate('window.dkcDebug.status().running'),'runtime running');}
+async function resume(){
+  await client.send('Page.bringToFront');
+  await menuCommand('dkm','start-game');
+  await poll(()=>evaluate("window.dkcDebug.status().running && document.activeElement===document.getElementById('screen')"),'game running with keyboard focus');
+}
 async function layout(width,height,theme){await client.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await client.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme},{name:'prefers-reduced-motion',value:'reduce'}]});await client.send('Page.bringToFront');await delay(220);}
 try{
   if(!rom&&!visualOnly)throw new Error('Provide --rom with the verified local ROM.');
