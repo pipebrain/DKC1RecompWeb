@@ -1,4 +1,8 @@
-const KEY='dkc1-usa-v1.0';
+function saveKey(variant) {
+  if (variant === 'stock') return 'dkc1-usa-v1.0';
+  if (variant === 'dixie') return 'dkc1-dixie-v1.0';
+  throw new Error('Unknown cartridge variant.');
+}
 let opening;
 function open() {
   if(opening)return opening;
@@ -28,11 +32,12 @@ function sameSave(left,right){
   const other=new Uint8Array(right);
   return new Uint8Array(left).every((value,index)=>value===other[index]);
 }
-export async function loadSave() {
+export async function loadSave(variant='stock') {
+  const key=saveKey(variant);
   const db=await open();
   return new Promise((resolve,reject)=>{
     const transaction=db.transaction('sram','readonly');
-    const request=transaction.objectStore('sram').get(KEY);
+    const request=transaction.objectStore('sram').get(key);
     transaction.oncomplete=()=>{
       if(request.result===undefined)resolve(null);
       else if(validSave(request.result))resolve(request.result);
@@ -43,7 +48,8 @@ export async function loadSave() {
 }
 // Normal play supplies the last committed bytes. An explicit .srm file
 // import may replace the slot even if another tab has since written to it.
-export async function storeSave(buffer,expected) {
+export async function storeSave(buffer,expected,variant='stock') {
+  const key=saveKey(variant);
   if(!validSave(buffer))throw new Error('Cartridge SRAM must be exactly 2,048 bytes.');
   const db=await open();
   return new Promise((resolve,reject)=>{
@@ -52,11 +58,11 @@ export async function storeSave(buffer,expected) {
     let conflict;
     transaction.oncomplete=()=>resolve();
     transaction.onabort=()=>reject(conflict||transaction.error||new Error('Save transaction aborted.'));
-    if(expected===undefined){store.put(buffer,KEY);return;}
-    const read=store.get(KEY);
+    if(expected===undefined){store.put(buffer,key);return;}
+    const read=store.get(key);
     read.onsuccess=()=>{
       if(sameSave(read.result,buffer))return;
-      if(sameSave(read.result,expected)){store.put(buffer,KEY);return;}
+      if(sameSave(read.result,expected)){store.put(buffer,key);return;}
       conflict=new Error('The cartridge save in this browser differs from the one this tab loaded.');
       transaction.abort();
     };
@@ -96,9 +102,10 @@ export function readRememberedRom() {
   });
 }
 
-export function setRememberRom(enabled, image) {
+export function setRememberRom(enabled, image, finishConfig=false) {
   return romTransaction('readwrite', store => {
     store.put(enabled, 'enabled');
+    if(finishConfig)store.delete('pending-config');
     if (!enabled) store.delete('image');
     else if (image) store.put(image, 'image');
     return () => enabled;
@@ -113,5 +120,46 @@ export function rememberPickedRom(image) {
       if (enabled.result !== false) store.put(image, 'image');
     };
     return () => enabled.result !== false;
+  });
+}
+
+// Quick states belong to a particular core version and cartridge variant.
+async function stateSlot(variant,slot,write){
+  if(!['stock','dixie'].includes(variant)||!Number.isInteger(slot)||slot<1||slot>5)throw new Error('Invalid state slot.');
+  const key='v0.0.17-web2/'+saveKey(variant)+'/'+slot;
+  const db=await new Promise((resolve,reject)=>{
+    const open=indexedDB.open('dkc-browser-states',1);
+    open.onupgradeneeded=()=>open.result.createObjectStore('slots');
+    open.onerror=()=>reject(open.error);
+    open.onsuccess=()=>resolve(open.result);
+  });
+  try{
+    return await new Promise((resolve,reject)=>{
+      const tx=db.transaction('slots',write?'readwrite':'readonly'),store=tx.objectStore('slots');
+      const request=write?store.put(write,key):store.get(key);
+      tx.oncomplete=()=>resolve(request.result);
+      tx.onabort=()=>reject(tx.error||new Error('State storage interrupted.'));
+    });
+  }finally{db.close();}
+}
+export const loadStateSlot=(variant,slot)=>stateSlot(variant,slot);
+export const storeStateSlot=(variant,slot,snapshot)=>stateSlot(variant,slot,snapshot);
+
+// The same IndexedDB transaction that applies the ROM setting removes the
+// import journal. A journal present on restart means the import never committed.
+export function readConfigJournal(){
+  return romTransaction('readonly',store=>{
+    const get=store.get('pending-config');return ()=>get.result;
+  });
+}
+export function writeConfigJournal(entries){
+  return romTransaction('readwrite',store=>{
+    if(entries)store.put(entries,'pending-config');else store.delete('pending-config');
+    return ()=>{};
+  });
+}
+export function readRememberPreference(){
+  return romTransaction('readonly',store=>{
+    const get=store.get('enabled');return ()=>get.result!==false;
   });
 }

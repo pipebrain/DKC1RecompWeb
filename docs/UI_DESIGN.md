@@ -22,7 +22,7 @@ background and a restrained bronze edge for contrast in light/dark tabs.
 | Menu | Contents |
 | --- | --- |
 | DKM | Load ROM; separator; Start Game / Pause Game / Resume Game, Reload Game; separator; Load Save, Export Save |
-| Config | Input, Devices, Options, Video, Sound, Paths, Saves, Speed |
+| Config | Input, Devices, Options, Video, Sound, Paths, Saves, Speed, Load Config, Save Config |
 | Cheat | Disabled; not implemented |
 | NetPlay | Disabled; not implemented |
 | Misc | Help, About |
@@ -35,11 +35,10 @@ source beside the menu command. The keyboard profile can be edited with Set
 key/Clear and saved, discarded, or restored to defaults. Selecting Gamepad
 activates the existing controller editor and its separate stored profiles.
 Other settings pages do not display this tab strip. The user confirmed that
-unavailable features should remain visible but disabled. Config → Paths has a single checkbox for remembering the verified ROM on this device.
-Turning it off removes the local ROM copy and preserves SRAM. Config
-panes describe current capabilities: Video is stock 4:3/nearest plus
-fullscreen; Sound enables original stereo audio; Speed is normal 1x with
-playback control. Upstream enhancement ports are a separate task.
+unavailable features should remain visible but disabled. Config → Paths manages the remembered ROM and imported material and music packs.
+Config → Load Config and Save Config transfer the origin’s player and input settings.
+The [player settings inventory](SETTINGS.md) lists controls and defaults for each
+sheet. File pickers and validation messages belong to the initiating command.
 
 The user explicitly rejected the first shell's title area, playback toolbar,
 status footer, and duplicate menu caption. `.menubar-caption`, `.app-navigation`,
@@ -68,7 +67,7 @@ advanced input configuration and diagnostics, and retain explicit save/discard
 for controller drafts. All menu commands must invoke real application behavior.
 
 Only `.screen-wrap` enters fullscreen,
-with the original game centered at 4:3 and scaled to contain the entire image.
+with the game centered and the entire image contained at the selected aspect. Fresh profiles use 4:3.
 The new shell must not change the game simulation or its input/audio/save data.
 
 Reload Game reuses the already selected, verified ROM from session memory and

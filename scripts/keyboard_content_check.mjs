@@ -111,6 +111,21 @@ try{
   await setValue('#input-source','gamepad');await poll(()=>evaluate('window.dkcDebug.keyboard().mode==="gamepad"'),'Gamepad mode');assert.equal(await evaluate('document.querySelector("#controller-panel").hidden'),false);assert.equal(await evaluate('document.querySelector("#keyboard-panel").hidden'),true);await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1}');await done();await resume();await expected(1,'held gamepad reaches worker in Gamepad mode');await nativeKey('rawKeyDown','ArrowRight');await expected(1,'keyboard ignored in Gamepad mode');await nativeKey('keyUp','ArrowRight');await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:false,value:0}');await expected(0,'pad release');
   await client.send('Page.reload',{ignoreCache:true});await ready();assert.equal((await keyboard()).mode,'gamepad');assert.match(await evaluate('document.querySelector("#menu-config [data-input-label]").textContent'),/Gamepad|Controller/);await input();await setValue('#input-source','keyboard');await done();
   report.checks.push('Input-source switching activates only the selected device and persists across reload; existing gamepad mappings remain available.');
+  await evaluate(`window.__keyboardTest.pads.push({...structuredClone(window.__keyboardTest.pads[0]),index:1});window.__keyboardTest.rumble=[];window.__keyboardTest.pads[1].vibrationActuator={playEffect:(kind,params)=>{window.__keyboardTest.rumble.push({kind,params});return Promise.resolve('complete');}};`);
+  await input();await setValue('#input-source','both');await setValue('#input-player',1);await setValue('#input-source','both');
+  await poll(()=>evaluate('document.querySelector("#controller-device").options.length===3'),'two identical devices receive distinct selectors');
+  await setValue('#controller-device',await evaluate('document.querySelector("#controller-device").options[2].value'));
+  await learn('b','KeyJ');await click('#keyboard-save');
+  await click('#settings-tab-devices');await setValue('#rumble-player',1);await poll(()=>evaluate('!document.querySelector("#controller-rumble-test").disabled'),'P2 vibration API available');
+  await click('#controller-rumble-test');assert.equal(await evaluate('window.__keyboardTest.rumble.at(-1)?.params.duration'),55);
+  await done();await resume();
+  await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1};window.__keyboardTest.pads[1].buttons[1]={pressed:true,value:1}');
+  await nativeKey('rawKeyDown','KeyX');await nativeKey('rawKeyDown','KeyJ');
+  await expected(3|(257<<12),'two independent keyboard and pad routes combine into both SNES ports');
+  await nativeKey('keyUp','KeyJ');await nativeKey('keyUp','KeyX');await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:false,value:0};window.__keyboardTest.pads[1].buttons[1]={pressed:false,value:0}');
+  await expected(0,'both player ports release');
+  await input();await setValue('#input-source','none');await setValue('#input-player',0);await setValue('#input-source','keyboard');await done();
+  report.checks.push('Player 1 and Player 2 accept simultaneous keyboard and gamepad input on independent SNES ports, including two controllers with identical IDs. Test rumble selects the requested player and sends the native 55 ms pulse to an injected actuator.');
   for(const [width,height,theme] of [[1440,900,'light'],[390,844,'light'],[844,390,'dark']]){
     await layout(width,height,theme);await input();await screenshot(`keyboard-${width}x${height}.png`);assert(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'));await done();await menuCommand('misc','about');await poll(()=>evaluate('document.querySelector("#about-dialog").open'),'About dialog');await screenshot(`about-${width}x${height}.png`);await click('#about-dialog [data-close-about]');await menuCommand('misc','keyboard');await poll(()=>evaluate('document.querySelector("#help-dialog").open'),'Help dialog');await screenshot(`help-${width}x${height}.png`);const rect=await evaluate('(()=>{const r=document.querySelector("#help-dialog").getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom};})()');assert(rect.x>=-1&&rect.y>=-1&&rect.right<=width+1&&rect.bottom<=height+1);await click('#help-dialog [data-close-help]');
   }

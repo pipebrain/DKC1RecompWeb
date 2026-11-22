@@ -24,16 +24,17 @@
 <nav id="app-menubar" class="app-menubar" aria-label="Application menu" role="menubar">
  <span class="menu-coin" role="img" aria-label="DK coin"><span class="dk-coin" aria-hidden="true"></span></span>
  <div class="menu-group desktop-menu"><button class="menu-trigger app-name" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-dkm">DKM</button><div id="menu-dkm" class="app-menu" role="menu" hidden><button role="menuitem" data-command="open-rom">Load ROM…<kbd>⌘O</kbd></button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><div class="menu-notices" role="none"><p id="status" role="status">Checking WebGPU…</p><p id="save-status" aria-live="polite"></p></div></div></div>
- <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-config">Config</button><div id="menu-config" class="app-menu" role="menu" hidden><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><hr><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button></div></div>
+ <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-config">Config</button><div id="menu-config" class="app-menu" role="menu" hidden><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><hr><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" data-command="load-config">Load Config…</button><button role="menuitem" data-command="save-config">Save Config…</button></div></div>
  <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="Cheat support is not implemented">Cheat</button>
  <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button>
  <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-misc">Misc</button><div id="menu-misc" class="app-menu" role="menu" hidden><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button></div></div>
- <div class="menu-group compact-more"><button class="menu-trigger" role="menuitem" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-more">Menu<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"/></svg></button><div id="menu-more" class="app-menu" role="menu" hidden><p class="menu-section-label" role="presentation">DKM</p><button role="menuitem" data-command="open-rom">Load ROM…</button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><p class="menu-section-label" role="presentation">Config</p><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" disabled title="Cheat support is not implemented">Cheat</button><button role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button><hr><p class="menu-section-label" role="presentation">Misc</p><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button><hr><div class="menu-notices" role="none"><p data-status-copy="status" role="status"></p><p data-status-copy="save-status" aria-live="polite"></p></div></div></div>
+ <div class="menu-group compact-more"><button class="menu-trigger" role="menuitem" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-more">Menu<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"/></svg></button><div id="menu-more" class="app-menu" role="menu" hidden><p class="menu-section-label" role="presentation">DKM</p><button role="menuitem" data-command="open-rom">Load ROM…</button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><p class="menu-section-label" role="presentation">Config</p><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" data-command="load-config">Load Config…</button><button role="menuitem" data-command="save-config">Save Config…</button><hr><button role="menuitem" disabled title="Cheat support is not implemented">Cheat</button><button role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button><hr><p class="menu-section-label" role="presentation">Misc</p><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button><hr><div class="menu-notices" role="none"><p data-status-copy="status" role="status"></p><p data-status-copy="save-status" aria-live="polite"></p></div></div></div>
 </nav>
 <main class="game-workspace">
  <section class="player" aria-label="Game player"><div class="screen-wrap"><canvas id="screen" width="768" height="672" tabindex="0" aria-label="Donkey Kong Country game screen"></canvas><div id="pause-overlay" class="pause-overlay" role="status" aria-live="polite" aria-atomic="true" hidden><div class="pause-card"><svg class="pause-symbol" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="5" width="6" height="22" rx="2"/><rect x="19" y="5" width="6" height="22" rx="2"/></svg><h2 id="pause-title">Paused</h2><p id="pause-input"></p><p id="pause-hint"></p></div></div></div></section>
 </main>
 </div>
+<input id="config-file" type="file" accept=".json,application/json" hidden>
 <input id="rom-file" type="file" accept=".smc,.sfc" hidden>
 <dialog id="app-settings" class="settings-sheet" aria-labelledby="settings-title">
   <div class="sheet-header"><h2 id="settings-title">Config</h2><button id="settings-done" class="primary compact-button" type="button">Done</button></div>
@@ -54,14 +55,14 @@
           <button type="button" id="settings-tab-options" role="tab" data-settings-tab="options" aria-controls="settings-pane-options" aria-selected="false">Options</button>
         </div>
       <section id="settings-pane-controllers" class="settings-pane" data-settings-pane="controllers" role="tabpanel" aria-labelledby="settings-tab-controllers">
-        <div class="input-source-field"><label for="input-source">Input device</label><select id="input-source"><option value="keyboard" selected>Keyboard (default)</option><option value="gamepad">Gamepad</option></select></div>
+        <div class="input-source-field"><label for="input-player">Player</label><select id="input-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><label for="input-source">Input device</label><select id="input-source"><option value="keyboard" selected>Keyboard (default)</option><option value="gamepad">Gamepad</option><option value="both">Keyboard and gamepad</option><option value="none">Disabled</option></select></div>
         <section id="keyboard-panel" class="keyboard-panel" aria-labelledby="keyboard-heading">
           <div class="controller-heading"><h2 id="keyboard-heading">Keyboard</h2></div>
-          <p class="small">Your keyboard is the default input. Choose Set key beside an action, press a key, then Save.</p>
+          <p class="small">Choose Set key to replace an assignment, or Add key for an alternate. Save to apply your changes.</p>
           <div class="keyboard-actions"><button id="keyboard-save" class="primary" type="button" disabled>Save</button><button id="keyboard-discard" type="button" disabled>Discard changes</button><button id="keyboard-defaults" type="button">Restore defaults</button><button id="keyboard-capture-cancel" type="button" hidden>Cancel learning</button></div>
           <p id="keyboard-draft" class="controller-draft">Default keyboard mapping</p><p id="keyboard-message" role="status" aria-live="polite"></p>
           <div id="keyboard-bindings" class="keyboard-binding-list"></div>
-          <p class="settings-footnote">Tab, Escape, Space, and system command combinations remain available for navigation and application shortcuts.</p>
+          <p class="settings-footnote">Tab and Escape are reserved during game-key capture. Space controls playback when unassigned.</p>
         </section>
         <section id="controller-panel" class="controller-panel" aria-labelledby="controller-heading" hidden>
       <div class="controller-heading"><h2 id="controller-heading">Input</h2></div>
@@ -72,6 +73,7 @@
         <label>Profile name<input id="controller-name" maxlength="80" autocomplete="off"></label>
         <label>Stick dead zone<input id="controller-deadzone" type="number" min="0.01" max="0.95" step="0.05" value="0.35"></label>
       </div>
+      <div class="controller-fields"><label>Player stick dead zone (%)<input id="player-deadzone" type="number" min="0" max="100" step="1" placeholder="Use profile"></label></div>
       <p id="controller-device-info" class="small"></p>
       <p id="controller-summary" class="small">Controller: connect and press a button</p>
       <div class="controller-actions">
@@ -98,42 +100,117 @@
       </details>
       <details class="controller-live"><summary>Live controller inputs</summary><p class="small">Inputs are shown even while this panel has focus. They are not sent to the game while configuring.</p><h3>Buttons</h3><p id="controller-live-buttons">—</p><h3>Axes</h3><p id="controller-live-axes">—</p><h3>Mapped game actions</h3><p id="controller-mapped">None</p></details>
     </section>
+        <details id="assist-shortcuts"><summary>Assist shortcuts</summary><p class="small">These shortcuts apply when Assist is enabled. Select a shortcut to learn a key or use the selected controller.</p><div id="assist-shortcut-rows"></div><p id="assist-shortcut-status" role="status"></p></details>
       </section>
       <section id="settings-pane-devices" class="settings-pane" data-settings-pane="devices" role="tabpanel" aria-labelledby="settings-tab-devices" hidden>
         <div class="pane-heading"><h3>Devices</h3><p>Keyboard and controllers available to this browser.</p></div>
+        <div class="settings-group"><div class="settings-row"><label for="controller-rumble">Stomp rumble</label><input id="controller-rumble" type="checkbox" checked></div><div class="settings-row"><label for="rumble-player">Test controller</label><select id="rumble-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><button type="button" id="controller-rumble-test" disabled>Test rumble</button></div><p id="rumble-status" role="status"></p></div>
         <div id="device-list" class="settings-group device-list" aria-live="polite">Keyboard — default input. Connect a controller and press a button to make it available.</div>
         <p class="settings-footnote">Select a controller and assign its profile in Input.</p><button type="button" data-command="controllers">Open Input…</button>
       </section>
       <section id="settings-pane-options" class="settings-pane" data-settings-pane="options" role="tabpanel" aria-labelledby="settings-tab-options" hidden>
         <div class="pane-heading"><h3>Options</h3><p>Application behavior.</p></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Pause when inactive</h4><p>The game pauses when this page loses focus or is hidden.</p></div><span class="setting-value">On</span></div><div class="settings-row"><div><h4>Appearance</h4><p>Menus follow your system’s light or dark appearance.</p></div><span class="setting-value">System</span></div></div>
-        <p class="settings-footnote">These behaviors are fixed in the current browser build.</p><button type="button" data-command="keyboard" disabled>Keyboard Controls…</button>
+        <div class="settings-group">
+          <label class="settings-row"><span>Pause when the window loses focus</span><input type="checkbox" data-pref="pauseWhenInactive"></label>
+          <label class="settings-row"><span>Appearance</span><select data-pref="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+          <label class="settings-row"><span>Record diagnostics</span><input type="checkbox" data-pref="diagnostics"></label>
+          <div class="settings-row"><div><h4>Local repro file</h4><p>Includes a game-state checkpoint, input since that checkpoint, and recent worker timings.</p></div><button type="button" data-command="export-repro" data-needs-trace>Export Repro…</button></div>
+          <label class="settings-row"><span>Game on next load</span><select data-pref="variant"><option value="stock">Donkey Kong Country</option><option value="dixie">Dixie variant</option></select></label>
+        </div>
+      <button type="button" data-command="keyboard" disabled>Keyboard Controls…</button>
       </section>
       </section>
       <section id="settings-pane-video" class="settings-pane" data-settings-pane="video" role="tabpanel" aria-labelledby="settings-tab-video" hidden>
-        <div class="pane-heading"><h3>Video</h3><p>Original game presentation.</p></div>
-        <div class="settings-group"><div class="settings-row"><span>Display aspect</span><span class="setting-value">4:3</span></div><div class="settings-row"><span>Scaling</span><span class="setting-value">Nearest pixel</span></div><div class="settings-row"><div><h4>Full screen</h4><p>Fit the complete game image to the display.</p></div><button type="button" data-command="fullscreen" data-fullscreen-label>Enter Full Screen</button></div></div>
-        <p class="settings-footnote">Widescreen and additional graphics filters are not enabled in this build.</p>
+        <div class="pane-heading"><h3>Video</h3></div>
+        <h4>Presentation</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Display aspect</span><select data-pref="aspect"><option value="4:3">4:3 · stock</option><option value="16:10">16:10 · widescreen</option><option value="16:9">16:9 · widescreen</option></select></label>
+          <label class="settings-row"><span>Pixel shape</span><select data-pref="pixelAspect"><option value="snes">SNES 7:6</option><option value="square">Square</option></select></label>
+          <label class="settings-row"><span>Windowed size</span><select data-pref="windowScale"><option value="fit">Fit window</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select></label>
+          <label class="settings-row"><span>Full screen on Start</span><input type="checkbox" data-pref="fullscreenOnStart"></label>
+          <div class="settings-row"><span>Full screen</span><button type="button" data-command="fullscreen" data-fullscreen-label>Enter Full Screen</button></div>
+        </div>
+        <h4>Widescreen</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Level edges</span><select data-pref="edge"><option value="glide">Glide</option><option value="reflect">Reflect</option><option value="bars">Black bars</option><option value="shift">Shift</option></select></label>
+          <label class="settings-row"><span>Experimental aquatic fixes</span><input type="checkbox" data-pref="aquaticFixes"></label>
+        </div>
+        <h4>Rendering</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Phosphor colors</span><select data-pref="screenColor"><option value="raw">Raw</option><option value="crt">CRT</option><option value="composite">Composite</option><option value="trinitron">Trinitron</option></select></label>
+          <label class="settings-row"><span>Display</span><select data-pref="display"><option value="flat">Flat</option><option value="crt">CRT television</option></select></label>
+          <label class="settings-row"><span>Flat display filter</span><select data-pref="upscaler"><option value="nearest">Nearest</option><option value="bilinear">Bilinear</option><option value="sharp-bilinear">Sharp bilinear</option><option value="reconstruct">Reconstruct</option></select></label>
+          <label class="settings-row"><span>Frame generation</span><select data-pref="frameGeneration"><option value="off">Off</option><option value="poses">Smooth poses · 60 Hz</option><option value="midpoints">Smooth poses and motion · 120 Hz</option></select></label>
+        </div>
+        <h4>Reconstruction</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Reconstruction mode</span><select data-pref="reconstruction"><option value="sharp">Sharp pixels</option><option value="dither">Dither decoding</option><option value="diagonal">Diagonal edges</option><option value="level-2">Level-2 slopes</option><option value="level-3">Level-3 slopes</option></select></label>
+          <label class="settings-row"><span>Edge strength (%)</span><input type="number" min="0" max="100" step="1" data-pref="strength"></label>
+          <label class="settings-row"><span>Softness (%)</span><input type="number" min="0" max="100" step="1" data-pref="softness"></label>
+          <label class="settings-row"><span>Smooth shading (%)</span><input type="number" min="0" max="100" step="1" data-pref="shading"></label>
+        </div>
+        <h4>CRT television</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Preset</span><select data-pref="crtPreset"><option value="living-room">Living room</option><option value="studio">Studio monitor</option><option value="soft">Soft</option><option value="custom">Custom</option></select></label>
+          <label class="settings-row"><span>Scanlines (%)</span><input type="number" min="0" max="100" step="1" data-pref="scanlines"></label>
+          <label class="settings-row"><span>CRT sharpness (%)</span><input type="number" min="0" max="100" step="1" data-pref="sharpness"></label>
+          <label class="settings-row"><span>Phosphor mask</span><select data-pref="mask"><option value="none">None</option><option value="fine">Fine grille</option><option value="coarse">Coarse grille</option><option value="slot">Slot mask</option></select></label>
+          <label class="settings-row"><span>Mask strength (%)</span><input type="number" min="0" max="100" step="1" data-pref="maskStrength"></label>
+          <label class="settings-row"><span>Glow (%)</span><input type="number" min="0" max="100" step="1" data-pref="glow"></label>
+          <label class="settings-row"><span>Halation (%)</span><input type="number" min="0" max="100" step="1" data-pref="halation"></label>
+          <label class="settings-row"><span>Curvature (%)</span><input type="number" min="0" max="100" step="1" data-pref="curvature"></label>
+        </div>
+        <h4>HD materials</h4><div class="settings-group">
+          <label class="settings-row"><span>Use HD textures</span><input type="checkbox" data-pref="hdTextures"></label>
+          <label class="settings-row"><span>Edge cleanup (%)</span><input type="number" min="0" max="100" step="1" data-pref="hdPolish"></label>
+          <label class="settings-row"><span>Grounded finish (%)</span><input type="number" min="0" max="100" step="1" data-pref="hdFinish"></label>
+        </div><p class="settings-footnote">Choose a Materials folder in Config → Paths and reload the game to use it.</p>
+        <h4>Diagnostics</h4>
+        <div class="settings-group">
+          <label class="settings-row"><span>Visible layer</span><select data-pref="layer"><option value="all">All layers</option><option value="bg1">Background 1</option><option value="bg2">Background 2</option><option value="bg3">Background 3</option><option value="objects">Objects</option></select></label>
+          <label class="settings-row"><span>Show widescreen source overlay</span><input type="checkbox" data-pref="provenance"></label>
+        </div>
       </section>
       <section id="settings-pane-sound" class="settings-pane" data-settings-pane="sound" role="tabpanel" aria-labelledby="settings-tab-sound" hidden>
         <div class="pane-heading"><h3>Sound</h3><p>Original soundtrack and sound effects.</p></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Game audio</h4><p>Play the original stereo soundtrack and sound effects.</p></div><button type="button" data-command="audio" data-needs-game data-sound-label aria-pressed="true">Sound On</button></div></div>
-        <p class="settings-footnote">Replacement music packs and volume adjustment are not enabled in this build.</p>
+        <div class="settings-group"><div class="settings-row"><div><h4>Game audio</h4><p>Play the original stereo soundtrack and sound effects.</p></div><button type="button" data-command="audio" data-sound-label aria-pressed="true">Sound On</button></div></div>
+        <div class="settings-group">
+          <label class="settings-row"><span>Volume · <output data-value-for="volume"></output>%</span><input type="range" min="0" max="100" data-pref="volume"></label>
+          <label class="settings-row"><span>Audio prebuffer</span><select data-pref="audioPreroll"><option value="1">1 block</option><option value="2">2 blocks</option><option value="3">3 blocks</option><option value="4">4 blocks</option></select></label>
+          <label class="settings-row"><span>Correct audio clock drift</span><input type="checkbox" data-pref="audioDriftCorrection"></label>
+          <label class="settings-row"><span>Music on next load</span><select data-pref="music"><option value="original">Original soundtrack</option><option value="msu1">MSU-1 pack</option></select></label>
+          <label class="settings-row"><span>Replacement music gain · <output data-value-for="musicGain"></output>×</span><input type="range" min="0" max="4" step=".01" data-pref="musicGain"></label>
+        </div>
+      <p id="soundtrack-status" class="settings-footnote" role="status" hidden></p>
       </section>
       <section id="settings-pane-paths" class="settings-pane" data-settings-pane="paths" role="tabpanel" aria-labelledby="settings-tab-paths" hidden>
         <div class="pane-heading"><h3>Paths</h3></div>
         <div class="settings-group"><div class="settings-row"><div><h4><label for="remember-rom">Remember ROM on this device</label></h4><p id="remember-rom-details">Keep a local copy for your next visit. Turning this off removes the copy and keeps your cartridge saves.</p></div><input id="remember-rom" type="checkbox" checked disabled aria-describedby="remember-rom-details"></div></div>
+        <label class="settings-row"><span>HD materials folder</span><input id="hd-folder" type="file" webkitdirectory multiple></label>
+        <div class="settings-row"><span id="hd-pack-status" role="status">Checking HD storage…</span><button id="forget-hd" type="button" disabled>Forget HD Materials</button></div>
+        <label class="settings-row"><span>Music pack folder</span><input id="music-folder" type="file" webkitdirectory multiple></label>
+        <label class="settings-row"><span>Music pack archive</span><input id="music-archive" type="file" accept=".msu1,.zip"></label>
+        <div class="settings-row"><span id="music-pack-status" role="status">Checking music storage…</span><button id="forget-music" type="button" disabled>Forget Music Pack</button></div>
         <p id="rom-storage-status" class="settings-footnote" role="status">Checking local storage…</p>
       </section>
       <section id="settings-pane-speed" class="settings-pane" data-settings-pane="speed" role="tabpanel" aria-labelledby="settings-tab-speed" hidden>
         <div class="pane-heading"><h3>Speed</h3><p>Game timing and playback.</p></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Game speed</h4><p>Original fixed game timing.</p></div><span class="setting-value">Normal · 1×</span></div><div class="settings-row"><div><h4>Playback</h4><p>Close Config and continue the game.</p></div><button type="button" data-command="toggle" data-needs-game data-toggle-label>Start</button></div></div>
-        <p class="settings-footnote">Fast-forward, slow motion, and rewind are not enabled in this build.</p>
+        <div class="settings-group">
+          <label class="settings-row"><span>Game speed</span><select data-pref="speed"><option value="1">Normal · 1×</option><option value="2">Fast · 2×</option><option value="3">Fastest · 3×</option></select></label>
+          <label class="settings-row"><span>Gameplay Assist</span><input type="checkbox" data-pref="assist"></label>
+          <div class="settings-row"><span>Frame control</span><div class="command-buttons"><button type="button" data-needs-assist data-command="rewind-step">Rewind</button><button type="button" data-needs-game data-command="frame-step">Advance one frame</button></div></div>
+          <div class="settings-row"><span>Playback</span><button type="button" data-needs-game data-command="toggle" data-toggle-label>Start</button></div>
+        </div>
+        <p class="settings-footnote">Assist keeps a short rewind history and enables your assigned shortcuts. Fast playback mutes game audio.</p>
       </section>
       <section id="settings-pane-saves" class="settings-pane" data-settings-pane="saves" role="tabpanel" aria-labelledby="settings-tab-saves" hidden>
         <div class="pane-heading"><h3>Saves</h3><p>Import or export your cartridge save.</p></div>
         <div class="settings-group"><div class="settings-row"><div><h4>Saved in this browser</h4><p>Save at Candy’s in the game. Your cartridge save is kept here automatically.</p></div><span class="row-symbol"><svg viewBox="0 0 24 24"><use href="#icon-save"/></svg></span></div></div>
         <div class="settings-group"><div class="settings-row"><div><h4>Export game save</h4><p>Keep a copy or move your progress to another browser.</p></div><button id="export-save" disabled>Export…</button></div><div class="settings-row"><div><h4>Import game save</h4><p>Choose a 2,048-byte cartridge save, then reopen your ROM.</p></div><label class="button" id="import-label" aria-disabled="true" for="save-file">Choose File…<input id="save-file" type="file" accept=".srm,.sav" hidden disabled></label></div></div>
+        <div class="settings-group">
+          <label class="settings-row"><span>Save state slot</span><select data-pref="stateSlot"><option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option><option value="4">Slot 4</option><option value="5">Slot 5</option></select></label>
+          <div class="settings-row"><span>Game state</span><div class="command-buttons"><button type="button" data-command="quick-save" data-needs-game>Save State</button><button type="button" data-command="quick-load" data-needs-game>Load State</button></div></div>
+        </div>
         <p class="settings-footnote">Saves belong to this browser and local address. Export a copy before clearing browser data.</p>
       </section>
 

@@ -1,5 +1,5 @@
 // Explicit services for the standalone module. Unknown imports fail before boot.
-export function importsFor(module, instance, report = () => {}) {
+export function importsFor(module, instance, report = () => {}, materials=null) {
   const decoder=new TextDecoder();
   const memory=()=>{
     const value=instance()?.exports.memory;
@@ -48,6 +48,9 @@ export function importsFor(module, instance, report = () => {}) {
     proc_exit(code){throw new Error(`The C runtime exited with code ${code}.`);},
   };
   const env={
+    dkc_hd_open:pointer=>materials?.open(string(pointer))||0,
+    dkc_hd_read:(handle,pointer,length)=>materials?.read(handle,bytes().subarray(pointer,pointer+length))??-1,
+    dkc_hd_close:handle=>materials?.close(handle),
     // Optional native directory discovery is unavailable in this host.
     // This Emscripten libc syscall ABI returns a negative errno (ENOSYS=52).
     __syscall_getdents64:()=>-52,

@@ -18,7 +18,7 @@ The user added GitHub Pages hosting for Android/iOS testing to version 1.
 
 - Use WebAssembly and WebGPU.
 - Only `.screen-wrap` is made fullscreen, with centered 4:3 output fitted to
-  the whole viewport.
+  the whole viewport by default. Phase 2 adds optional native widescreen and square-pixel presentations.
 - Follow Apple's Human Interface Guidelines for the application shell. Wide
   viewports use an emulated application menu bar; narrow and short landscape
   viewports use compact iOS-style navigation. Config collects controller
@@ -388,6 +388,24 @@ a gesture on a controller-only launch, clicking Start Game activated audio.
 A test analyser measured game audio on first playback, silence while muted,
 and game audio again after unmuting.
 
+## Phase 2 player settings
+
+The user expanded the milestone to include native-only player features. Config
+now provides local preference storage and a versioned JSON import/export in
+wide and compact layouts. The [settings inventory](SETTINGS.md) records
+browser and native defaults, file boundaries and platform-specific facilities.
+Stock 4:3, keyboard Player 1, original music, and sound on remain the defaults.
+
+The working branch includes two-player input, Assist and five state slots,
+native widescreen and display settings, the Dixie build, a local MSU-1 music
+pack reader, macOS HD preview materials and local diagnostics. Desktop Chrome retained the configuration and slot after a
+complete quit and relaunch. The final stock build passed the 8,070-frame Jungle
+comparison and the Candy save/continue route. The official HD pack matched the
+native compositor at Jungle entry. The separate [public mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
+now serves this Phase 2 preview. V1 remains the last user-accepted mobile
+baseline. [Deployment and device test steps](PAGES.md)
+[Checks and current limits](VALIDATION.md#phase-2-player-settings)
+
 ## Remaining validation
 
 - Full-game and long-duration timing/audio coverage.
@@ -410,7 +428,61 @@ and game audio again after unmuting.
 The private source tag [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0)
 marks the user-accepted browser/Pages baseline at `543fbe1`.
 
-The stock v0.0.17 baseline and its ROM/cartridge-save milestone are verified
-on desktop Chrome. The next planned player milestone covers two-player input,
-controller navigation and sound settings. [Remaining features and acceptance
-checks](RELEASE_PARITY.md#player-features-and-acceptance)
+### Phase 3 · clean player
+
+The approved scope for browser version **v1.1.0** uses the pinned stock DKC1Recomp
+v0.0.17 core. The v1.0.0 player defines the experience. Preserve the tested
+Phase 2 source privately before starting the clean branch and keep its
+public preview available for current device testing.
+
+1. Package one stock core, original graphics and soundtrack, original game
+   timing, and a centered 4:3 image. Keep the v1 menus, fullscreen, pause
+   overlay, mapped Start and raw controller profiles. Remove the Dixie, HD,
+   MSU-1, widescreen, CRT, frame-generation, rewind and speed-modification
+   features from the clean build and its settings. Retain replay and
+   frame-stepping tools for development.
+2. Expose every retained player setting through the wide and compact menus.
+   Save preferences locally and support Config → Load Config / Save Config
+   for portable JSON. Read existing v1 profiles and Phase 2 configs, carrying
+   supported settings forward. Preserve remembered-ROM choice, stock SRAM
+   and Candy save import/export. Keep stock save states in five separate
+   slots and test loading a state created by the Phase 2 stock core.
+3. Give each SNES port independent keyboard, gamepad, or combined input with
+   assignable bindings. Preserve the original game's two-player rules. Test
+   input from two devices at once, duplicate pad models, disconnection while
+   holding a direction, reconnection, and the quick-resume button release.
+4. Retain the Phase 2 port of upstream enemy-stomp rumble, its saved on/off
+   preference, and the test pulse under Config → Devices. Verify a stomp and
+   an ordinary jump on a physical controller. Input must also work on a
+   controller whose browser exposes no rumble actuator.
+5. Compare stock boot, title, Jungle and Candy against the recorded references.
+   Verify both input ports in an actual two-player game, reload a save state
+   after a browser restart, and check the retained settings on Android and iOS.
+   The existing tests match native and archived v1 on four stock checkpoints.
+   [Verification evidence](VALIDATION.md#phase-2-stock-v0017)
+
+### Following milestone proposal · independent WebGPU renderer
+
+Start with one Jungle scene. Keep collision, input, audio and enemy behavior
+on the original simulation clock. Preserve the PPU work in
+the game step that has hardware side effects. Capture the scene data needed
+to draw the same frame, including tiles, sprite priority, palettes and
+per-scanline changes. Render from that read-only data at the display's
+resolution. The original renderer remains the comparison reference.
+
+First reproduce the stock 256×224 frame pixel for pixel with the original
+activation rules. Replay identical inputs and compare game memory, spawns,
+SRAM and audio to the reference after each tick.
+
+Then extend the view using authored level data. On each simulation tick,
+use the visible world bounds to wake an ordinary enemy as soon as any part
+of it enters the viewport, if it is still dormant. Run its original AI from
+that tick. This intentionally lets a wider view change encounter timing.
+At a fixed viewport, replay the same inputs at different display refresh
+rates and verify the same activation tick and subsequent game state.
+Include a camera pan and a save-state restore near the activation boundary.
+
+Trap and ambush enemies are an open design decision. For each encounter,
+record what the player can see, what cues the attack in the original game,
+and what happens if it triggers at the viewport edge. Use that evidence to
+decide separately when the trap becomes visible, wakes and attacks.

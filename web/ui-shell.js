@@ -225,9 +225,8 @@ export function initAppShell({
     for(const button of document.querySelectorAll('[data-command="open-rom"]'))button.disabled=loading;
     for(const button of document.querySelectorAll('[data-command="keyboard"]')){button.disabled=!helpAvailable;button.title=helpAvailable?'':'Help is unavailable.';}
     for(const button of document.querySelectorAll('[data-command="about"]')){button.disabled=!aboutAvailable;button.title=aboutAvailable?'':'About is unavailable.';}
-    const inputLabel=inputMode==='keyboard'?(keyboardCustom?'Keyboard (custom)':'Keyboard (default)'):'Gamepad';
+    const inputLabel=inputMode==='keyboard'?(keyboardCustom?'Keyboard (custom)':'Keyboard (default)'):inputMode==='both'?'Keyboard and gamepad':inputMode==='none'?'Disabled':'Gamepad';
     for(const label of document.querySelectorAll('[data-input-label]'))label.textContent=inputLabel;
-    document.querySelector('#input-source option[value="keyboard"]').textContent=keyboardCustom?'Keyboard (custom)':'Keyboard (default)';
     for(const button of document.querySelectorAll('[data-toggle-label]')){
       changeLabel(button,running?'Pause':hasStarted?'Resume':'Start');
       button.disabled=!loaded||loading||playbackBusy||playbackError||['error','gpu-error'].includes(pausedReason);
@@ -237,6 +236,8 @@ export function initAppShell({
       else button.setAttribute('aria-pressed',String(sound));
       if(button.hasAttribute('data-sound-label'))changeLabel(button,sound?'Sound On':'Sound Off');
     }
+    for(const button of document.querySelectorAll('[data-needs-trace]'))button.disabled=!value.diagnostics||!loaded||loading;
+    for(const button of document.querySelectorAll('[data-needs-assist]'))button.disabled=!value.assist||!loaded||loading;
     const fullscreenAvailable=Boolean(value.fullscreenAvailable);
     for(const button of document.querySelectorAll('[data-fullscreen-label]')){
       changeLabel(button,document.fullscreenElement?'Exit Full Screen':'Enter Full Screen');

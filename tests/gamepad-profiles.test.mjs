@@ -137,3 +137,25 @@ test('imports reject corrupt versions, builtin overrides, invalid indices and pr
   assert.throws(()=>validateProfile(Object.assign(Object.create({name:'inherited'}),original)),/must be an object/);
   assert.equal({}.polluted,undefined);
 });
+
+test('portable controller settings preserve legacy profiles and validate both routes and shortcuts',async()=>{
+  const {defaultControllerSettings,validateControllerSettings}=await import('../web/gamepad-profiles.js');
+  const profile=createProfile('Raw',rawPad()),defaults=defaultControllerSettings();
+  const legacy={profiles:[profile],assignments:{first:profile.id},lastDevice:'first'};
+  const result=validateControllerSettings(legacy);
+  assert.deepEqual(result.player2,defaults.player2);assert.equal(result.assignments.first,profile.id);
+  result.captureMode='hat';result.lastProfile=profile.id;result.player2.deadzone=0;
+  result.player2.assignments.second='standard';result.player2.lastDevice='second';result.assistBindings['quick-save']={type:'axis',index:5,direction:1};
+  assert.deepEqual(validateControllerSettings(JSON.parse(JSON.stringify(result))),result);
+  assert.throws(()=>validateControllerSettings({...result,profiles:[profile,profile]}),/Duplicate/);
+  assert.throws(()=>validateControllerSettings({...result,player2:{...result.player2,lastProfile:'missing'}}),/Unknown/);
+  assert.throws(()=>validateControllerSettings({...result,rumble:'yes'}),/rumble/);
+  assert.throws(()=>validateControllerSettings({...result,assistBindings:{...result.assistBindings,'quick-load':{type:'button',index:256}}}),/index/);
+});
+
+test('a per-player dead zone and a consumed Assist binding only affect their mapped input',()=>{
+  const pad=rawPad();pad.mapping='standard';pad.axes[0]=0.3;press(pad,0);
+  assert.equal(evaluateProfile(DEFAULT_PROFILE,pad),1);
+  assert.equal(evaluateProfile(DEFAULT_PROFILE,pad,.25),129);
+  assert.equal(evaluateProfile(DEFAULT_PROFILE,pad,.25,[{type:'button',index:0}]),128);
+});

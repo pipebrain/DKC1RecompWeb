@@ -27,7 +27,7 @@ and its live-gameplay checkpoint. [Recorded results](VALIDATION.md#phase-2-stock
 
 ## Player features and acceptance
 
-The desktop Chrome ROM/SRAM milestone is complete. Controls and sound are next, followed by save states. Widescreen can proceed alongside them after the stock milestone. Frame generation depends on reliable state restoration and variable-width rendering. Use the existing menus on desktop and compact layouts.
+The Phase 2 branch now implements the player settings and the native features in this table. The [settings inventory](SETTINGS.md) lists defaults, menu locations and browser-specific behavior. The evidence column below defines the acceptance work for full parity. See [current checks](VALIDATION.md#phase-2-player-settings) for the exercised subset.
 
 | Area | Browser work | Evidence required |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ The desktop Chrome ROM/SRAM milestone is complete. Controls and sound are next, 
 
 ## Decisions and sign-off
 
-- Keep centered 4:3 as the browser default. Introducing selectable wider aspects expands the current display requirement. Confirm that option before wiring it into Config. Native input also offers simultaneous keyboard and gamepad control for one player. Seek a decision before changing the browser's exclusive-source rule. [Native menu and input choices](https://github.com/elliotttate/DKC1Recomp/blob/559bab62596a97e91f389b39cdeb6cda981ab7c9/runner/windows_platform.c#L198-L294)
+- The user approved native-only features for Phase 2. Stock 4:3 and Player 1 keyboard remain the defaults. Widescreen and simultaneous keyboard/controller routing are opt-in settings.
 - Use standalone Wasm, direct WebGPU/WGSL and standard browser APIs. A new archive decoder or other runtime library requires approval. Keep generated binaries, music, private states and extracted assets outside Git. Any later Pages candidate uses the explicit package allowlist and manual deployment process. [Runtime decision](RUNTIME_DECISION.md) · [Pages packaging](PAGES.md)
 - Record each feature as verified, capability-limited, pending, or an agreed browser difference. Attach the reference revision, input/scene, browser/device, expected result and observed result. Run stock regressions with enhancements off and relevant combinations with them on. Obtain fresh desktop and physical mobile results for the candidate. The v1 mobile acceptance applies to the tagged build.
 - Report Windows-player coverage and Mac HD coverage separately. Track long-session and full-game coverage independently of scripted routes. Native iOS touch controls belong to a separate earlier package. Donkey Kong Land, Cheat and NetPlay remain outside this release comparison. [Earlier iOS release](https://github.com/elliotttate/DKC1Recomp/releases/tag/v0.0.14)

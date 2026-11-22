@@ -24,6 +24,10 @@ export function pausePresentation(state,{keyboard={},controller={},foreground=tr
     input=`Keyboard · ${key}`;
     hint=`Press ${key} to ${verb}.`;
   }
+  if(state.inputMode==='both'){
+    const button=controller.profile?.bindings?.start?.[0];input='Keyboard and gamepad';
+    if(controller.device&&button)hint=hint.replace(` to ${verb}.`,` or controller Start (${bindingLabel(button)}) to ${verb}.`);
+  }else if(state.inputMode==='none'){input='Player 1 input disabled';hint=`Press Space to ${verb}.`;}
   if(state.playbackError||['error','gpu-error'].includes(state.pausedReason))return {visible:true,title:'Game stopped',input,hint:fullscreen?'Press Escape, then reload this browser page.':'Reload this browser page, then load your ROM.'};
   if(state.resuming)return {visible:true,title:state.hasStarted?'Resuming…':'Starting…',input,hint:'Please wait.'};
   const steps=[];

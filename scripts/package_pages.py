@@ -23,6 +23,8 @@ WEB_FILES = (
     'keyboard-profiles.js', 'audio-worklet.js', 'worker.js', 'wasm-imports.js',
     'dk-coin.png', 'favicon.ico', 'favicon.png', 'About.md', 'Help.md',
 )
+PHASE2_FILES = ('settings.js', 'video-settings.js', 'video.wgsl', 'assist.js',
+                'music-pack.js', 'msu-player.js', 'hd-pack.js', 'dkc-dixie.wasm')
 NOTICE_FILES = (
     'LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses/README.md',
     'licenses/snesrecomp-LICENSE.txt', 'licenses/snesrecomp-THIRD_PARTY_ATTRIBUTION.md',
@@ -32,7 +34,8 @@ NOTICE_FILES = (
     'licenses/emscripten-LICENSE.txt', 'licenses/musl-COPYRIGHT.txt',
     'licenses/compiler-rt-LICENSE.txt',
 )
-PACKAGE_FILES = frozenset((*WEB_FILES, *NOTICE_FILES, 'dkc.wasm', '.nojekyll'))
+BASELINE_FILES = frozenset((*WEB_FILES, *NOTICE_FILES, 'dkc.wasm', '.nojekyll'))
+PACKAGE_FILES = BASELINE_FILES | frozenset(PHASE2_FILES)
 PACKAGE_DIRS = frozenset(str(parent) for name in PACKAGE_FILES
                          for parent in PurePosixPath(name).parents if str(parent) != '.')
 WASM_HEADER = b'\x00asm\x01\x00\x00\x00'
@@ -74,7 +77,7 @@ def check_wasm(data: bytes, expected: str | None = None) -> str:
     return digest
 
 
-def check_reference(value: str, source: str, *, module: bool = False, data_url: bool = False) -> None:
+def check_reference(value: str, source: str, resources, *, module: bool = False, data_url: bool = False) -> None:
     if not value or value.startswith('#'):
         return
     if value.startswith('data:') and data_url:
@@ -94,11 +97,15 @@ def check_reference(value: str, source: str, *, module: bool = False, data_url: 
         elif part != '.':
             parts.append(part)
     target = '/'.join(parts)
-    if target not in PACKAGE_FILES:
+    if target not in resources:
         raise PackageError(f'{source} references a resource outside the artifact allowlist: {value}')
 
 
 class HTMLResources(HTMLParser):
+    def __init__(self, resources):
+        super().__init__()
+        self.resources = resources
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
         if tag == 'base':
@@ -107,30 +114,30 @@ class HTMLResources(HTMLParser):
                      'source': ('src',), 'video': ('src', 'poster'), 'audio': ('src',),
                      'iframe': ('src',), 'image': ('href', 'xlink:href')}.get(tag, ())):
             if attributes.get(key):
-                check_reference(attributes[key], 'index.html')
+                check_reference(attributes[key], 'index.html', self.resources)
 
 
 def check_resources(files: dict[str, bytes]) -> None:
-    HTMLResources().feed(files['index.html'].decode('utf-8'))
-    for name in WEB_FILES:
+    HTMLResources(files).feed(files['index.html'].decode('utf-8'))
+    for name in files:
         if name.endswith('.js'):
             source = files[name].decode('utf-8')
             for value in STATIC_IMPORT.findall(source):
-                check_reference(value, name, module=True)
+                check_reference(value, name, files, module=True)
             for _, value in MODULE_URL.findall(source):
                 if value == './${file}' and name == 'content-pages.js':
                     # This one bounded template selects the two bundled documents.
                     for document in ('About.md', 'Help.md'):
-                        check_reference('./' + document, name)
+                        check_reference('./' + document, name, files)
                 elif '${' in value:
                     raise PackageError(f'Unrecognized dynamic module resource in {name}: {value}')
                 else:
-                    check_reference(value, name)
+                    check_reference(value, name, files)
             for value in DIRECT_LOAD.findall(source):
-                check_reference(value, name)
+                check_reference(value, name, files)
         elif name.endswith('.css'):
             for _, value in CSS_URL.findall(files[name].decode('utf-8')):
-                check_reference(value, name, data_url=True)
+                check_reference(value, name, files, data_url=True)
 
 
 def verify_package(output: Path, expected_wasm_sha256: str | None = None) -> dict:
@@ -146,7 +153,8 @@ def verify_package(output: Path, expected_wasm_sha256: str | None = None) -> dic
     if directories != PACKAGE_DIRS:
         raise PackageError('Pages artifact has missing or unexpected directories.')
     actual = {path.relative_to(output).as_posix() for path in paths if path.is_file()}
-    if actual != PACKAGE_FILES | {MANIFEST}:
+    allowed = actual - {MANIFEST}
+    if MANIFEST not in actual or allowed not in (BASELINE_FILES, PACKAGE_FILES):
         raise PackageError('Pages artifact has missing or unexpected files; refusing to replace it.')
     try:
         manifest = json.loads((output / MANIFEST).read_text(encoding='utf-8'))
@@ -156,9 +164,9 @@ def verify_package(output: Path, expected_wasm_sha256: str | None = None) -> dic
         raise PackageError('Pages artifact ownership manifest has unexpected fields.')
     if manifest['schema'] != SCHEMA or manifest['version'] != 1 or not isinstance(manifest['files'], dict):
         raise PackageError('Pages artifact ownership manifest is not supported.')
-    if set(manifest['files']) != PACKAGE_FILES:
+    if set(manifest['files']) != allowed:
         raise PackageError('Pages artifact manifest contains paths outside the allowlist.')
-    files = {name: (output / name).read_bytes() for name in PACKAGE_FILES}
+    files = {name: (output / name).read_bytes() for name in allowed}
     for name, data in files.items():
         expected = {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
         if manifest['files'][name] != expected:
@@ -168,6 +176,8 @@ def verify_package(output: Path, expected_wasm_sha256: str | None = None) -> dic
     digest = check_wasm(files['dkc.wasm'], expected_wasm_sha256)
     if manifest['wasm_sha256'] != digest:
         raise PackageError('Pages artifact Wasm identity does not match its manifest.')
+    if 'dkc-dixie.wasm' in files:
+        check_wasm(files['dkc-dixie.wasm'])
     check_resources(files)
     return manifest
 
@@ -182,7 +192,7 @@ def package_pages(root: Path, output: Path, wasm: Path, expected_wasm_sha256: st
         raise PackageError('Pages output must be a subdirectory of this project\'s ignored build/ directory.')
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         verify_package(output)  # Only replace an intact package owned by this tool.
-    files = {name: read_file(root / 'web' / name) for name in WEB_FILES}
+    files = {name: read_file(root / 'web' / name) for name in (*WEB_FILES, *PHASE2_FILES)}
     files.update({name: read_file(root / name) for name in NOTICE_FILES})
     files['dkc.wasm'] = read_file(wasm)
     files['.nojekyll'] = b''

@@ -21,7 +21,7 @@ import re
 import tarfile
 import tempfile
 
-from package_pages import MANIFEST, PACKAGE_FILES, PackageError, ROOT, no_symlinks, verify_package
+from package_pages import BASELINE_FILES, MANIFEST, PACKAGE_FILES, PackageError, ROOT, no_symlinks, verify_package
 
 
 ARCHIVE_FILES = PACKAGE_FILES | {MANIFEST}
@@ -53,15 +53,19 @@ def limited_file(path: Path, limit: int) -> bytes:
 
 
 def same_package(left: Path, right: Path) -> bool:
-    return all((left / name).read_bytes() == (right / name).read_bytes()
-               for name in ARCHIVE_FILES)
+    left_manifest = verify_package(left)
+    return (left_manifest == verify_package(right) and
+            (left / MANIFEST).read_bytes() == (right / MANIFEST).read_bytes())
 
 
 def create_archive(package: Path, archive: Path, *, root: Path = ROOT) -> dict:
     package = package if package.is_absolute() else root / package
     no_symlinks(package)
+    names = {path.relative_to(package).as_posix() for path in package.rglob('*') if path.is_file()}
+    if names not in (BASELINE_FILES | {MANIFEST}, ARCHIVE_FILES):
+        raise PackageError('Pages package has missing or unexpected files.')
     sizes = 0
-    for name in ARCHIVE_FILES:
+    for name in names:
         source = package / name
         no_symlinks(source)
         if not source.is_file():
@@ -75,7 +79,7 @@ def create_archive(package: Path, archive: Path, *, root: Path = ROOT) -> dict:
         raise PackageError('The transport archive cannot be created inside its package.')
     contents = {}
     total = 0
-    for name in sorted(ARCHIVE_FILES):
+    for name in sorted(names):
         source = package / name
         no_symlinks(source)
         data = source.read_bytes()
@@ -148,7 +152,7 @@ def archive_contents(payload: bytes) -> dict[str, bytes]:
             offset = member.offset_data + ((member.size + 511) // 512) * 512
             if any(data[member.offset_data + member.size:offset]):
                 raise PackageError('Unexpected nonzero padding inside the Pages transport.')
-    if set(contents) != ARCHIVE_FILES:
+    if set(contents) not in (BASELINE_FILES | {MANIFEST}, ARCHIVE_FILES):
         raise PackageError('Pages transport has missing files.')
     # Reject hidden second tar archives or payloads after the end marker.
     if len(data) - offset < 1024 or any(data[offset:]):

@@ -133,7 +133,7 @@ function buttonValue(value) {
   if (typeof value==='number') return Number.isFinite(value)?Math.max(0,Math.min(1,value)):0;
   return value && Number.isFinite(value.value)?Math.max(0,Math.min(1,value.value)):(value?.pressed?1:0);
 }
-function bindingPressed(binding,pad,deadzone) {
+export function bindingPressed(binding,pad,deadzone) {
   if (binding.type==='button') {
     const input=pad.buttons?.[binding.index];
     return (binding.threshold===undefined && input?.pressed===true) ||
@@ -155,12 +155,12 @@ function bindingPressed(binding,pad,deadzone) {
   }
   return false;
 }
-export function evaluateProfile(profile,pad) {
+export function evaluateProfile(profile,pad,deadzone=profile?.deadzone,consumed=[]) {
   if (!pad || pad.connected===false || !profile) return 0;
   if (profile.id==='standard' && pad.mapping!=='standard') return 0;
   let mask=0;
   for (const {id,bit} of ACTIONS)
-    if (profile.bindings[id]?.some(binding=>bindingPressed(binding,pad,profile.deadzone))) mask|=bit;
+    if (profile.bindings[id]?.some(binding=>!consumed.some(used=>used.type===binding.type&&used.index===binding.index&&used.direction===binding.direction&&used.value===binding.value)&&bindingPressed(binding,pad,deadzone))) mask|=bit;
   return mask;
 }
 export function bindingLabel(binding) {
@@ -194,4 +194,47 @@ export function detectBinding(previous,current,{deadzone=0.35,mode='auto',hatDir
     return value>=-4&&value<=4?{type:'axis-value',index,value,tolerance:0.08}:null;
   return {type:'axis',index,direction:value>rest?1:-1,rest,
     threshold:Math.min(deadzone,Math.abs(value-rest)*0.6)};
+}
+
+export const CONTROLLER_STORAGE_KEY='dkc.controller-settings.v1';
+export const ASSIST_ACTIONS=Object.freeze({
+  'rewind-step':'Rewind', 'fast-forward':'Fast-forward', 'quick-save':'Quick Save',
+  'quick-load':'Quick Load', 'frame-step':'Advance one frame',
+});
+export const CAPTURE_MODES=['auto','button','axis','axis-value','hat'];
+export const acceptsSource=(mode,source)=>mode===source||mode==='both';
+
+function defaultRoute(){
+  return {assignments:{},lastDevice:null,lastProfile:DEFAULT_PROFILE.id,deadzone:null};
+}
+export function defaultControllerSettings(){
+  return {...defaultRoute(),profiles:[],player2:defaultRoute(),captureMode:'auto',rumble:true,
+    assistBindings:{'rewind-step':{...button(6),threshold:30/255},'fast-forward':{...button(7),threshold:30/255},'quick-save':null,'quick-load':null,'frame-step':null}};
+}
+function validateRoute(route,available){
+  const {assignments,lastDevice,lastProfile='standard',deadzone=null}=route;
+  if(!record(assignments)||Object.keys(assignments).length>1024)throw new Error('Invalid controller assignments.');
+  const valid=Object.entries(assignments).map(([device,id])=>{
+    if(!device.length||device.length>2047||!available.has(id))throw new Error('Unknown controller or profile assignment.');
+    return [device,id];
+  });
+  if(lastDevice!==null&&(typeof lastDevice!=='string'||!lastDevice.length||lastDevice.length>2047))throw new Error('Invalid selected controller.');
+  if(!available.has(lastProfile))throw new Error('Unknown selected controller profile.');
+  return {assignments:Object.fromEntries(valid),lastDevice,lastProfile,deadzone:deadzone===null?null:integer(deadzone,0,100,'Player stick dead zone')};
+}
+export function validateControllerSettings(value){
+  const routeKeys=['assignments','lastDevice','lastProfile','deadzone'];
+  keys(value,[...routeKeys,'profiles','player2','captureMode','rumble','assistBindings'],'controller settings');
+  if(!Array.isArray(value.profiles)||value.profiles.length>64)throw new Error('Use up to 64 custom controller profiles.');
+  const profiles=value.profiles.map(validateProfile),available=new Set(['standard',...profiles.map(p=>p.id)]);
+  if(available.size!==profiles.length+1)throw new Error('Duplicate controller profile ID.');
+  const defaults=defaultControllerSettings();
+  const {player2=defaults.player2,captureMode=defaults.captureMode,rumble=defaults.rumble,assistBindings=defaults.assistBindings}=value;
+  keys(player2,routeKeys,'player 2 controller');
+  if(!CAPTURE_MODES.includes(captureMode)||typeof rumble!=='boolean')throw new Error('Invalid capture mode or rumble setting.');
+  keys(assistBindings,Object.keys(ASSIST_ACTIONS),'Assist controller bindings');
+  const validated=Object.fromEntries(Object.keys(ASSIST_ACTIONS).map(id=>[id,assistBindings[id]===null?null:validateBinding(assistBindings[id])]));
+  const result={...validateRoute(value,available),profiles,player2:validateRoute(player2,available),captureMode,rumble,assistBindings:validated};
+  if(JSON.stringify(result).length>1048576)throw new Error('Controller settings exceed the 1 MiB storage limit.');
+  return result;
 }

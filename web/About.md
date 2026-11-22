@@ -14,13 +14,14 @@ A browser home for Donkey Kong Country, built on DKC1Recomp and its pinned snesr
 This edition keeps the original game as its foundation and adds:
 
 - Standalone WebAssembly with a handwritten JavaScript host.
-- Direct WebGPU presentation, with the original game centered at 4:3.
+- Direct WebGPU presentation with stock 4:3 and optional widescreen, CRT filters, and frame smoothing.
 - A single application menu, a compact layout, and system light/dark appearance.
-- An editable keyboard profile selected by default, plus configurable controller profiles.
+- Two configurable input ports, editable keyboard and controller profiles, and portable player settings.
 - Remembered ROMs, local cartridge saves, save import/export, and same-ROM reloading.
-- About and Help content loaded from editable Markdown files.
+- Five save-state slots per variant, rewind, and frame advance.
+- Optional Dixie gameplay, user-supplied MSU-1 music, and materials for the macOS HD preview.
 
-The browser host has no frontend framework or third-party JavaScript runtime dependency. Its graphics currently use the original 256 × 224 framebuffer with nearest scaling. Widescreen, enhanced graphics, rewind, save states, cheats, and NetPlay are not implemented in this edition.
+The handwritten browser host uses WebAssembly, WebGPU and standard browser APIs. Open Config to adjust settings or transfer them to another browser.
 
 ## Credits and provenance
 

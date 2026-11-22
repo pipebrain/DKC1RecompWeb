@@ -11,19 +11,21 @@ import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-let rom=null,inputTabsOnly=false,dkmMenuOnly=false,romStorageOnly=false;
+let rom=null,inputTabsOnly=false,dkmMenuOnly=false,romStorageOnly=false,configOnly=false;
 for(let i=2;i<process.argv.length;i++){
   if(process.argv[i]==='--rom')rom=resolve(process.argv[++i]);
   else if(process.argv[i]==='--input-tabs')inputTabsOnly=true;
   else if(process.argv[i]==='--dkm-menu')dkmMenuOnly=true;
   else if(process.argv[i]==='--rom-storage')romStorageOnly=true;
-  else if(process.argv[i]==='--help'){console.log('node scripts/ui_check.mjs [--rom /absolute/game.smc] [--input-tabs|--dkm-menu|--rom-storage]');process.exit(0);}
+  else if(process.argv[i]==='--config')configOnly=true;
+  else if(process.argv[i]==='--help'){console.log('node scripts/ui_check.mjs [--rom /absolute/game.smc] [--input-tabs|--dkm-menu|--rom-storage|--config]');process.exit(0);}
   else throw new Error(`Unknown option: ${process.argv[i]}`);
 }
 if(romStorageOnly&&!rom)throw new Error('--rom-storage requires --rom /path/to/game.smc');
+if(configOnly&&!rom)throw new Error('--config requires --rom /path/to/game.smc');
 if(rom)await stat(rom);
 const stamp=new Date().toISOString().replace(/[:.]/g,'-')+`-${process.pid}`;
-const output=join(root,romStorageOnly?'build/rom-storage-check':dkmMenuOnly?'build/dkm-menu-check':inputTabsOnly?'build/input-tabs-check':'build/ui-check',stamp),profile=join(root,'.local/ui-check-profile',stamp);
+const output=join(root,configOnly?'build/config-check':romStorageOnly?'build/rom-storage-check':dkmMenuOnly?'build/dkm-menu-check':inputTabsOnly?'build/input-tabs-check':'build/ui-check',stamp),profile=join(root,'.local/ui-check-profile',stamp);
 await mkdir(output,{recursive:true});await mkdir(profile,{recursive:true});
 const report={started:new Date().toISOString(),romLoaded:Boolean(rom),checks:[],layouts:[],javascriptErrors:[],consoleErrors:[],result:'running'};
 let server,chrome,client,session;
@@ -90,12 +92,12 @@ async function command(menu,name){
   // Legacy controller-profile scenarios explicitly select Gamepad; fresh keyboard defaults have their own regression.
   if(name==='controllers')await gamepadSource();
 }
-async function fileCommand(menu,name,expectedInput){
+async function fileCommand(menu,name,expectedInput,files=[]){
   const before=fileChoosers.length;await command(menu,name);
   await poll(()=>fileChoosers.length>before,`native ${expectedInput} picker`);
   const {backendNodeId}=fileChoosers.at(-1);const {node}=await client.send('DOM.describeNode',{backendNodeId});
   const attributes=node.attributes||[];assert.equal(attributes[attributes.indexOf('id')+1],expectedInput,'Menu opened the wrong file picker.');
-  await client.send('DOM.setFileInputFiles',{backendNodeId,files:[]});
+  await client.send('DOM.setFileInputFiles',{backendNodeId,files});
   await client.send('Page.bringToFront');await poll(()=>evaluate('!document.hidden'),'page foreground after native picker');
 }
 async function gamepadSource(){if(await evaluate('document.querySelector("#input-source").value!=="gamepad"')){await evaluate('(()=>{const input=document.querySelector("#input-source");input.value="gamepad";input.dispatchEvent(new Event("change",{bubbles:true}));})()');await poll(()=>evaluate('window.dkcDebug.keyboard().mode==="gamepad"'),'Gamepad source selected');}}
@@ -135,7 +137,7 @@ async function assertCoinAndMenus(){
   assert.deepEqual(value.headings,['DKM','Config','Cheat','NetPlay','Misc'],'Menu order differs from the requested structure.');
   assert(value.disabled.includes('Cheat')&&value.disabled.includes('NetPlay'),'Unimplemented Cheat/NetPlay commands must stay disabled.');
   const order=await evaluate(`Array.from(document.querySelectorAll('#menu-config [data-command]')).map(e=>e.dataset.command)`);
-  assert.deepEqual(order,['controllers','devices','options','video','sound','paths','saves','speed'],'Config ordering differs from the requested structure.');
+  assert.deepEqual(order.filter(id=>!['save-config','load-config'].includes(id)),['controllers','devices','options','video','sound','paths','saves','speed'],'Config ordering differs from the requested structure.');
   assert(await evaluate(`!document.querySelector('#menu-config [data-command="paths"]').disabled&&!document.querySelector('[data-settings-tab="paths"]').disabled`),'ROM storage settings must be reachable through Paths.');
   const artwork=await evaluate(`(async()=>{const image=new Image();image.src='./dk-coin.png';await image.decode();const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let transparent=0,opaque=0,colored=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i+3]===0)transparent++;if(pixels[i+3]>200){opaque++;if(Math.max(pixels[i],pixels[i+1],pixels[i+2])-Math.min(pixels[i],pixels[i+1],pixels[i+2])>2)colored++;}}return {width:canvas.width,height:canvas.height,transparent,opaque,colored};})()`);
   assert(artwork.width>0&&artwork.height>0&&artwork.transparent>0&&artwork.opaque>0,'Coin image must load with real transparent and opaque pixels.');assert.equal(artwork.colored,0,'Coin artwork is not monochrome.');
@@ -162,18 +164,179 @@ async function resetAndVerify(menu){
 }
 function contain(rect,width,height,label){assert(rect.x>=-1&&rect.y>=-1&&rect.right<=width+1&&rect.bottom<=height+1,`${label} is outside viewport: ${JSON.stringify(rect)}`);}
 async function inPage(action,...args){return evaluate('('+action.toString()+')('+args.map(value=>JSON.stringify(value)).join(',')+')');}
+async function pickRom(){
+  const {root:doc}=await client.send('DOM.getDocument');
+  const {nodeId}=await client.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'#rom-file'});
+  await client.send('DOM.setFileInputFiles',{nodeId,files:[rom]});
+  await poll(()=>inPage(()=>window.dkcDebug.status().loaded&&!window.dkcDebug.status().loading&&!document.querySelector('#rom-file').files.length),'ROM picker completion');
+}
+async function reopen(){
+  const old=await evaluate('performance.timeOrigin');
+  await client.send('Page.reload');
+  await poll(()=>inPage(time=>performance.timeOrigin!==time&&window.dkcDebug&&!document.querySelector('#remember-rom').disabled,old),'player storage initialization');
+}
+async function configChecks(downloads) {
+  await client.send('Browser.setDownloadBehavior',{behavior:'allowAndName',downloadPath:output,eventsEnabled:true},null);
+  async function exported() {
+    const before=downloads.length;
+    await command('config','save-config');
+    await poll(()=>downloads.length>before,'config download');
+    const file=downloads.at(-1);assert.match(file.suggestedFilename,/\.json$/);
+    return poll(async()=>JSON.parse(await readFile(join(output,file.guid),'utf8')),'complete downloaded JSON');
+  }
+  let sequence=0;
+  async function imported(value,valid=true) {
+    const file=join(output,'fixture-'+(++sequence)+'.json');
+    await writeFile(file,JSON.stringify(value));
+    await fileCommand('config','load-config','config-file',[file]);
+    if(valid)await poll(()=>inPage(()=>document.querySelector('#status').textContent==='Configuration loaded.'),'configuration import committed');
+  }
+  const base=await exported();
+  assert.deepEqual(Object.keys(base).sort(),['schema','version','player','keyboard','controllers','rememberRom'].sort());
+  assert.equal(base.schema,'dkc.player-config');assert.equal(base.version,1);
+  assert.equal(base.player.sound,true);assert.equal(base.keyboard.mode,'keyboard');
+  assert.equal(base.player.music,'original');assert.equal(base.player.variant,'stock');
+  const sections=await inPage(()=>Object.fromEntries([...document.querySelectorAll('[data-pref]')].map(el=>[el.dataset.pref,el.closest('[data-settings-pane]')?.dataset.settingsPane])));
+  for(const name of Object.keys(base.player)){
+    if(name==='sound')continue;
+    assert(sections[name], 'Missing menu-accessible control for '+name);
+  }
+  const setPref=async(name,value)=>{
+    await command('config',sections[name]);
+    await inPage((key,val)=>{
+      const el=document.querySelector('[data-pref="'+key+'"]');
+      if(el.type==='checkbox')el.checked=val;else el.value=String(val);
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    },name,value);
+    await closeSettings();
+  };
+  await setPref('volume',37);await setPref('appearance','dark');await setPref('pauseWhenInactive',false);await setPref('speed',2);
+  const changed=await exported();
+  for(const [name,value] of Object.entries({volume:37,appearance:'dark',pauseWhenInactive:false,speed:2}))assert.equal(changed.player[name],value);
+  const desired=structuredClone(changed);
+  desired.player.fullscreenOnStart=true;desired.player.volume=64;desired.player.sound=false;
+  desired.rememberRom=false;
+  desired.keyboard.bindings.start=['KeyJ'];
+  desired.keyboard.player2.mode='keyboard';
+  desired.keyboard.player2.bindings.start=['NumpadEnter'];
+  desired.controllers.captureMode='button';desired.controllers.rumble=false;
+  await viewport(390,844);await imported(desired);await reopen();
+  assert.deepEqual(await exported(),desired,'All configuration sections must survive import + page reload.');
+  await viewport(1440,900);
+  const bad=structuredClone(desired);bad.player.volume=101;
+  await imported(bad,false);
+  await poll(()=>inPage(()=>document.querySelector('#status').classList.contains('error')),'invalid configuration error');
+  await key('Escape');assert.deepEqual(await exported(),desired);
+  await imported({...desired,version:990},false);
+  await poll(()=>inPage(()=>document.querySelector('#status').classList.contains('error')),'unknown version rejected');
+  await key('Escape');assert.deepEqual(await exported(),desired);
+  await openMenu('config');await click('#menu-config [data-command="controllers"]');
+  await poll(()=>visible('[data-keyboard-clear="start"]'),'keyboard draft editor');await click('[data-keyboard-clear="start"]');
+  await inPage(value=>{
+    const transfer=new DataTransfer();transfer.items.add(new File([JSON.stringify(value)],'draft-guard.json'));
+    const file=document.querySelector('#config-file');file.files=transfer.files;file.dispatchEvent(new Event('change',{bubbles:true}));
+  },base);
+  await poll(()=>inPage(()=>!document.querySelector('#keyboard-save').disabled),'keyboard draft stays dirty');
+  assert.equal(await inPage(()=>document.querySelector('[data-pref="volume"]').value),'64','Import clobbered settings while a draft was open.');
+  await click('#keyboard-discard');await closeSettings();await key('Escape');
+  assert.deepEqual(await exported(),desired);
+  report.checks.push('Wide and compact Config menus downloaded and restored every settings section, rejected invalid files and preserved an unsaved keyboard draft.');
+
+  const stock=structuredClone(base);stock.player.sound=false;
+  await imported(stock);await pickRom();
+  const stockSave=Array.from({length:2048},(_,i)=>(17*i+31)&255);
+  await inPage(async bytes=>{await dkcDebug.importSave(bytes);await dkcDebug.flushSaves();},stockSave);
+  await setPref('variant','dixie');
+  await command('dkm','reset-game');await poll(()=>inPage(()=>dkcDebug.status().variant==='dixie'&&!dkcDebug.status().loading),'Dixie instance ready',120000);
+  assert.notDeepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
+  // Independent release-native Dixie executable, no SRAM, 5,100-frame title route.
+  const title=await evaluate('dkcDebug.replayFingerprints([{count:5100,buttons:0}])');
+  const nativeDixieTitle={
+    "frame_sha256": "67cb48a8b13c3a2891e1e6b1c16ec5c72c7a7ac52a80933347b23757c3fdc1df",
+    "wram_sha256": "b9bb475f19bc44b70cf0bfd88aa0c44d2a028218c3373fea25a385a7cb07e50b",
+    "vram_sha256": "4ae2c458771b1b6fad4783f4ef46e8af9bc39fd43f2a3562926104a97e0c1b58",
+    "cgram_sha256": "144988d2811e14479ffae87c7831bc05b055caa290e08be91df2730270f42a30",
+    "oam_sha256": "135af2eacc3ead6aa975a1208995b35bcbd50c0a81fd0a8b6bd30c67d44df0bb",
+    "oam_source_sha256": "bf271aada4848812694784c2c823b8b1bff6ab1834574da41eaa5069d1a4537d",
+    "audio_fnv1a": "d035ba629bc04d2c"
+};
+  assert.deepEqual(title.fingerprints,nativeDixieTitle,'Dixie title differs from the release-native core.');
+  report.dixieTitle=title.fingerprints;
+  const jungle=(await readFile(join(root,'tests/fixtures/jungle-entry.inputs'),'utf8')).split(/\r?\n/).filter(line=>line&&!line.startsWith('#')).map(line=>{
+    const [mask,count]=line.split('*');return {buttons:parseInt(mask,16),count:Number(count)};
+  });
+  report.dixieJungle={};
+  for(const [aspect,nativeFrame,nativeAudio] of [
+    [
+        "4:3",
+        "723ba727ae9c141e8b0ba0b900867467e72b0efab1d4bf8256fa574ec15faa90",
+        "9468a57229ee4103"
+    ],
+    [
+        "16:9",
+        "8b67ced9246569b6afa21aa7ee2364b01d29bb87277773383a84ca425428db09",
+        "9468a57229ee4103"
+    ]
+]){
+    await setPref('aspect',aspect);await command('dkm','reset-game');
+    await poll(()=>inPage(()=>dkcDebug.status().frameCount===0&&!dkcDebug.status().loading),'Dixie route reset');
+    const {fingerprints}=await inPage(runs=>dkcDebug.replayFingerprints(runs),jungle);
+    assert.equal(fingerprints.frame_sha256,nativeFrame,'Dixie Jungle framebuffer '+aspect);
+    assert.equal(fingerprints.audio_fnv1a,nativeAudio,'Dixie Jungle PCM '+aspect);
+    report.dixieJungle[aspect]=fingerprints;
+  }
+  await setPref('aspect','4:3');
+  const dixieSave=Array.from({length:2048},(_,i)=>(9*i+7)&255);
+  await inPage(async bytes=>{await dkcDebug.importSave(bytes);await dkcDebug.flushSaves();},dixieSave);
+
+  await reopen();assert.equal(await evaluate('dkcDebug.status().variant'),'dixie');
+  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),dixieSave);
+  await setPref('variant','stock');await command('dkm','reset-game');
+  await poll(()=>inPage(()=>dkcDebug.status().variant==='stock'&&!dkcDebug.status().loading),'stock restored');
+  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
+  report.checks.push('Stock and Dixie booted from the same clean ROM, advanced in Chrome, and retained independent cartridge saves across reloads.');
+
+  // Exercise real archive decoding + persisted blobs using deterministic, locally generated PCM.
+  const fixturePath=join(output,'soundtrack.msu1');
+  const py=spawn(process.env.PYTHON||'python3',['-c',`import sys,zipfile,struct
+with zipfile.ZipFile(sys.argv[1],'w',compression=zipfile.ZIP_DEFLATED) as z:
+ for n in range(1,33):
+  z.writestr('pack/track-%d.pcm'%n,b'MSU1'+bytes(4)+struct.pack('<hh',4096,-1024)*16384)`,fixturePath]);
+  assert.equal(await new Promise((yes,no)=>{py.on('error',no);py.on('exit',yes);}),0);
+  await command('config','paths');
+  const {root:doc}=await client.send('DOM.getDocument');
+  const {nodeId}=await client.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'#music-archive'});
+  await client.send('DOM.setFileInputFiles',{nodeId,files:[fixturePath]});
+  await poll(()=>inPage(()=>document.querySelector('#music-pack-status').textContent.includes('32 tracks')),'compressed MSU pack import');
+  await closeSettings();await setPref('music','msu1');await reopen();
+  assert.equal(await evaluate('dkcDebug.status().music'),'msu1');
+  const hashes=[];
+  for(const musicGain of [0,1]){
+    await setPref('musicGain',musicGain);await command('dkm','reset-game');
+    await poll(()=>inPage(()=>dkcDebug.status().frameCount===0&&!dkcDebug.status().loading),'MSU mixer reset');
+    const result=await evaluate('dkcDebug.replayFingerprints([{count:5100,buttons:0}])');
+    hashes.push(result.fingerprints.audio_fnv1a);
+  }
+  assert.notEqual(hashes[0],hashes[1],'Replacement PCM did not change actual emulated audio.');
+  report.musicHashes5100=hashes;
+  await imported(stock);await command('dkm','reset-game');
+  await poll(()=>inPage(()=>dkcDebug.status().music==='original'&&!dkcDebug.status().loading),'original music restored');
+  assert.deepEqual(await evaluate('dkcDebug.saveBytes()'),stockSave);
+  await command('config','paths');await click('#forget-music');
+  await poll(()=>inPage(()=>document.querySelector('#music-pack-status').textContent.includes('No music pack')),'music storage cleared');
+  await closeSettings();
+  report.checks.push('A deflated 32-track MSU-1 archive survived reopening, produced distinct mixed PCM for gains 0 and 1 and could be cleared independently of game progress.');
+  await setPref('music','msu1');await reopen();
+  assert.equal(await evaluate('dkcDebug.status().music'),'original','Absent pack should boot original audio.');
+  assert.match(await evaluate('document.querySelector("#soundtrack-status").textContent'),/original soundtrack/);
+  await setPref('music','original');
+  const {verifyAssist}=await import('./browser_assist_check.mjs');
+  await verifyAssist({inPage,command,closeSettings,openMenu,click,poll,reopen,report});
+  const {verifyHd}=await import('./browser_hd_check.mjs');
+  await verifyHd({inPage,command,closeSettings,click,poll,reopen,report});
+}
+
 async function romStorageChecks(){
-  async function pickRom(){
-    const {root:doc}=await client.send('DOM.getDocument');
-    const {nodeId}=await client.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'#rom-file'});
-    await client.send('DOM.setFileInputFiles',{nodeId,files:[rom]});
-    await poll(()=>inPage(()=>window.dkcDebug.status().loaded&&!window.dkcDebug.status().loading&&!document.querySelector('#rom-file').files.length),'ROM picker completion');
-  }
-  async function reopen(){
-    const old=await evaluate('performance.timeOrigin');
-    await client.send('Page.reload');
-    await poll(()=>inPage(time=>performance.timeOrigin!==time&&window.dkcDebug&&!document.querySelector('#remember-rom').disabled,old),'player storage initialization');
-  }
   async function inspect(){
     return inPage(async()=>{
       const storage=await import('./storage.js');
@@ -364,7 +527,10 @@ async function dkmMenuChecks(){
 }
 
 try{
-  report.sources=Object.fromEntries(await Promise.all(['web/index.html','web/style.css','web/ui-shell.js','web/main.js','web/storage.js','web/worker.js','web/controller-ui.js','web/dk-coin.png'].map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));
+  const files=['web/index.html','web/style.css','web/ui-shell.js','web/main.js','web/storage.js','web/worker.js','web/controller-ui.js','web/dk-coin.png'];
+  if(configOnly)files.push(...['settings.js','video-settings.js','video.wgsl','assist.js','msu-player.js','music-pack.js','hd-pack.js','graphics.js',
+    'wasm-imports.js','keyboard-profiles.js','gamepad-profiles.js','keyboard-ui.js','dkc.wasm','dkc-dixie.wasm'].map(name=>'web/'+name));
+  report.sources=Object.fromEntries(await Promise.all(files.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));
   const origin=`http://127.0.0.1:${await unusedPort()}/`;
   server=spawn(process.env.PYTHON||'python3',[join(root,'scripts/serve.py'),'--port',new URL(origin).port],{cwd:root,stdio:['ignore','pipe','pipe']});log(server,'server.log');
   await poll(async()=>{const response=await fetch(origin);return response.ok;},'local UI server');
@@ -383,7 +549,9 @@ try{
   await viewport(1440,900);
   await client.send('Page.navigate',{url:origin});
   await poll(()=>evaluate(`Boolean(window.dkcDebug&&document.querySelector('#status')?.textContent.startsWith('Ready')&&document.querySelector('#app-menubar'))`),'redesigned app and WebGPU',30000);
-  if(romStorageOnly){
+  if(configOnly){
+    await configChecks(downloads);
+  }else if(romStorageOnly){
     await romStorageChecks();
   }else if(dkmMenuOnly){
     await dkmMenuChecks();
@@ -489,7 +657,7 @@ try{
   await poll(async()=>{const device=await evaluate(`({text:document.querySelector('#device-list').textContent,hidden:document.hidden})`);report.devices=device;return device.text.includes('Representative raw controller')&&device.text.includes('12 buttons');},'Connected controller details in Devices');
   await screenshot('desktop-settings-devices.png');await closeSettings();
   await command('config','options');await poll(()=>visible('[data-settings-pane="options"]'),'Options settings');
-  assert(await evaluate(`document.querySelector('[data-settings-pane="options"]').textContent.includes('Pause when inactive')&&document.querySelector('[data-settings-pane="options"]').textContent.includes('System')`));
+  assert(await evaluate(`document.querySelector('[data-settings-pane="options"] [data-pref="pauseWhenInactive"]').checked && document.querySelector('[data-pref="appearance"]').value==='system'`));
   await click('[data-settings-pane="options"] [data-command="keyboard"]');await poll(()=>evaluate(`document.querySelector('#help-dialog').open`),'Options keyboard help');await closeSettings();
   report.checks.push('Static monochrome coin, requested DKM/Config/Misc ordering, disabled unavailable entries, Devices readout, and Options help are verified.');
 

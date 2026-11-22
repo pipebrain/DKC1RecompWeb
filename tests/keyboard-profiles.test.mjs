@@ -73,7 +73,7 @@ test('malformed storage is bounded, schema checked, and cannot add arbitrary act
   assert.throws(()=>parseKeyboardSettings(' '.repeat(MAX_KEYBOARD_BYTES+1)),/too large/);
   assert.throws(()=>validateKeyboardSettings({...defaultKeyboardSettings(),version:KEYBOARD_VERSION+1}),/Unsupported/);
   assert.throws(()=>validateKeyboardSettings({...defaultKeyboardSettings(),schema:'another-app'}),/Unsupported/);
-  assert.throws(()=>validateKeyboardSettings({...defaultKeyboardSettings(),mode:'both'}),/Keyboard or Gamepad/);
+  assert.throws(()=>validateKeyboardSettings({...defaultKeyboardSettings(),mode:'touch'}),/input source/);
   assert.throws(()=>validateKeyboardSettings({...defaultKeyboardSettings(),extra:true}),/Unknown/);
   const settings=defaultKeyboardSettings();delete settings.bindings.r;
   assert.throws(()=>validateKeyboardSettings(settings),/zero to four/);
@@ -89,4 +89,16 @@ test('labels expose familiar key names and default comparisons accept reordered 
   assert.equal(keyboardCodeLabel('ShiftLeft'),'Left Shift');assert.equal(keyboardCodeLabel('Enter'),'Return');
   const bindings=defaultKeyboardSettings().bindings;bindings.select.reverse();
   assert(isDefaultKeyboardBindings(bindings));
+});
+
+test('old keyboard settings migrate and a second player, alternate keys and Assist survive a transfer',()=>{
+  const original=defaultKeyboardSettings();
+  const legacy={schema:original.schema,version:original.version,mode:'gamepad',bindings:original.bindings};
+  const next=validateKeyboardSettings(legacy);
+  assert.equal(next.mode,'gamepad');assert.equal(next.player2.mode,'none');
+  assert.deepEqual(next.assistKeys,original.assistKeys);
+  next.mode='both';next.player2.mode='keyboard';next.player2.bindings.b=['KeyH','KeyJ'];next.assistKeys['quick-save']='F6';
+  assert.deepEqual(parseKeyboardSettings(JSON.stringify(next)),next);
+  assert.throws(()=>validateKeyboardSettings({...next,assistKeys:{...next.assistKeys,'quick-load':'F6'}}),/different/);
+  assert.throws(()=>validateKeyboardSettings({...next,player2:{...next.player2,unknown:true}}),/player 2/);
 });

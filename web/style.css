@@ -20,9 +20,7 @@
   color: var(--text);
   font-size: 16px;
 }
-@media (prefers-color-scheme: dark) {
-  :root {--app:#1c1c1e;--surface:#2c2c2e;--surface-secondary:#242426;--sidebar:#242426;--text:#f5f5f7;--secondary:#aaaab2;--line:#444447;--control:#3a3a3c;--control-hover:#48484b;--accent:#0a84ff;--accent-hover:#3699ff;--danger:#ff6961;--menu:rgb(46 46 49 / .96);--shadow:0 22px 70px #0008}
-}
+:root[data-appearance="dark"] {--app:#1c1c1e;--surface:#2c2c2e;--surface-secondary:#242426;--sidebar:#242426;--text:#f5f5f7;--secondary:#aaaab2;--line:#444447;--control:#3a3a3c;--control-hover:#48484b;--accent:#0a84ff;--accent-hover:#3699ff;--danger:#ff6961;--menu:rgb(46 46 49 / .96);--shadow:0 22px 70px #0008}
 * {box-sizing:border-box}
 body {margin:0;overflow:hidden;background:var(--app)}
 button,input,select {font:inherit}
@@ -256,3 +254,5 @@ select {appearance:none;padding-right:30px!important;background-image:url('data:
   #pause-hint {font-size:13px;line-height:1.4}
 }
 @media (prefers-reduced-motion:no-preference) {button,.button {transition:background-color .12s ease,color .12s ease}.settings-sheet[open] {animation:sheet-appear .15s ease-out}@keyframes sheet-appear {from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}}
+
+.command-buttons {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}

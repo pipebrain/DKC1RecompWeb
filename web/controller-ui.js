@@ -1,38 +1,38 @@
-import {ACTIONS,DEFAULT_PROFILE,createProfile,validateProfile,parseProfile,serializeProfile,evaluateProfile,bindingLabel,detectBinding} from './gamepad-profiles.js';
+import {ACTIONS,DEFAULT_PROFILE,createProfile,validateProfile,parseProfile,serializeProfile,evaluateProfile,bindingLabel,detectBinding,bindingPressed,acceptsSource,CONTROLLER_STORAGE_KEY,defaultControllerSettings,validateControllerSettings} from './gamepad-profiles.js';
 
-const STORAGE_KEY='dkc.controller-settings.v1';
 const clone=value=>JSON.parse(JSON.stringify(value));
 const $=id=>document.getElementById(id);
-const deviceKey=pad=>`${pad.id}\u001f${pad.mapping||''}\u001f${pad.buttons.length}:${pad.axes.length}`;
+const baseDeviceKey=pad=>`${pad.id}\u001f${pad.mapping||''}\u001f${pad.buttons.length}:${pad.axes.length}`;
 const snapshot=pad=>pad?{id:pad.id,index:pad.index,mapping:pad.mapping||'',connected:pad.connected!==false,buttons:Array.from(pad.buttons,b=>typeof b==='number'?b:{pressed:Boolean(b.pressed),value:Number(b.value)||0}),axes:Array.from(pad.axes,Number)}:null;
 
-export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
+export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>'keyboard',assistEnabled=()=>false}={}) {
   const panel=$('controller-panel'),message=$('controller-message'),deviceSelect=$('controller-device'),profileSelect=$('controller-profile');
-  let settings={profiles:[],assignments:{},lastDevice:null},storageAvailable=true,pads=[],selectedKey=null;
+  let settings=defaultControllerSettings(),storedVersion=null,storageAvailable=true,pads=[],selectedKey=null,player=0;
+  const deviceSlots=new Map();
+  let routed=[null,null],assistCapture=null,assistListener=null;
+  const deviceKey=pad=>deviceSlots.get(pad.index)?.key;
+  const route=(n=player,target=settings)=>n===1?target.player2:target;
+  const heldAssist=new Set();
   let profile=clone(DEFAULT_PROFILE),committedId=DEFAULT_PROFILE.id,dirty=false,capture=null,lastPaint=0,lastDevices='',previewBits=0,outputBits=0;
   function tell(text,error=false){message.textContent=text;message.classList.toggle('error',error);}
   function writeSettings(next=settings){
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(next));storageAvailable=true;}
+    try{
+      const encoded=JSON.stringify(validateControllerSettings(next));
+      if(localStorage.getItem(CONTROLLER_STORAGE_KEY)!==storedVersion)throw new Error('Controller settings changed in another tab. Reload to use the newer settings.');
+      localStorage.setItem(CONTROLLER_STORAGE_KEY,encoded);storedVersion=encoded;storageAvailable=true;
+    }
     catch(error){storageAvailable=false;throw new Error(`Controller profile was not saved: ${error.message}`);}
   }
   try{
-    const raw=localStorage.getItem(STORAGE_KEY);
+    const raw=storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);
     if(raw){
       if(raw.length>1048576)throw new Error('Stored controller settings are too large.');
-      const saved=JSON.parse(raw);
-      if(!saved||!Array.isArray(saved.profiles)||saved.profiles.length>64)throw new Error('Invalid stored controller settings.');
-      const profiles=saved.profiles.map(validateProfile);
-      if(new Set(profiles.map(p=>p.id)).size!==profiles.length)throw new Error('Duplicate stored profiles.');
-      const assignments={};
-      if(saved.assignments&&typeof saved.assignments==='object')for(const [key,id] of Object.entries(saved.assignments)){
-        if(typeof key==='string'&&key.length<2048&&typeof id==='string'&&(id===DEFAULT_PROFILE.id||profiles.some(p=>p.id===id)))Object.defineProperty(assignments,key,{value:id,writable:true,enumerable:true,configurable:true});
-      }
-      settings={profiles,assignments,lastDevice:typeof saved.lastDevice==='string'?saved.lastDevice:null};
+      settings=validateControllerSettings(JSON.parse(raw));
     }
   }catch(error){storageAvailable=false;tell(`Controller settings could not be loaded: ${error.message}`,true);}
   function selectedPad(){return pads.find(p=>deviceKey(p)===selectedKey)||null;}
   function findProfile(id){return id===DEFAULT_PROFILE.id?DEFAULT_PROFILE:settings.profiles.find(p=>p.id===id);}
-  function cancelCapture(){capture=null;$('controller-capture-cancel').hidden=true;}
+  function cancelCapture(){capture=null;assistCapture=null;$('controller-capture-cancel').hidden=true;}
   function chooseProfile(id){
     cancelCapture();const found=findProfile(id)||DEFAULT_PROFILE;profile=clone(found);committedId=found.id;dirty=false;renderEditor();
   }
@@ -44,7 +44,10 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
     profileSelect.value=profile.id;
   }
   function renderEditor(){
-    refreshProfiles();const builtin=profile.id===DEFAULT_PROFILE.id;
+    refreshProfiles();$('controller-capture-mode').value=settings.captureMode;
+    $('player-deadzone').value=route().deadzone??'';
+    $('controller-rumble').checked=settings.rumble;
+    const builtin=profile.id===DEFAULT_PROFILE.id;
     $('controller-name').value=profile.name;$('controller-name').disabled=builtin;
     $('controller-deadzone').value=profile.deadzone;$('controller-deadzone').disabled=builtin;
     $('controller-draft').textContent=dirty?'Unsaved changes':builtin?'Built-in profile · make a copy to edit':'Saved profile';
@@ -71,19 +74,50 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
     profile=validateProfile(next);markDirty();
   }
   function rememberSelection(){
-    if(selectedKey)settings.assignments[selectedKey]=profile.id;
-    settings.lastDevice=selectedKey;
+    const selected=route();selected.lastProfile=profile.id;
+    if(selectedKey)Object.defineProperty(selected.assignments,selectedKey,{value:profile.id,writable:true,enumerable:true,configurable:true});
     try{writeSettings();}catch(error){tell(`${error.message} The selection still works for this session.`,true);}
   }
-  function refreshDevices(){
-    const signature=JSON.stringify(pads.map(p=>[deviceKey(p),p.index]));
-    if(signature===lastDevices&&deviceSelect.value===(selectedKey||''))return;
-    lastDevices=signature;deviceSelect.replaceChildren();
-    if(!pads.length||selectedKey&&!selectedPad()){
-      const option=document.createElement('option');option.value=selectedKey||'';option.textContent=selectedKey?'Selected controller disconnected':'No controller detected';deviceSelect.append(option);
+  function registerPads(values){
+    pads=Array.from(values||[]).filter(p=>p&&p.connected!==false&&p.buttons&&p.axes);
+    const seen=new Set(pads.map(p=>p.index));
+    for(const index of deviceSlots.keys())if(!seen.has(index))deviceSlots.delete(index);
+    for(const pad of pads){
+      const base=baseDeviceKey(pad);
+      if(deviceSlots.get(pad.index)?.base===base)continue;
+      const used=new Set(Array.from(deviceSlots.values(),slot=>slot.key));
+      let key=base,ordinal=1;while(used.has(key))key=base+'\u001f'+(++ordinal);
+      deviceSlots.set(pad.index,{base,key});
     }
-    for(const pad of pads){const option=document.createElement('option');option.value=deviceKey(pad);option.textContent=pad.id;deviceSelect.append(option);}
-    deviceSelect.value=selectedKey||'';
+    routed=[null,null];
+    const active=[0,1].filter(n=>acceptsSource(getMode(n),'gamepad'));
+    for(const n of active)if(route(n).lastDevice)routed[n]=pads.find(p=>deviceKey(p)===route(n).lastDevice&&!routed.includes(p))||null;
+    for(const n of active)if(!route(n).lastDevice)routed[n]=pads.find(p=>!routed.includes(p))||null;
+  }
+  function playerPad(n){
+    if(acceptsSource(getMode(n),'gamepad'))return routed[n];
+    return route(n).lastDevice?pads.find(p=>deviceKey(p)===route(n).lastDevice):pads.find(p=>!routed.includes(p));
+  }
+  function profileFor(n,pad){
+    const key=pad?deviceKey(pad):null,selected=route(n);
+    const remembered=key||selected.lastDevice;
+    const id=remembered&&Object.hasOwn(selected.assignments,remembered)?selected.assignments[remembered]:
+      !key||!Object.keys(selected.assignments).length?selected.lastProfile:DEFAULT_PROFILE.id;
+    return findProfile(id)||DEFAULT_PROFILE;
+  }
+  function refreshDevices(){
+    const selected=route(),devices=new Map();
+    for(const key of [...Object.keys(selected.assignments),selected.lastDevice]){
+      if(key)devices.set(key,`${key.split('\u001f')[0]} (disconnected)`);
+    }
+    for(const pad of pads)devices.set(deviceKey(pad),pads.filter(p=>p.id===pad.id).length>1?`${pad.id} (port ${pad.index+1})`:pad.id);
+    const signature=JSON.stringify([...devices]);
+    if(signature===lastDevices&&deviceSelect.value===(selected.lastDevice||''))return;
+    lastDevices=signature;deviceSelect.replaceChildren();
+    for(const [key,name] of [['','Automatic'],...devices]){
+      const option=document.createElement('option');option.value=key;option.textContent=name;deviceSelect.append(option);
+    }
+    deviceSelect.value=selected.lastDevice||'';
   }
   function paintLive(){
     const pad=selectedPad();
@@ -95,13 +129,27 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
     summary.textContent=pad?pad.mapping!=='standard'&&profile.id===DEFAULT_PROFILE.id?'Raw controller detected · use Input to bind a profile':`${profile.name} · ${pad.id}`:'Controller: connect and press a button';
   }
   function poll(values){
-    pads=Array.from(values||[]).filter(p=>p&&p.connected!==false&&p.buttons&&p.axes);
-    if(!selectedPad()&&!dirty&&!capture){
-      const preferred=pads.find(p=>deviceKey(p)===settings.lastDevice)||pads[0]||null;
-      const next=preferred?deviceKey(preferred):null;
-      if(next!==selectedKey){selectedKey=next;chooseProfile(settings.assignments[selectedKey]||DEFAULT_PROFILE.id);}
+    registerPads(values);
+    const preferred=playerPad(player),next=preferred?deviceKey(preferred):route().lastDevice;
+    if(next!==selectedKey&&!dirty&&!capture&&!assistCapture){
+      selectedKey=next;chooseProfile(profileFor(player,preferred).id);
     }
     const pad=selectedPad();
+    heldAssist.clear();
+    if(assistEnabled())for(const [action,binding] of Object.entries(settings.assistBindings)){
+      if(binding&&pads.some(p=>bindingPressed(binding,p,0.3)))heldAssist.add(action);
+    }
+    if(assistCapture){
+      const listening=assistCapture;
+      if(!pad||performance.now()>listening.until){assistCapture=null;assistListener?.('No controller input captured.');}
+      else{
+        const binding=detectBinding(listening.baseline,pad,{mode:'auto'});
+        if(binding){
+          assistCapture=null;
+          try{saveAssist(listening.id,binding);assistListener?.('Controller shortcut saved.');}catch(error){assistListener?.(error.message);}
+        }
+      }
+    }
     if(capture){
       if(!pad){cancelCapture();tell('Controller disconnected. Reconnect it before listening.',true);}
       else if(performance.now()>capture.until){cancelCapture();tell('No input captured. Release the controls, then try Listen again.');}
@@ -119,9 +167,9 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
         }catch(error){cancelCapture();tell(error.message,true);}
       }
     }
-    previewBits=pad?evaluateProfile(profile,pad):0;
+    previewBits=pad?evaluateProfile(profile,pad,route().deadzone===null?profile.deadzone:route().deadzone/100):0;
     outputBits=panel.hidden&&!dirty&&!capture?previewBits:0;
-    const now=performance.now();if(now-lastPaint>100){lastPaint=now;refreshDevices();paintLive();}
+    const now=performance.now();if(now-lastPaint>100){lastPaint=now;updateRumble();refreshDevices();paintLive();}
     return outputBits;
   }
   async function open({notify=true,focus=true}={}){
@@ -137,7 +185,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
     if(focus)deviceSelect.focus({preventScroll:true});
     return true;
   }
-  function canClose(){return !dirtyGuard();}
+  function canClose(){if(dirtyGuard())return false;cancelCapture();return true;}
   function close({notify=true}={}){
     if(!canClose())return false;
     if(panel.hidden)return true;
@@ -148,8 +196,15 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
   }
   $('controller-capture-cancel').addEventListener('click',()=>{cancelCapture();tell('Listening cancelled.');});
   deviceSelect.addEventListener('change',()=>{
-    if(dirtyGuard()){deviceSelect.value=selectedKey||'';return;}
-    selectedKey=deviceSelect.value;chooseProfile(settings.assignments[selectedKey]||DEFAULT_PROFILE.id);rememberSelection();paintLive();
+    if(dirtyGuard()){deviceSelect.value=route().lastDevice||'';return;}
+    const key=deviceSelect.value||null,other=route(1-player);
+    if(key&&acceptsSource(getMode(1-player),'gamepad')&&key===other.lastDevice){
+      tell('This controller is assigned to the other player.',true);deviceSelect.value=route().lastDevice||'';return;
+    }
+    try{
+      const next=clone(settings);route(player,next).lastDevice=key;writeSettings(next);settings=next;
+      registerPads(pads);resetEditor();
+    }catch(error){deviceSelect.value=route().lastDevice||'';tell(error.message,true);}
   });
   profileSelect.addEventListener('change',()=>{
     if(dirtyGuard()){profileSelect.value=profile.id;return;}
@@ -170,8 +225,9 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
     try{
       const validated=validateProfile(profile),profiles=settings.profiles.filter(p=>p.id!==validated.id);
       if(profiles.length>=64)throw new Error('Delete a profile before saving another.');
-      const next={...settings,profiles:[...profiles,validated],assignments:{...settings.assignments},lastDevice:selectedKey};
-      if(selectedKey)next.assignments[selectedKey]=validated.id;
+      const next=clone(settings);next.profiles=[...profiles,validated];
+      const selected=route(player,next);selected.lastProfile=validated.id;
+      if(selectedKey){Object.defineProperty(selected.assignments,selectedKey,{value:validated.id,enumerable:true,configurable:true,writable:true});}
       writeSettings(next);settings=next;profile=clone(validated);committedId=profile.id;dirty=false;cancelCapture();renderEditor();tell('Profile saved in this browser. Close Config, then resume.');
     }catch(error){tell(error.message,true);}
   });
@@ -179,8 +235,11 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
   $('controller-delete').addEventListener('click',()=>{
     if(dirtyGuard())return;
     try{
-      const next={...settings,profiles:settings.profiles.filter(p=>p.id!==profile.id),assignments:{...settings.assignments}};
-      for(const key of Object.keys(next.assignments))if(next.assignments[key]===profile.id)delete next.assignments[key];
+      const next=clone(settings);next.profiles=next.profiles.filter(p=>p.id!==profile.id);
+      for(const selected of [next,next.player2]){
+        if(selected.lastProfile===profile.id)selected.lastProfile=DEFAULT_PROFILE.id;
+        for(const key of Object.keys(selected.assignments))if(selected.assignments[key]===profile.id)delete selected.assignments[key];
+      }
       writeSettings(next);settings=next;chooseProfile(DEFAULT_PROFILE.id);tell('Custom profile deleted.');
     }catch(error){tell(error.message,true);}
   });
@@ -233,10 +292,97 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{}}={}) {
       addBinding(action,binding);tell(`Added ${bindingLabel(binding)}. Save the profile to keep it.`);
     }catch(error){tell(error.message,true);}
   });
-  renderEditor();paintLive();
-  return {poll,open,close,canClose,hasUnsavedChanges:()=>dirty,isEditing:()=>dirty||Boolean(capture),
-    inputState(){const pad=selectedPad();return {buttons:previewBits,source:pad?`${selectedKey}:${pad.index}:${profile.id}`:null};},
-    release(){cancelCapture();outputBits=0;},status(){
-    const pad=selectedPad();return {open:!panel.hidden,dirty,capturing:capture?{action:capture.action,mode:capture.mode}:null,device:pad?{id:pad.id,mapping:pad.mapping||'',index:pad.index,buttons:pad.buttons.length,axes:pad.axes.length}:null,profile:clone(profile),mappedBits:previewBits,outputBits,storageAvailable,savedProfiles:settings.profiles.map(p=>({id:p.id,name:p.name}))};
+  $('controller-capture-mode').addEventListener('change',event=>saveOption(next=>{next.captureMode=event.target.value;}));
+  $('player-deadzone').addEventListener('change',event=>saveOption(next=>{route(player,next).deadzone=event.target.value===''?null:Number(event.target.value);}));
+  $('controller-rumble').addEventListener('change',event=>{
+    try{const next={...settings,rumble:event.target.checked};writeSettings(next);settings=next;updateRumble();}
+    catch(error){event.target.checked=settings.rumble;$('rumble-status').textContent=error.message;}
+  });
+  function saveOption(change){
+    try{const next=clone(settings);change(next);writeSettings(next);settings=next;}
+    catch(error){tell(error.message,true);}
+    renderEditor();
+  }
+  function actuator(pad){const motor=pad?.vibrationActuator||pad?.hapticActuators?.[0];return motor?.playEffect||motor?.pulse?motor:null;}
+  function pulse(pad){
+    const motor=actuator(pad);if(!settings.rumble||!motor)return Promise.resolve(false);
+    return Promise.resolve().then(()=>motor.playEffect?
+      motor.playEffect('dual-rumble',{startDelay:0,duration:55,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535}):
+      motor.pulse(0x5000/65535,55)).then(result=>result!=='preempted'&&result!==false);
+  }
+  function updateRumble(){
+    const n=Number($('rumble-player').value),available=Boolean(actuator(playerPad(n)));
+    $('controller-rumble-test').disabled=!settings.rumble||!available;
+    const msg=$('rumble-status');
+    const capability=settings.rumble?(available?'Rumble available.':'This controller or browser does not expose rumble.'):'Rumble is off.';
+    if(msg.dataset.capability!==capability){msg.dataset.capability=capability;msg.textContent=capability;}
+  }
+  $('rumble-player').addEventListener('change',updateRumble);
+  $('controller-rumble-test').addEventListener('click',async()=>{
+    try{$('rumble-status').textContent=await pulse(playerPad(Number($('rumble-player').value)))?'Test pulse sent.':'Test pulse interrupted.';}
+    catch(error){$('rumble-status').textContent=`Rumble unavailable: ${error.message}`;}
+  });
+  function saveAssist(id,binding){
+    const next={...settings,assistBindings:{...settings.assistBindings,[id]:binding}};writeSettings(next);settings=next;
+  }
+  function resetEditor(){
+    const pad=playerPad(player);selectedKey=pad?deviceKey(pad):route().lastDevice;
+    chooseProfile(profileFor(player,pad).id);lastDevices=null;refreshDevices();paintLive();
+  }
+  function inputState(n=0){
+    const pad=routed[n];if(!pad)return {buttons:0,source:null};
+    const active=profileFor(n,pad),zone=route(n).deadzone;
+    const consumed=Array.from(heldAssist,id=>settings.assistBindings[id]);
+    return {buttons:evaluateProfile(active,pad,zone===null?active.deadzone:zone/100,consumed),source:`${deviceKey(pad)}:${pad.index}:${active.id}`};
+  }
+  resetEditor();updateRumble();
+  return {poll,open,close,canClose,hasUnsavedChanges:()=>dirty,isEditing:()=>dirty||Boolean(capture||assistCapture),
+    isCapturing:()=>Boolean(capture||assistCapture),inputState,heldAssist:()=>new Set(heldAssist),exportSettings:()=>clone(settings),
+    applySettings(value){
+      if(!canClose())throw new Error('Save or discard controller changes first.');
+      settings=validateControllerSettings(value);storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);storageAvailable=true;registerPads(pads);resetEditor();updateRumble();
+    },
+    setPlayer(n){if(!canClose())return false;player=n;resetEditor();return true;},
+    pulseStomp(){pulse(routed.find(Boolean)||pads[0]).catch(()=>{});},
+    assistBinding:id=>settings.assistBindings[id],clearAssist:id=>saveAssist(id,null),
+    listenAssist(id,callback){
+      const pad=selectedPad();if(!pad)throw new Error('Connect and select a controller first.');
+      cancelCapture();assistListener=callback;assistCapture={id,baseline:snapshot(pad),until:performance.now()+12000};
+    },
+    cancelCapture,release(){cancelCapture();outputBits=0;},status(n=player){
+    const pad=n===player?selectedPad():playerPad(n),shownProfile=n===player?profile:profileFor(n,pad);
+    return {open:!panel.hidden,dirty,capturing:capture?{action:capture.action,mode:capture.mode}:null,device:pad?{id:pad.id,mapping:pad.mapping||'',index:pad.index,buttons:pad.buttons.length,axes:pad.axes.length}:null,profile:clone(shownProfile),mappedBits:previewBits,outputBits,storageAvailable,savedProfiles:settings.profiles.map(p=>({id:p.id,name:p.name}))};
   }};
+}
+
+// Use fresh D-pad/button edges so a held game button cannot click into a sheet.
+export function createSettingsNavigation(){
+  let previous=0,wasOpen=false;
+  let menuHeld=true;
+  return function navigate(pads,blocked,rawBits=0,onMenu=()=>{},afterClose=()=>{}){
+    const dialog=document.querySelector('#app-settings[open]');
+    const standard=Array.from(pads||[]).filter(p=>p?.connected!==false&&p?.mapping==='standard');
+    const down=(pad,i)=>Boolean(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5||pad.buttons[i]>.5);
+    const menu=standard.some(p=>down(p,16)||(down(p,9)&&down(p,8)));
+    const openEdge=menu&&!menuHeld;menuHeld=menu;
+    if(openEdge&&!blocked&&!dialog){onMenu();return;}
+    const mask=standard.reduce((bits,pad)=>bits|evaluateProfile(DEFAULT_PROFILE,pad),rawBits);
+    const pressed=mask&~previous;previous=mask;
+    if(!dialog||!wasOpen||blocked||!pressed){wasOpen=Boolean(dialog);return;}
+    const elements=Array.from(dialog.querySelectorAll('button:not(:disabled),select:not(:disabled),input:not(:disabled),summary,[tabindex="0"]'))
+      .filter(el=>el.getClientRects().length&&!el.closest('[hidden]')&&(!el.closest('details:not([open])')||el.tagName==='SUMMARY'));
+    if(!elements.length)return;
+    const focus=document.activeElement,current=elements.indexOf(focus),next=pressed&32?1:pressed&16?-1:0;
+    if(next){elements[(current+next+elements.length)%elements.length].focus();return;}
+    if(pressed&256){document.getElementById('settings-done').click();afterClose();return;}
+    const direction=pressed&128?1:pressed&64?-1:0;
+    if(direction&&focus?.tagName==='SELECT'){
+      focus.selectedIndex=Math.max(0,Math.min(focus.options.length-1,focus.selectedIndex+direction));focus.dispatchEvent(new Event('change',{bubbles:true}));return;
+    }
+    if(direction&&focus?.matches('input[type=number],input[type=range]')){
+      direction>0?focus.stepUp():focus.stepDown();focus.dispatchEvent(new Event('input',{bubbles:true}));focus.dispatchEvent(new Event('change',{bubbles:true}));return;
+    }
+    if(direction){elements[(current+direction+elements.length)%elements.length].focus();return;}
+    if(pressed&1&&current>=0)focus.click();
+  };
 }

@@ -65,16 +65,16 @@ compiler support archives.
 - `libstandalonewasm-memgrow.a`
 - `libstubs-debug.a`
 
-The module instantiated with all nine imports supplied by
+The browser core uses twelve handwritten imports supplied by
 `web/wasm-imports.js`. The inventory in `build/phase2-evidence/wasm.json`
-also records its exports and 128 MiB initial memory.
+also records its exports and 128 MiB initial memory. The optional native HD compositor can grow Wasm memory up to 2 GiB while preloading player-selected materials.
 
 | Namespace | Functions |
 | --- | --- |
-| `env` | `emscripten_notify_memory_growth`, `__syscall_getdents64` |
+| `env` | `emscripten_notify_memory_growth`, `__syscall_getdents64`, `dkc_hd_open`, `dkc_hd_read`, `dkc_hd_close` |
 | `wasi_snapshot_preview1` | `clock_time_get`, `fd_close`, `fd_write`, `fd_read`, `environ_sizes_get`, `environ_get`, `fd_seek` |
 
-There is no general WASI adapter or virtual filesystem. Optional directory
+The HD reader opens an exact filename inside the material pack selected under Config → Paths. Each native read-only stream releases its temporary bytes on close. Optional directory
 discovery explicitly returns unsupported; the environment is empty. Console
 output is routed through the handwritten host. The browser has no POSIX CPU
 clock, so process/thread clock requests use monotonic elapsed time in the

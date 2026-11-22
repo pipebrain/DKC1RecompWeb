@@ -16,8 +16,16 @@ It contains six deployment/tooling files and no imported private Git history.
 Its commits use the GitHub no-reply identity. The private source repository's
 visibility was not changed.
 
-Live mobile test URL:
-[Open DKC1RecompWeb](https://pipebrain.github.io/DKC1RecompWeb-Pages/).
+The [mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/) serves the
+**Phase 2 preview** as of November 22, 2026, at the same address as v1.
+[Preview release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-phase2-1a3d6518c669) ·
+[Deployment run](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45024302063)
+
+The release archive contains 43 files and has SHA-256
+`1a3d6518c669539d5dc52bcdf98a685f246e43385c15d6e44ac49c264446ae4a`.
+The deployed manifest has SHA-256
+`56860a4dd6f7f1f98e7b0c768990bfbd07c56ba89d4c79c2510c239d16703cc0`.
+Physical Android and iOS results for this preview are pending.
 
 GitHub initially rejected Pages for the private source repository on the
 account plan (HTTP 422). Public-repository Pages is available on that account,
@@ -37,13 +45,16 @@ python3 scripts/package_pages.py --out build/pages --verify
 ```
 
 For an exact tested build, also provide `--expected-wasm-sha256 HASH`.
-The package uses a strict allowlist rather than copying `web/`: that directory
-can contain ignored local ROMs and SRAM. It includes only runtime files, the
-compiled `dkc.wasm`, a checksum manifest, `.nojekyll`, and exact license/notices.
+Phase 2 packages use an explicit runtime allowlist. It includes the stock and
+Dixie modules, WebGPU shaders, browser code, icons, license notices, a checksum
+manifest and `.nojekyll`. The local packager and archive verifier also recognize
+the exact v1.0.0 file list. The public deployment repository uses the
+matching verifier for both archive versions. Soundtracks, replacement
+artwork, ROMs and cartridge saves stay on the player's device.
 The launcher, controller-profile JSON, generated C, tools, and test evidence
 are excluded. The output stays under ignored `build/`; the Wasm stays out of Git.
 
-The deployed v1.0.0 baseline's Wasm SHA-256 is
+The previous v1.0.0 baseline's Wasm SHA-256 is
 `dcc015d75e943aac3eb179309426b0caa90321f88731effe85e8922b3de3a014`.
 
 Create the transport and record the printed archive SHA-256:
@@ -98,22 +109,20 @@ remains unrecorded.
    by the app.
 2. Put your own verified ROM in the device's Files picker. Select it through
    Menu → Load ROM; it is read locally and not uploaded.
-3. Pair a controller or hardware keyboard. Menus use controls sized for touch; touch game
-   controls have not been implemented. For a controller select Gamepad under
-   Config → Input, because a fresh browser profile defaults to Keyboard.
-4. Tap the game screen to focus it, then start using the menu or mapped Start.
-   Enable Sound with a tap through Config.
-5. Check sound on/off, movement/buttons, pause/resume, rotation, returning from
-   another app/tab, and cartridge-save export/import. Fullscreen is offered
-   only when the browser supports fullscreen for the game screen.
-6. Record device model, OS/browser version, connection/profile, and results.
-   A successful desktop or viewport-emulation check is not a physical mobile
-   game test.
+3. Pair your controller and press a button so the browser can detect it. In the
+   compact **Menu**, open **Config → Input**, select **Player 1**, choose **Gamepad**,
+   then select the device and its profile. **Config → Devices** shows detected hardware.
+4. Tap the game screen and choose **DKM → Start Game**. Test the D-pad diagonals,
+   face buttons, and mapped Start for quick resume. Sound defaults on.
+5. Use **Config → Save Config** to download your settings. Change a binding or sound
+   setting, use **Load Config** to restore it, then close and reopen the page.
+   Check that the setting, input source and controller profile are restored.
+6. Record device, OS, browser and controller connection when reporting results.
+   Rotation, app switching, reconnecting the controller and rumble on supported
+   devices are useful physical-device checks.
 
-Pages and localhost use separate browser storage. Export/import cartridge
-saves and controller profiles when moving between them; recreate custom
-keyboard assignments in the new browser origin. Export progress before changing
-hostnames, moving browsers, or clearing site data.
+Pages and localhost have separate browser storage. **Save Config** transfers
+preferences and bindings. **DKM → Export Save** transfers cartridge progress.
 
 ## References
 

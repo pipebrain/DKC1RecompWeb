@@ -59,8 +59,10 @@ Node and Binaryen build tools into ignored `.local/`; it obtains the pinned
 Emscripten source there. Node is used for compilation and test automation,
 not by the deployed browser application. Generation logs are under
 `build/DKC1Recomp-v0.0.17/logs/` and Wasm build logs are under
-`build/phase2-wasm/logs/`. A successful link installs the private
-module at `web/dkc.wasm`.
+`build/phase2-wasm/logs/` and `build/phase2-wasm-dixie/logs/`. The default
+build installs both private modules, `web/dkc.wasm` and `web/dkc-dixie.wasm`.
+To rebuild just one core, pass `--variant stock` or `--variant dixie` to the
+build script. Both use the same verified clean ROM.
 
 The Python server serves only `web/` on localhost. The source folder, ROM,
 private generated C, and native evidence are outside its document root.
@@ -97,9 +99,9 @@ compact **Menu** in the same navigation element. The only content outside
 navigation is the game screen; there are no headers, toolbars, status strips,
 or empty-state controls. A static monochrome DK coin precedes the ZSNES-inspired
 **DKM**, **Config**, **Cheat**, **NetPlay**, and **Misc** groups. **Config** hosts
-Input, Devices, Options, Video, Sound, Paths, Saves, and Speed. The separate Input,
+Input, Devices, Options, Video, Sound, Paths, Saves, Speed, Load Config and Save Config. The separate Input,
 Devices, and Options menu items select three tabs in one shared settings page.
-Paths controls local ROM storage. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
+Paths manages the remembered ROM and locally supplied HD and music packs. The [settings inventory](docs/SETTINGS.md) covers defaults, native feature ports and the contents of portable configuration files. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
 **Misc → Help** opens keyboard controls separately from Config. Menus also support keyboard navigation,
 with **⌘O** for Load ROM and **⌘,** for Config on Mac.
 The interface follows [the design brief](docs/UI_DESIGN.md) with automatic
@@ -141,8 +143,8 @@ python3 scripts/pages_archive.py create --package build/pages \
 The archive is supplied as a release asset to a manual Pages workflow; ROMs,
 saves, generated C, and compiled Wasm remain out of Git. Browser files and Wasm
 are publicly served by Pages. A paired controller or hardware keyboard is
-needed for mobile gameplay. On 2026-11-22 the user reported that the mobile
-test site passes all checks; device/browser details were not supplied.
+needed for mobile gameplay. The public test site serves the Phase 2 preview.
+The earlier v1 mobile build passed user testing. See [Pages testing instructions](docs/PAGES.md#test-on-a-phone-or-tablet) for the new controller and configuration checks.
 The private repository's account plan does not support Pages for it. The user
 chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
 as the separate public deployment repository, preserving source/history privacy.

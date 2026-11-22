@@ -73,7 +73,7 @@ const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game'
 let server=null,chrome=null,client=null,session=null,originalSave=null,origin=null,profile=null;
 let pagesManifest=null,pagesManifestBytes=null;
 const streams=[];
-const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/dkc.wasm'];
+const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/settings.js','web/assist.js','web/video-settings.js','web/video.wgsl','web/msu-player.js','web/music-pack.js','web/hd-pack.js','web/dkc-dixie.wasm','web/dkc.wasm'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
 
 function normalizeBaseUrl(value){

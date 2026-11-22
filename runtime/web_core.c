@@ -3,8 +3,11 @@
 #include "common_cpu_infra.h"
 #include "common_rtl.h"
 #include "dkc1_game.h"
+#include "dkc1_msu1.h"
+#include "dkc1_haptics.h"
 #include "dkc1_video.h"
 #include "sha256.h"
+#include "snes/color_lut.h"
 #include "snes/ppu.h"
 
 #include <stdio.h>
@@ -13,9 +16,7 @@
 
 enum {
   kRomSize = 0x400000,
-  kWidth = 256,
   kHeight = 224,
-  kPitch = kWidth * 4,
   kAudioRate = 32040,
   kMaxAudioFrames = 534,
 };
@@ -31,7 +32,10 @@ static const uint8_t kRomSha256[32] = {
   0x0d, 0x5a, 0x36, 0xa4, 0x69, 0xf7, 0x4d, 0x15,
 };
 
-static uint8_t s_pixels[kPitch * kHeight];
+enum { kFrameCapacity = kDkc1VideoWidescreenWidth * kHeight * 4 };
+static uint8_t s_pixels[kFrameCapacity];
+static uint8_t s_display[kFrameCapacity], s_midpoint[kFrameCapacity];
+static unsigned s_width = kDkc1VideoNativeWidth;
 static int16_t s_audio[kMaxAudioFrames * 2];
 static unsigned s_audio_frames;
 static double s_audio_fraction;
@@ -58,6 +62,18 @@ void *dkc_alloc(size_t size) {
 
 void dkc_free(void *memory) { free(memory); }
 
+static int s_msu_enabled;
+void dkc_msu_enable(int enabled) { s_msu_enabled = enabled; }
+// The native host watches the requested theme and the music-start flag each frame.
+uint32_t dkc_msu_state(void) {
+  if (!s_ready) return 0;
+  return g_ram[0x521] | ((uint32_t)g_ram[0x522] << 8) |
+      ((uint32_t)(g_ram[0x51d] || g_ram[0x51e]) << 16);
+}
+#ifdef DKC1_DIXIE_VARIANT
+uint8_t *WebDixieRom(const uint8_t *rom, size_t *size, char *error, size_t capacity);
+#endif
+
 int dkc_init(const uint8_t *rom, size_t size) {
   if (s_attempted)
     return SetError(2, "Create a fresh WebAssembly instance to load another ROM.");
@@ -67,24 +83,29 @@ int dkc_init(const uint8_t *rom, size_t size) {
   sha256_compute(rom, size, digest);
   if (memcmp(digest, kRomSha256, sizeof digest) != 0)
     return SetError(1, "ROM SHA-256 does not match DKC USA v1.0.");
+#ifdef DKC1_DIXIE_VARIANT
+  s_rom = WebDixieRom(rom, &size, s_error, sizeof s_error);
+  if (!s_rom) return 3;
+#else
   s_rom = malloc(size);
   if (!s_rom)
     return SetError(3, "Unable to allocate the retained ROM buffer.");
   memcpy(s_rom, rom, size);
+#endif
+  if (s_msu_enabled && !Dkc1Msu1ApplySpcMusicMute(s_rom, size, s_error, sizeof s_error))
+    return 4;
 
   /* Existing upstream globals and function statics are intentionally owned
    * by a single instance, just as in its native process host. */
   s_attempted = 1;
-  Dkc1VideoSetWidescreen(false);
-  if (!Dkc1VideoSetRenderWidth(kWidth))
-    return SetError(4, "Unable to select the stock 256-pixel framebuffer.");
+  Dkc1VideoSetRenderWidth((int)s_width);
   Dkc1VideoSetRom(s_rom, size);
   RtlRegisterGame(Dkc1GameInfo());
   if (!SnesInit(s_rom, (int)size))
     return SetError(4, "The SNES runtime rejected the verified ROM.");
   if (!g_sram || g_sram_size != 2048)
     return SetError(4, "The cartridge SRAM does not have the expected size.");
-  Dkc1BeginDrawing(s_pixels, kPitch);
+  Dkc1BeginDrawing(s_pixels, dkc_pitch());
   RtlSetAudioOutputRate(kAudioRate);
   s_audio_fraction = 0.0;
   s_audio_frames = 0;
@@ -93,12 +114,19 @@ int dkc_init(const uint8_t *rom, size_t size) {
   return 0;
 }
 
+static int s_stomp_event;
+
+int dkc_stomp_event(void) { return s_stomp_event; }
+
 int dkc_step(uint32_t buttons) {
   if (!s_ready)
     return SetError(2, "Load a supported ROM before advancing the game.");
   if (g_fail)
     return SetError(5, "The SNES runtime reported an off-rails failure.");
+  Dkc1StompProbe stomp;
+  Dkc1StompProbeCapture(&stomp, g_ram);
   RtlRunFrame(buttons & 0x00ffffffu);
+  s_stomp_event = Dkc1StompProbeAccepted(&stomp, g_ram);
   if (g_fail)
     return SetError(5, "The SNES runtime reported an off-rails failure.");
   if (g_watchdog_tripped)
@@ -118,15 +146,72 @@ int dkc_step(uint32_t buttons) {
 }
 
 const uint8_t *dkc_framebuffer(void) { return s_pixels; }
-unsigned dkc_width(void) { return kWidth; }
+unsigned dkc_width(void) { return s_width; }
 unsigned dkc_height(void) { return kHeight; }
-unsigned dkc_pitch(void) { return kPitch; }
+unsigned dkc_pitch(void) { return s_width * 4; }
 const int16_t *dkc_audio_buffer(void) { return s_audio; }
 unsigned dkc_audio_frames(void) { return s_audio_frames; }
 unsigned dkc_audio_rate(void) { return kAudioRate; }
 uint8_t *dkc_sram(void) { return s_ready ? g_sram : NULL; }
 unsigned dkc_sram_size(void) { return s_ready ? (unsigned)g_sram_size : 0; }
 const char *dkc_last_error(void) { return s_error; }
+
+void dkc_video_config(unsigned width, unsigned edge, unsigned layer,
+                      int provenance, int aquatic, int framegen) {
+  if ((width != 256 && width != 308 && width != 342) ||
+      edge >= kDkc1EdgePolicyCount) return;
+  if (width != s_width) {
+    const unsigned copy_width = width < s_width ? width : s_width;
+    const unsigned dest = (width - copy_width) / 2;
+    const unsigned src = (s_width - copy_width) / 2;
+    memset(s_display, 0, width * kHeight * 4);
+    for (unsigned y = 0; y < kHeight; y++)
+      memcpy(s_display + (y * width + dest) * 4,
+             s_pixels + (y * s_width + src) * 4, copy_width * 4);
+    memcpy(s_pixels, s_display, width * kHeight * 4);
+    s_width = width;
+    Dkc1VideoSetRenderWidth((int)width);
+    if (s_ready) Dkc1BeginDrawing(s_pixels, dkc_pitch());
+  }
+  Dkc1VideoSetEdgePolicy((Dkc1EdgePolicy)edge);
+  Dkc1DebugSetLayerMask((uint8_t)layer);
+  Dkc1DebugSetProvenanceOverlay(provenance);
+  static const char *const flags[] = {
+    "DKC1_WS_PIXEL_BOUNDARIES", "DKC1_WS_LIVE_SCROLL", "DKC1_WS_SCROLL_REBASE",
+    "DKC1_WS_WALL_ADJACENCY", "DKC1_WS_WALL_SEAMS"
+  };
+  for (unsigned i = 0; i < sizeof flags / sizeof flags[0]; i++)
+    setenv(flags[i], aquatic ? "1" : "0", 1);
+  Dkc1FrameGenSetEnabled(framegen && layer == 0xff && !provenance);
+  Dkc1FrameGenInvalidate();
+}
+
+void dkc_video_invalidate(void) { Dkc1FrameGenInvalidate(); }
+
+/* The raw framebuffer remains the canonical state/fingerprint surface.
+ * Build a display pair only for a completed frame of ordinary playback. */
+const uint8_t *dkc_video_smooth(int midpoint) {
+  if (!s_ready || !Dkc1FrameGenEnabled()) return s_pixels;
+  Dkc1FrameGenStats stats = {0};
+  const bool valid = midpoint && Dkc1DrawInterpolatedFrame(s_midpoint, dkc_pitch(), &stats);
+  Dkc1DrawSmoothedFrames(s_pixels, s_display, s_midpoint, valid, &stats);
+  return s_display;
+}
+const uint8_t *dkc_video_midpoint(void) { return s_midpoint; }
+int dkc_video_color(int kind) { return snes_color_lut_setup_kind(kind); }
+const uint8_t *dkc_video_grade(const uint8_t *frame, unsigned width, unsigned height) {
+  static uint32_t graded[kFrameCapacity / 4 * 16];
+  if (!snes_color_lut_active() || width > 4 * kDkc1VideoWidescreenWidth ||
+      height > 4 * kHeight) return frame;
+  const uint32_t *source = (const uint32_t *)frame;
+  const size_t count = (size_t)width * height;
+  snes_color_lut_map(source, graded, count);
+  if (height > kHeight) {
+    for (size_t i = 0; i < count; i++)
+      graded[i] = (graded[i] & 0xffffffu) | (source[i] & 0xff000000u);
+  }
+  return (const uint8_t *)graded;
+}
 
 void dkc_debug_hash_audio(void) {
   for (unsigned i = 0; i < s_audio_frames * 2u; i++) {
@@ -157,7 +242,7 @@ const char *dkc_debug_fingerprints(void) {
   memcpy(oam, g_ppu->oam, sizeof g_ppu->oam);
   memcpy(oam + sizeof g_ppu->oam, g_ppu->highOam, sizeof g_ppu->highOam);
   char frame[65], wram[65], vram[65], cgram[65], oam_hash[65], oam_source[65];
-  HashHex(s_pixels, sizeof s_pixels, frame);
+  HashHex(s_pixels, dkc_pitch() * kHeight, frame);
   HashHex(g_ram, 0x20000, wram);
   HashHex(g_ppu->vram, sizeof g_ppu->vram, vram);
   HashHex(g_ppu->cgram, sizeof g_ppu->cgram, cgram);
@@ -170,4 +255,61 @@ const char *dkc_debug_fingerprints(void) {
            frame, wram, vram, cgram, oam_hash, oam_source,
            (unsigned long long)s_debug_audio_fnv1a);
   return result;
+}
+
+/* The guest snapshot omits the browser host's sample clock and the last
+ * rendered frame. Include both so restore can present a paused frame without
+ * advancing the game. This wrapper is private to this pinned browser core. */
+typedef struct {
+  uint32_t magic, width, guest_size, reserved;
+  double audio_fraction;
+  uint64_t audio_hash;
+} WebStateHeader;
+
+size_t WebAudioStateSize(void);
+void WebAudioStateSave(void *out);
+void WebAudioStateLoad(const void *data);
+
+size_t dkc_state_write(void *out, size_t capacity) {
+  if (!s_ready) return 0;
+  size_t pixels = dkc_pitch() * kHeight;
+  size_t guest = RtlSaveSnapshotToMemory(NULL, 0);
+  size_t total = sizeof(WebStateHeader) + WebAudioStateSize() + pixels + guest;
+  if (!guest || total > 16u * 1024u * 1024u) return 0;
+  if (!out) return total;
+  if (capacity < total) return 0;
+  WebStateHeader header = {0x32574344, dkc_width(), (uint32_t)guest, 0,
+                           s_audio_fraction, s_debug_audio_fnv1a};
+  uint8_t *p = out;
+  memcpy(p, &header, sizeof header);
+  WebAudioStateSave(p + sizeof header);
+  p += WebAudioStateSize();
+  memcpy(p + sizeof header, s_pixels, pixels);
+  return RtlSaveSnapshotToMemory(p + sizeof header + pixels, guest) == guest ? total : 0;
+}
+
+int dkc_state_read(const void *data, size_t size) {
+  WebStateHeader h;
+  if (!s_ready || !data || size < sizeof h) return 0;
+  memcpy(&h, data, sizeof h);
+  if (h.magic != 0x32574344 || (h.width != 256 && h.width != 308 && h.width != 342) ||
+      !(h.audio_fraction >= 0 && h.audio_fraction < 1)) return 0;
+  size_t pixels = h.width * kHeight * 4;
+  if (size < sizeof h + WebAudioStateSize()) return 0;
+  const uint8_t *audio = (const uint8_t *)data + sizeof h;
+  const uint8_t *frame = audio + WebAudioStateSize();
+  if (size != sizeof h + WebAudioStateSize() + pixels + h.guest_size ||
+      !RtlLoadSnapshotFromMemory(frame + pixels, h.guest_size)) return 0;
+  WebAudioStateLoad(audio);
+  unsigned width = dkc_width();
+  unsigned copy = width < h.width ? width : h.width;
+  memset(s_pixels, 0, dkc_pitch() * kHeight);
+  for (unsigned y = 0; y < kHeight; y++)
+    memcpy(s_pixels + (width * y + (width - copy) / 2) * 4,
+           frame + (h.width * y + (h.width - copy) / 2) * 4, copy * 4);
+  s_audio_fraction = h.audio_fraction;
+  s_debug_audio_fnv1a = h.audio_hash;
+  s_audio_frames = 0;
+  Dkc1BeginDrawing(s_pixels, dkc_pitch());
+  return 1;
 }

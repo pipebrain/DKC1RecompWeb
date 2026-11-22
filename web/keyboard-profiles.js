@@ -1,5 +1,5 @@
 // Physical keyboard bindings and settings validation. No browser dependencies.
-import {ACTIONS} from './gamepad-profiles.js';
+import {ACTIONS,ASSIST_ACTIONS} from './gamepad-profiles.js';
 
 export const KEYBOARD_SCHEMA='dkc.keyboard-settings';
 export const KEYBOARD_VERSION=1;
@@ -67,15 +67,30 @@ export function validateKeyboardBindings(value){
 }
 
 export function defaultKeyboardSettings(){
-  return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,mode:'keyboard',bindings:clone(DEFAULT_KEYBOARD_BINDINGS)};
+  return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,mode:'keyboard',bindings:clone(DEFAULT_KEYBOARD_BINDINGS),
+    player2:{mode:'none',bindings:Object.fromEntries(ACTIONS.map(({id})=>[id,[]]))},
+    assistKeys:{'rewind-step':'Backspace','fast-forward':'Tab','quick-save':null,'quick-load':null,'frame-step':null}};
 }
 
+function validatePort(port){
+  if(!record(port)||!['keyboard','gamepad','both','none'].includes(port.mode))throw new Error('Choose an input source for each player.');
+  return {mode:port.mode,bindings:validateKeyboardBindings(port.bindings)};
+}
 export function validateKeyboardSettings(value){
   if(!record(value))throw new Error('Keyboard settings must be an object.');
-  for(const key of Object.keys(value))if(!['schema','version','mode','bindings'].includes(key))throw new Error(`Unknown keyboard settings field: ${key}.`);
+  for(const key of Object.keys(value))if(!['schema','version','mode','bindings','player2','assistKeys'].includes(key))throw new Error(`Unknown keyboard settings field: ${key}.`);
   if(value.schema!==KEYBOARD_SCHEMA||value.version!==KEYBOARD_VERSION)throw new Error('Unsupported keyboard settings format.');
-  if(!['keyboard','gamepad'].includes(value.mode))throw new Error('Choose Keyboard or Gamepad as the input source.');
-  return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,mode:value.mode,bindings:validateKeyboardBindings(value.bindings)};
+  const defaults=defaultKeyboardSettings(),{player2=defaults.player2,assistKeys=defaults.assistKeys}=value;
+  if(!record(player2)||Object.keys(player2).some(key=>!['mode','bindings'].includes(key)))throw new Error('Invalid player 2 keyboard settings.');
+  if(!record(assistKeys)||Object.keys(assistKeys).some(key=>!own(ASSIST_ACTIONS,key)))throw new Error('Invalid Assist keyboard settings.');
+  const normalized={},seen=new Set();
+  for(const id of Object.keys(ASSIST_ACTIONS)){
+    const code=assistKeys[id];
+    if(code!==null&&code!=='Tab'&&!isBindableKeyboardCode(code))throw new Error('Invalid Assist key.');
+    if(code&&seen.has(code))throw new Error('Choose a different key for each Assist shortcut.');
+    normalized[id]=code;if(code)seen.add(code);
+  }
+  return {schema:KEYBOARD_SCHEMA,version:KEYBOARD_VERSION,...validatePort(value),player2:validatePort(player2),assistKeys:normalized};
 }
 
 export function parseKeyboardSettings(text){

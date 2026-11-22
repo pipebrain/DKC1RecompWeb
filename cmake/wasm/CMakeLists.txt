@@ -35,14 +35,25 @@ list(REMOVE_ITEM DKC1_ENGINE_SOURCES
 # Preserve the pinned game's host adapters. Diagnostic file paths remain
 # inactive in the browser's empty environment. No SDL or launcher is linked.
 set(DKC1_GAME_SOURCES
-  dkc1_game.c dkc1_video.c dkc1_hd_scene.c dkc1_hd_sprites.c
+  dkc1_haptics.c dkc1_game.c dkc1_video.c
   dkc1_framegen.c dkc1_margin_proxy.c dkc1_ws_trace.c
-  dkc1_debug_dump.c headless_host.c)
+  dkc1_debug_dump.c dkc1_msu1.c headless_host.c)
 list(TRANSFORM DKC1_GAME_SOURCES PREPEND "${DKC1_UPSTREAM_DIR}/runner/")
 
+list(REMOVE_ITEM DKC1_ENGINE_SOURCES "${SNESRECOMP_ROOT}/runner/src/common_rtl.c")
+list(APPEND DKC1_ENGINE_SOURCES "${DKC1_PROJECT_ROOT}/runtime/web_audio_state.c")
 add_executable(dkc1_core ${DKC1_ENGINE_SOURCES} ${DKC1_GENERATED_SOURCES}
-  ${DKC1_GAME_SOURCES} "${DKC1_PROJECT_ROOT}/runtime/web_core.c")
+  ${DKC1_GAME_SOURCES} "${DKC1_PROJECT_ROOT}/runtime/web_core.c"
+  "${DKC1_PROJECT_ROOT}/runtime/web_hd_files.c" "${DKC1_PROJECT_ROOT}/runtime/web_hd_sprites.c"
+  "${DKC1_PROJECT_ROOT}/runtime/web_hd_scene.c")
 set_target_properties(dkc1_core PROPERTIES OUTPUT_NAME "dkc" SUFFIX ".wasm")
+option(DKC1_DIXIE "Build the pinned Dixie variant" OFF)
+if(DKC1_DIXIE)
+  target_sources(dkc1_core PRIVATE "${DKC1_PROJECT_ROOT}/runtime/web_dixie.c")
+  target_include_directories(dkc1_core BEFORE PRIVATE "${DKC1_UPSTREAM_DIR}/recomp/dixie")
+  target_compile_definitions(dkc1_core PRIVATE DKC1_DIXIE_VARIANT=1)
+  set_target_properties(dkc1_core PROPERTIES OUTPUT_NAME "dkc-dixie")
+endif()
 target_include_directories(dkc1_core PRIVATE
   "${DKC1_PROJECT_ROOT}/runtime" "${DKC1_UPSTREAM_DIR}/runner"
   "${DKC1_UPSTREAM_DIR}/recomp" ${SNESRECOMP_RUNNER_INCLUDE_DIRS})
@@ -61,11 +72,15 @@ target_link_options(dkc1_core PRIVATE
   "-sSTANDALONE_WASM=1" "-sSUPPORT_LONGJMP=wasm"
   "-sFILESYSTEM=0" "-sASSERTIONS=1"
   "-sALLOW_MEMORY_GROWTH=1" "-sINITIAL_MEMORY=134217728"
-  "-sMAXIMUM_MEMORY=536870912" "-sSTACK_SIZE=8388608"
+  "-sMAXIMUM_MEMORY=2147483648" "-sSTACK_SIZE=8388608"
   "-sERROR_ON_UNDEFINED_SYMBOLS=1")
 foreach(export IN ITEMS dkc_alloc dkc_free dkc_init dkc_step dkc_framebuffer
     dkc_width dkc_height dkc_pitch dkc_audio_buffer dkc_audio_frames
-    dkc_audio_rate dkc_sram dkc_sram_size dkc_last_error
-    dkc_debug_hash_audio dkc_debug_fingerprints)
+    dkc_stomp_event dkc_hd_indexed dkc_hd_preload dkc_hd_enable dkc_hd_frame dkc_audio_rate dkc_sram dkc_sram_size dkc_last_error
+    dkc_debug_hash_audio dkc_debug_fingerprints dkc_msu_enable dkc_msu_state)
   target_link_options(dkc1_core PRIVATE "-Wl,--export=${export}")
 endforeach()
+foreach(export IN ITEMS dkc_video_config dkc_video_invalidate dkc_video_smooth dkc_video_midpoint dkc_video_color dkc_video_grade)
+  target_link_options(dkc1_core PRIVATE "-Wl,--export=${export}")
+endforeach()
+target_link_options(dkc1_core PRIVATE "-Wl,--export=dkc_state_write" "-Wl,--export=dkc_state_read")

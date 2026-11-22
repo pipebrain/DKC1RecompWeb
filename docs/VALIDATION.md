@@ -1,5 +1,92 @@
 # Browser verification
 
+## Phase 2 live Pages preview
+
+The [public Phase 2 test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
+passed desktop Chrome verification after [deployment](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45024302063)
+on November 22, 2026. The hosted manifest and all 42 listed file hashes matched
+the approved package before and after the game test. A local ROM reached the
+600-frame boot checkpoint and matched all seven native fingerprints.
+Audio playback, pause/resume and cartridge-save persistence also passed.
+Game evidence is in `build/browser-check/2026-11-22T12-50-34-809Z-55697/evidence.json`.
+
+At 390 × 844, Chrome recognized a simulated SN30 Pro+ button and diagonal
+hat input. The Devices command requested a 55 ms rumble pulse. Config
+export/import restored the settings and controller routing through a page
+reload. Compact-menu evidence is in
+`build/phase2-pages-live-compact/2026-11-22T12-50-34-391Z-55684/evidence.json`.
+Android and iOS Bluetooth input and physical rumble still need device testing.
+
+## Phase 2 player settings
+
+The config suite runs the production app in a fresh Chrome profile. Supply the
+same verified ROM used for the build.
+
+```sh
+node scripts/ui_check.mjs --config --rom '/path/to/game.smc'
+node scripts/check_state.mjs '/path/to/game.smc'
+```
+
+Chrome 158.0.8127.36 on the Mac downloaded and reimported a configuration
+through the wide and compact menus. A fresh page restored the edited sound,
+volume, theme, timing, keyboard and controller choices. An unsupported
+format, an out-of-range value and a pending keyboard edit preserved the
+previous settings. A simulated quota error after the first localStorage write
+rolled back the import and retained the ROM. Reopening recovered a deliberately
+interrupted configuration transaction. The Options diagnostics export contained
+a local checkpoint, 12 frames of input and the matching end-frame hash. ROM retention, cartridge SRAM, state slots and external
+music and artwork remained independent of the config file.
+
+The menu-selected Dixie core verified the synthesized cartridge identity and
+retained its own SRAM through a page reopen and a switch back to stock.
+Each native route ran three times. These Chrome checkpoints matched the pinned native Dixie executable
+on all seven framebuffer, memory and cumulative audio fingerprints.
+
+| Dixie checkpoint | Framebuffer SHA-256 | Cumulative stereo PCM FNV-1a |
+| --- | --- | --- |
+| Title at 5,100 frames, 4:3 | `67cb48a8b13c3a2891e1e6b1c16ec5c72c7a7ac52a80933347b23757c3fdc1df` | `d035ba629bc04d2c` |
+| Jungle at 7,450 frames, 4:3 | `723ba727ae9c141e8b0ba0b900867467e72b0efab1d4bf8256fa574ec15faa90` | `9468a57229ee4103` |
+| Jungle at 7,450 frames, 16:9 | `8b67ced9246569b6afa21aa7ee2364b01d29bb87277773383a84ca425428db09` | `9468a57229ee4103` |
+
+A deflated ZIP-format MSU-1 pack with 32 synthetic tracks survived reopening.
+At the 5,100-frame title the muted replacement produced `d5723fbc63514e57`
+and the same pack at unit gain produced `705314b7b2844c8f`. Forgetting the
+pack restored the original soundtrack. A separate sample-by-sample comparison
+against the C mixer reproduced looping, non-looping tracks, a missing track,
+restart, interpolation and saturation across 280 frame batches with gain
+2.53. Both PCM files had SHA-256
+`cf71e3726d4cbfb8624eaa782d9089fc9b49b1b2cdf92e252f3b82febccd28e1`.
+
+Chrome saved a state, reopened the page and reproduced the saved frame and its
+continuation. A separate run quit Chrome completely and reopened the same local
+origin and browser profile. Both config exports were identical, including
+16:10, Reconstruct, 37% volume and slot 4. The state and its 45-frame
+continuation matched. See `build/cold-restart-check/evidence.json`.
+Rewind and single-frame advance worked through the menus. The
+direct Wasm state check matched all seven fingerprints immediately on restore
+and 60 frames later at frames 600, 5,100 and 7,450 for stock and Dixie.
+A synthetic HD material uploaded from the Paths sheet survived reopening.
+At Jungle entry the 4× WebGPU upload contained its test color while the source
+frame retained the native hash.
+
+Chrome also imported the official macOS HD Preview attached to the v0.0.17 release.
+The archive filename retains its v0.0.15 label. Its SHA-256 matched the release
+checksum, `01c00aa8b410bacce08c08574ed6a41f649bb9e121dcef5e0447171a8953be0f`.
+Only the Materials subtree was extracted. The native CPU compositor and the
+browser both loaded the 24,263 indexed rasters. At frame 600 Chrome presented
+the stock 256×224 framebuffer byte for byte. At Jungle frame 7,450 the entire
+1024×896 WebGPU upload matched native SHA-256
+`24b45574214295c02d28373b50d186f20782905eaa22ecd3a2dfd64c00855161`.
+The HD frame changed 909,859 RGB pixels relative to nearest-neighbor stock.
+The archive, extracted materials and native oracle remain under ignored
+`build/phase2-evidence/official-hd/`. The Chrome evidence from a fixed local
+snapshot is `build/official-hd-check/2026-11-22T12-28-29-369Z-54109/evidence.json`. [Upstream release](https://github.com/elliotttate/DKC1Recomp/releases/tag/v0.0.17)
+
+The source-locked Chrome evidence is under
+`build/config-check/2026-11-22T12-29-13-204Z-54356/evidence.json`. These runs
+use local test packs and a fresh browser profile. Physical Android/iOS
+devices and a full user-supplied soundtrack were outside this run.
+
 ## Phase 2 stock v0.0.17
 
 On November 22, 2026 the stock game ran through the normal ROM picker, worker, standalone Wasm

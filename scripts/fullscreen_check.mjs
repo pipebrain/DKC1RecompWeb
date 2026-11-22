@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Focused real-fullscreen/paused-resize regression. Node 22 and Chrome; no packages.
 import assert from 'node:assert/strict';
+import {checkVideoPixels} from './video_filter_check.mjs';
 import {spawn} from 'node:child_process';
 import {createWriteStream} from 'node:fs';
 import {mkdir,readFile,writeFile,rm} from 'node:fs/promises';
@@ -40,6 +41,38 @@ async function port(){const holder=createServer();await new Promise((yes,no)=>{h
 const geometry=`(()=>{const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};const canvas=document.querySelector('#screen'),navigation=document.querySelector('.app-menubar'),player=document.querySelector('.player');return {fullscreen:document.fullscreenElement?.className,fullscreenHasNavigation:document.fullscreenElement?.contains(navigation)||false,navigationSeparate:!player.contains(navigation),removedRegions:document.querySelectorAll('.menubar-caption,.app-navigation,.toolbar,.app-status,#placeholder').length,canvasFocused:document.activeElement===canvas,bottomHitIsScreen:Boolean(document.elementFromPoint(innerWidth/2,innerHeight-2)?.closest('.screen-wrap')),viewport:{width:innerWidth,height:innerHeight},player:rect('.player'),screen:rect('.screen-wrap'),canvas:rect('#screen'),navigation:rect('.app-menubar'),buffer:{width:canvas.width,height:canvas.height},dpr:devicePixelRatio,gpuViewport:window.__lastGameViewport||null,frameCount:window.dkcDebug.status().frameCount};})()`;
 function contained(inner,outer,label){assert(inner.x>=outer.x-1&&inner.y>=outer.y-1&&inner.right<=outer.right+1&&inner.bottom<=outer.bottom+1,`${label} is clipped: ${JSON.stringify({inner,outer})}`);}
 
+async function menu(group, command) {
+  await evaluate(`(() => {
+    const trigger = [...document.querySelectorAll('[aria-controls="menu-${group}"],[aria-controls="menu-more"]')]
+      .find(button=>button.getClientRects().length);
+    trigger.click();
+    const section=document.getElementById(trigger.getAttribute('aria-controls'));
+    const item=section.querySelector('[data-command="${command}"]');
+    if(!item || item.disabled || !item.getClientRects().length)throw new Error('Unavailable ${command} command');
+    item.click();
+  })()`);
+}
+async function selectVideo(key,value) {
+  await evaluate(`(() => {
+    const control=document.querySelector('#settings-pane-video [data-pref="${key}"]');
+    if(control.type==='checkbox')control.checked=${JSON.stringify(value)};
+    else control.value=${JSON.stringify(value)};
+    control.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+}
+async function openVideo(){
+  await menu('config','video');
+  await poll(()=>evaluate("document.querySelector('#app-settings').open"),'Video settings');
+}
+async function enterFullscreen(){
+  await evaluate("document.querySelector('#settings-pane-video [data-command=fullscreen]').click()");
+  await poll(()=>evaluate("document.fullscreenElement===document.querySelector('.screen-wrap')"),'screen-only fullscreen');
+}
+async function leaveFullscreen(){
+  await client.send('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
+  await client.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
+  await poll(()=>evaluate('!document.fullscreenElement'),'fullscreen exit');
+}
 try{
   const origin=`http://127.0.0.1:${await port()}/`;
   server=spawn(process.env.PYTHON||'python3',[join(root,'scripts/serve.py'),'--port',new URL(origin).port],{cwd:root,stdio:['ignore','pipe','pipe']});log(server,'server.log');
@@ -56,6 +89,7 @@ try{
   await client.send('Emulation.setDeviceMetricsOverride',{width:1280,height:720,screenWidth:1280,screenHeight:720,deviceScaleFactor:1,mobile:false});
   await client.send('Page.navigate',{url:origin});
   await poll(()=>evaluate(`Boolean(window.dkcDebug&&document.querySelector('#status').textContent.startsWith('Ready'))`),'WebGPU player');
+  report.videoPixels=await evaluate('('+checkVideoPixels.toString()+')()');
   if(rom){
     const {root:document}=await client.send('DOM.getDocument');
     const {nodeId}=await client.send('DOM.querySelector',{nodeId:document.nodeId,selector:'#rom-file'});
@@ -69,11 +103,8 @@ try{
   report.before=await evaluate(geometry);
   assert.equal(report.before.navigationSeparate,true,'Navigation must not be inside the player.');
   assert.equal(report.before.removedRegions,0,'Removed regions must not exist.');
-  await evaluate(`document.querySelector('[aria-controls="menu-config"]').click()`);
-  await evaluate(`document.querySelector('#menu-config [data-command="video"]').click()`);
-  await poll(()=>evaluate(`document.querySelector('#app-settings').open`),'Video settings sheet');
-  await evaluate(`document.querySelector('[data-settings-pane="video"] [data-command="fullscreen"]').click()`);
-  await poll(()=>evaluate(`document.fullscreenElement===document.querySelector('.screen-wrap')`),'screen-only fullscreen through Config Video');
+  await openVideo();
+  await enterFullscreen();
   await poll(()=>evaluate(`document.activeElement===document.querySelector('#screen')`),'keyboard focus after fullscreen entry');
   const sizes=[[1280,720,1],[1920,1080,1],[1024,768,1],[800,1000,1],[480,320,1],[1280,720,2]];
   for(const [width,height,dpr] of sizes){
@@ -104,13 +135,49 @@ try{
     caseReport.drawsBefore=previousDraws;caseReport.drawsAfter=await evaluate('window.__gameDraws||0');
     await screenshot(`${width}x${height}-dpr${dpr}.png`);
   }
-  await client.send('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
-  await client.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});
-  await poll(()=>evaluate('!document.fullscreenElement'),'fullscreen exit');
+  await leaveFullscreen();
   await delay(150);report.after=await evaluate(geometry);
   assert.equal(report.after.canvasFocused,true,'Keyboard focus must return to the game after fullscreen exit.');
   assert.equal(report.after.navigationSeparate,true,'Navigation must remain separate after fullscreen exit.');assert.equal(report.after.removedRegions,0);
   if(rom){assert.equal(report.after.frameCount,600);report.finalSourceHash=await evaluate('window.dkcDebug.frameHash()');assert.deepEqual(report.finalSourceHash,report.sourceHash);}
+  // Change source geometry from each real Config menu. Work through the
+  // compact menu as well, then check windowed and fullscreen containment.
+  report.videoModes=[];
+  for(const [width,height] of [[440,680],[1200,780]]){
+    await client.send('Emulation.setDeviceMetricsOverride',{width,height,screenWidth:width,screenHeight:height,deviceScaleFactor:1,mobile:false});
+    for(const [aspect,pixels] of [['16:9',342],['16:10',308],['4:3',256]]){
+      await openVideo();
+      await selectVideo('aspect',aspect);
+      const pixelAspect=width===440?'square':'snes';
+      await selectVideo('pixelAspect',pixelAspect);
+      const ratio=pixels/224*(pixelAspect==='square'?1:7/6);
+      const checkRatio=()=>poll(()=>evaluate(`window.__lastGameViewport && Math.abs(window.__lastGameViewport[2]/window.__lastGameViewport[3]-${ratio})<.00001`),'wide framebuffer aspect');
+      await checkRatio();
+      const windowed=await evaluate(geometry);
+      await enterFullscreen();await checkRatio();
+      const full=await evaluate(geometry);
+      const [x,y,w,h]=full.gpuViewport;
+      assert(Math.abs(x-(full.buffer.width-w)/2)<.02 && Math.abs(y-(full.buffer.height-h)/2)<.02);
+      assert(x>=-.01 && y>=-.01 && x+w<=full.buffer.width+.01 && y+h<=full.buffer.height+.01);
+      assert(Math.abs(w-full.buffer.width)<.02 || Math.abs(h-full.buffer.height)<.02);
+      assert.equal(full.fullscreenHasNavigation,false);
+      assert.equal(full.navigationSeparate,true);
+      if(rom)assert.equal(full.frameCount,600);
+      report.videoModes.push({width,height,aspect,pixelAspect,windowed:windowed.gpuViewport,fullscreen:full.gpuViewport});
+      await leaveFullscreen();
+    }
+  }
+  if(rom){
+    await openVideo();await selectVideo('fullscreenOnStart',true);
+    await evaluate("document.querySelector('#settings-done').click()");
+    await poll(()=>evaluate("!document.querySelector('#app-settings').open"),'closed Video');
+    await menu('dkm','reset-game');
+    await poll(()=>evaluate("window.dkcDebug.status().loaded && !window.dkcDebug.status().hasStarted && !window.dkcDebug.status().loading"),'fresh ROM');
+    await menu('dkm','start-game');
+    await poll(()=>evaluate("window.dkcDebug.status().running && document.fullscreenElement===document.querySelector('.screen-wrap')"),'fullscreen on Start');
+    report.fullscreenOnStart=true;
+    await leaveFullscreen();
+  }
   assert.equal(report.javascriptErrors.length,0,'JavaScript exception during fullscreen.');
   report.result='passed';
 }catch(error){report.result='failed';report.error={message:error.message,stack:error.stack};process.exitCode=1;if(client&&session)try{report.failureGeometry=await evaluate(geometry);await screenshot('failure.png');}catch{}}
