@@ -44,7 +44,11 @@ Connect a controller and press one of its buttons to make it available to the br
 
 The built-in standard controller profile can be duplicated. Custom profiles support reported buttons, sticks, triggers, and single-axis D-pad hats, with local saving and JSON import/export. For a D-pad encoded on one axis, use the eight-way hat capture option so diagonals are included.
 
-In **Config → Devices**, turn **Stomp rumble** on or off and test a selected controller. The test is enabled when the browser exposes a vibration actuator. On a standard controller, use Guide or Start + Back with the game focused to open Input. The D-pad moves focus. The bottom face button activates the focused item and the right face button closes Settings.
+In **Config → Devices**, turn on **Stomp rumble** and choose a **Stomp strength**. Standard gives enemy stomps a firm, 140 ms pulse. Light (original) uses the upstream 55 ms pulse. The first assigned gamepad receives the feedback. An ordinary jump has no rumble.
+
+To check the motors, select the player and check the controller name. Hold the controller and choose **Test rumble** for a half-second pulse at full strength. The status shows how the browser handled the request.
+
+On a standard controller, use Guide or Start + Back with the game focused to open Input. The D-pad moves focus. The bottom face button activates the focused item and the right face button closes Settings.
 
 Under **Config → Input → Save-state shortcuts**, assign a key or controller input to Quick Save and Quick Load. Both start unassigned. With the game screen focused, these shortcuts use the slot selected in **Config → Saves**.
 

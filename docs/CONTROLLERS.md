@@ -47,6 +47,12 @@ recorded. No guessed or agent hardware-verified SN30
 preset is supplied. Browser tests use a representative injected device with
 those index ranges, not a recording from the user's hardware.
 
+In a later Bluetooth test on this Mac, the SN30 Pro+ in **Mac mode**
+identified as **DUALSHOCK 4 Wireless Controller**. Chrome reported standard
+mapping and dual rumble. The user felt the Standard enemy-stomp pulse on
+this pairing. Choose **Config → Devices → Stomp strength** to switch
+between Standard and the lighter original pulse. [Physical test results](VALIDATION.md#phase-3-clean-v110-candidate)
+
 ## Create, save, and load
 
 1. Connect the controller and press a button while the browser page is active.

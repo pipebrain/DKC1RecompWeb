@@ -15,6 +15,7 @@ function phase2Config() {
     'rewind-step': 'Backspace', 'fast-forward': 'F8',
   };
   const controllers = defaultControllerSettings();
+  delete controllers.stompStrength;
   controllers.player2.lastDevice = 'test-pad-2';
   controllers.rumble = false;
   controllers.assistBindings['quick-save'] = {type:'button',index:6,threshold:0.5};
@@ -39,6 +40,7 @@ test('Phase 2 portable preferences retain both players, state shortcuts and stoc
   assert.deepEqual(clean.keyboard.player2, legacy.keyboard.player2);
   assert.deepEqual(clean.keyboard.assistKeys, {'quick-save':'Tab', 'quick-load':'F7'});
   assert.equal(clean.controllers.rumble, false);
+  assert.equal(clean.controllers.stompStrength, 'standard');
   assert.equal(clean.controllers.player2.lastDevice, 'test-pad-2');
   assert.deepEqual(clean.controllers.assistBindings, {
     'quick-save':legacy.controllers.assistBindings['quick-save'], 'quick-load':null,
@@ -57,6 +59,9 @@ test('malformed files cannot silently discard a retained preference', () => {
   const withTypo = phase2Config();
   withTypo.player.volum = 100;
   assert.throws(() => parseConfig(JSON.stringify(withTypo)), /Unknown player settings field/);
+  const badStrength = phase2Config();
+  badStrength.controllers.stompStrength = 'invalid';
+  assert.throws(() => parseConfig(JSON.stringify(badStrength)));
 });
 
 test('existing browser preferences carry forward until the first clean edit', t => {

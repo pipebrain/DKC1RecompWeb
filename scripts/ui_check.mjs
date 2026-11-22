@@ -194,6 +194,7 @@ async function configChecks(downloads) {
   const base=await exported();
   assert.deepEqual(Object.keys(base).sort(),['schema','version','player','keyboard','controllers','rememberRom'].sort());
   assert.equal(base.schema,'dkc.player-config');assert.equal(base.version,2);
+  assert.equal(base.controllers.stompStrength,'standard');
   assert.equal(base.player.sound,true);assert.equal(base.keyboard.mode,'keyboard');
   const expectedFields=['sound','volume','audioDriftCorrection','audioPreroll','pauseWhenInactive','appearance','fullscreenOnStart','stateSlot'];
   assert.deepEqual(Object.keys(base.player).sort(),expectedFields.sort());
@@ -221,8 +222,12 @@ async function configChecks(downloads) {
   desired.keyboard.player2.mode='keyboard';
   desired.keyboard.player2.bindings.start=['NumpadEnter'];
   desired.controllers.captureMode='button';desired.controllers.rumble=false;
+  desired.controllers.stompStrength='light';
   await viewport(390,844);await imported(desired);await reopen();
   assert.deepEqual(await exported(),desired,'All configuration sections must survive import + page reload.');
+  await command('config','devices');
+  assert.equal(await inPage(()=>document.querySelector('#stomp-strength').value),'light');
+  await closeSettings();
   await viewport(1440,900);
   const bad=structuredClone(desired);bad.player.volume=101;
   await imported(bad,false);
@@ -247,11 +252,14 @@ async function configChecks(downloads) {
   const legacy=structuredClone(desired);
   legacy.version=1;
   legacy.keyboard.version=1;
+  delete legacy.controllers.stompStrength;
   Object.assign(legacy.keyboard.assistKeys,{'rewind-step':'Backspace','fast-forward':'Tab','frame-step':null});
   Object.assign(legacy.controllers.assistBindings,{'rewind-step':null,'fast-forward':null,'frame-step':null});
   Object.assign(legacy.player,{variant:'dixie',music:'msu1',aspect:'16:9',assist:true,speed:3,frameGeneration:'midpoints',hdTextures:true});
   await imported(legacy);
-  assert.deepEqual(await exported(),desired,'Legacy configuration failed to retain supported fields.');
+  const migrated=structuredClone(desired);
+  migrated.controllers.stompStrength='standard';
+  assert.deepEqual(await exported(),migrated,'Legacy configuration failed to retain supported fields.');
   report.checks.push('Phase 2 config migration kept both players and retained settings; the new export contains only clean-player options.');
 
   const stock=structuredClone(base);stock.player.sound=false;

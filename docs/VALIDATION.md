@@ -27,16 +27,27 @@ Phase 2 artifact.
 - Chrome exercised simultaneous keyboard/gamepad input on two ports, two
   controllers reporting the same ID, disconnect/reconnect with a direction
   held, and raw eight-way hat diagonals. Those tests inject Gamepad API
-  fixtures. Android and iOS Bluetooth reconnection and physical rumble
-  remain device acceptance checks.
+  fixtures. Android and iOS Bluetooth reconnection and rumble remain device
+  acceptance checks.
 - With Player 1 disabled and Player 2 assigned keyboard and gamepad, both
   Player 2's mapped Space and controller Start resumed the game. The resume
   press was consumed until release. The next press delivered Start on port 2
   alone (`0x8000`).
-- A Jungle enemy stomp at frame 7,579 produced a 55 ms pulse request on
-  the assigned test controller. Replaying the same stomp with rumble off
-  produced none. A stationary jump through takeoff and landing in the
-  stock core produced no stomp event.
+- A Bluetooth 8BitDo SN30 Pro+ in Mac mode identified as DUALSHOCK 4
+  Wireless Controller (`054c:05c4`). Chrome 158.0.8127.36 on macOS 27.0.1
+  exposed a `dual-rumble` actuator. The user felt a full-strength 750 ms
+  diagnostic pulse. On the actual Jungle enemy rebound at frame 7,579,
+  they felt no vibration with the original 55 ms effect (16% strong,
+  31% weak). They felt the new Standard effect (140 ms, 80% strong,
+  100% weak) on the same gameplay route. Chrome reported `complete`
+  for all three requests. With the same physical controller active, a
+  stationary jump from grounded frame 7,650 through landing produced
+  zero stomp events and zero motor requests.
+- Separate Chrome regression checks replayed the same rebound with
+  Standard, Light (original), and rumble off. The assigned actuator
+  received each preset's specified pulse or no request when off. The
+  Devices test requested 500 ms at full strength. Config import, export
+  and reload retained Light. Older settings adopted Standard.
 - The 9,376-frame [Two Player Contest route](../tests/fixtures/two-player-contest.inputs)
   selects the mode, plays until Player 1 loses a life, then enters Jungle
   Hijinxs using Player 2's Start. Player 2's Right moves DK from world X

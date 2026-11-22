@@ -104,7 +104,12 @@
       </section>
       <section id="settings-pane-devices" class="settings-pane" data-settings-pane="devices" role="tabpanel" aria-labelledby="settings-tab-devices" hidden>
         <div class="pane-heading"><h3>Devices</h3><p>Keyboard and controllers available to this browser.</p></div>
-        <div class="settings-group"><div class="settings-row"><label for="controller-rumble">Stomp rumble</label><input id="controller-rumble" type="checkbox" checked></div><div class="settings-row"><label for="rumble-player">Test controller</label><select id="rumble-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><button type="button" id="controller-rumble-test" disabled>Test rumble</button></div><p id="rumble-status" role="status"></p></div>
+        <div class="settings-group">
+          <div class="settings-row"><label for="controller-rumble">Stomp rumble</label><input id="controller-rumble" type="checkbox" checked></div>
+          <div class="settings-row"><label for="stomp-strength">Stomp strength</label><select id="stomp-strength"><option value="standard">Standard</option><option value="light">Light (original)</option></select></div>
+          <div class="settings-row"><label for="rumble-player">Test controller</label><select id="rumble-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><button type="button" id="controller-rumble-test" disabled>Test rumble</button></div>
+          <p id="rumble-status" role="status"></p>
+        </div>
         <div id="device-list" class="settings-group device-list" aria-live="polite">Keyboard — default input. Connect a controller and press a button to make it available.</div>
         <p class="settings-footnote">Select a controller and assign its profile in Input.</p><button type="button" data-command="controllers">Open Input…</button>
       </section>

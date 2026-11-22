@@ -5,6 +5,36 @@ const $=id=>document.getElementById(id);
 const baseDeviceKey=pad=>`${pad.id}\u001f${pad.mapping||''}\u001f${pad.buttons.length}:${pad.axes.length}`;
 const snapshot=pad=>pad?{id:pad.id,index:pad.index,mapping:pad.mapping||'',connected:pad.connected!==false,buttons:Array.from(pad.buttons,b=>typeof b==='number'?b:{pressed:Boolean(b.pressed),value:Number(b.value)||0}),axes:Array.from(pad.axes,Number)}:null;
 
+const STOMP_EFFECTS={
+  standard:{duration:140,startDelay:0,strongMagnitude:0.8,weakMagnitude:1},
+  light:{duration:55,startDelay:0,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535},
+};
+const TEST_EFFECT={duration:500,startDelay:0,strongMagnitude:1,weakMagnitude:1};
+
+function rumbleOutputs(pad){
+  const motors=[pad?.vibrationActuator,...(pad?.hapticActuators||[])];
+  const dual=motors.find(motor=>typeof motor?.playEffect==='function' &&
+    (motor.effects ? motor.effects.includes('dual-rumble') : !motor.type || motor.type==='dual-rumble'));
+  const legacy=motors.find(motor=>typeof motor?.pulse==='function');
+  return {dual,legacy};
+}
+
+async function playRumble({dual,legacy},effect){
+  if(dual){
+    try{
+      const result=await dual.playEffect('dual-rumble',effect);
+      if(result!=='not-supported')return result;
+    }catch(error){
+      if(error?.name!=='NotSupportedError')throw error;
+    }
+  }
+  if(legacy){
+    const completed=await legacy.pulse(Math.max(effect.strongMagnitude,effect.weakMagnitude),effect.duration);
+    return completed===true?'complete':completed===false?'preempted':'error';
+  }
+  return 'not-supported';
+}
+
 export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>'keyboard'}={}) {
   const panel=$('controller-panel'),message=$('controller-message'),deviceSelect=$('controller-device'),profileSelect=$('controller-profile');
   let settings=defaultControllerSettings(),storedVersion=null,storageAvailable=true,pads=[],selectedKey=null,player=0;
@@ -48,6 +78,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     refreshProfiles();$('controller-capture-mode').value=settings.captureMode;
     $('player-deadzone').value=route().deadzone??'';
     $('controller-rumble').checked=settings.rumble;
+    $('stomp-strength').value=settings.stompStrength;
     const builtin=profile.id===DEFAULT_PROFILE.id;
     $('controller-name').value=profile.name;$('controller-name').disabled=builtin;
     $('controller-deadzone').value=profile.deadzone;$('controller-deadzone').disabled=builtin;
@@ -299,29 +330,52 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     try{const next={...settings,rumble:event.target.checked};writeSettings(next);settings=next;updateRumble();}
     catch(error){event.target.checked=settings.rumble;$('rumble-status').textContent=error.message;}
   });
+  $('stomp-strength').addEventListener('change',event=>{
+    try{
+      const next={...settings,stompStrength:event.target.value};
+      writeSettings(next);
+      settings=next;
+    }catch(error){event.target.value=settings.stompStrength;$('rumble-status').textContent=error.message;}
+  });
   function saveOption(change){
     try{const next=clone(settings);change(next);writeSettings(next);settings=next;}
     catch(error){tell(error.message,true);}
     renderEditor();
   }
-  function actuator(pad){const motor=pad?.vibrationActuator||pad?.hapticActuators?.[0];return motor?.playEffect||motor?.pulse?motor:null;}
-  function pulse(pad){
-    const motor=actuator(pad);if(!settings.rumble||!motor)return Promise.resolve(false);
-    return Promise.resolve().then(()=>motor.playEffect?
-      motor.playEffect('dual-rumble',{startDelay:0,duration:55,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535}):
-      motor.pulse(0x5000/65535,55)).then(result=>result!=='preempted'&&result!==false);
-  }
+  let rumbleTarget='',rumbleRequest=0;
   function updateRumble(){
-    const n=Number($('rumble-player').value),available=Boolean(actuator(playerPad(n)));
-    $('controller-rumble-test').disabled=!settings.rumble||!available;
-    const msg=$('rumble-status');
-    const capability=settings.rumble?(available?'Rumble available.':'This controller or browser does not expose rumble.'):'Rumble is off.';
-    if(msg.dataset.capability!==capability){msg.dataset.capability=capability;msg.textContent=capability;}
+    const port=Number($('rumble-player').value),pad=playerPad(port);
+    const {dual,legacy}=rumbleOutputs(pad);
+    const target=JSON.stringify([port,pad?.index,pad&&deviceKey(pad),Boolean(dual),Boolean(legacy),settings.rumble]);
+    if(target===rumbleTarget)return;
+    rumbleTarget=target;
+    ++rumbleRequest;
+    $('controller-rumble-test').disabled=!settings.rumble||!(dual||legacy);
+    let message;
+    if(!settings.rumble)message='Stomp rumble is off.';
+    else if(!pad)message=`No controller detected for Player ${port+1}. Press a controller button or check Config → Input.`;
+    else message=dual||legacy?'Ready to test rumble.':'The browser exposes no rumble output for this controller.';
+    $('rumble-status').textContent=pad?`${pad.id} · ${message}`:message;
   }
   $('rumble-player').addEventListener('change',updateRumble);
   $('controller-rumble-test').addEventListener('click',async()=>{
-    try{$('rumble-status').textContent=await pulse(playerPad(Number($('rumble-player').value)))?'Test pulse sent.':'Test pulse interrupted.';}
-    catch(error){$('rumble-status').textContent=`Rumble unavailable: ${error.message}`;}
+    updateRumble();
+    if($('controller-rumble-test').disabled)return;
+    const pad=playerPad(Number($('rumble-player').value)),request=++rumbleRequest;
+    const status=$('rumble-status');
+    status.textContent=`${pad.id} · Testing rumble…`;
+    let message;
+    try{
+      const result=await playRumble(rumbleOutputs(pad),TEST_EFFECT);
+      if(result==='complete')message='Browser completed the test pulse.';
+      else if(result==='not-supported')message='The browser does not support this rumble effect.';
+      else if(result==='preempted')message='Test pulse was interrupted.';
+      else message=`The browser could not complete the test pulse (${result??'no result'}).`;
+    }catch(error){
+      const reason=error?.message||error?.name;
+      message=reason?`The browser rejected the test pulse. ${reason}`:'The browser rejected the test pulse.';
+    }
+    if(request===rumbleRequest)status.textContent=`${pad.id} · ${message}`;
   });
   function saveAssist(id,binding){
     const next={...settings,assistBindings:{...settings.assistBindings,[id]:binding}};writeSettings(next);settings=next;
@@ -344,7 +398,10 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
       settings=validateControllerSettings(value);storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);storageAvailable=true;registerPads(pads);resetEditor();updateRumble();
     },
     setPlayer(n){if(!canClose())return false;player=n;resetEditor();return true;},
-    pulseStomp(){pulse(routed.find(Boolean)).catch(()=>{});},
+    pulseStomp(){
+      const pad=routed.find(Boolean);
+      if(settings.rumble&&pad)playRumble(rumbleOutputs(pad),STOMP_EFFECTS[settings.stompStrength]).catch(()=>{});
+    },
     assistBinding:id=>settings.assistBindings[id],clearAssist:id=>saveAssist(id,null),
     listenAssist(id,callback){
       const pad=selectedPad();if(!pad)throw new Error('Connect and select a controller first.');

@@ -64,6 +64,81 @@ async function resume(){
   await menuCommand('dkm','start-game');
   await poll(()=>evaluate("window.dkcDebug.status().running && document.activeElement===document.getElementById('screen')"),'game running with keyboard focus');
 }
+async function checkRumbleControls(){
+  const status=()=>evaluate('document.querySelector("#rumble-status").textContent');
+  const disabled=()=>evaluate('document.querySelector("#controller-rumble-test").disabled');
+  const calls=()=>evaluate('window.__keyboardTest.rumble');
+  await click('#settings-tab-devices');
+  assert.equal(await evaluate('document.querySelector("#stomp-strength").value'),'standard');
+  await setValue('#rumble-player',1);
+  await evaluate(`(()=>{
+    const test=window.__keyboardTest,pad=test.pads[1];
+    test.rumble=[];
+    test.motorResult='complete';
+    const effectMotor=Object.create({
+      get type(){return 'dual-rumble';},
+      get effects(){return Object.freeze(test.effects);},
+      async playEffect(kind,params){
+        if(this!==effectMotor)throw new TypeError('Illegal invocation');
+        test.rumble.push({kind,params});
+        if(test.motorResult==='reject-empty')return Promise.reject();
+        return test.motorResult;
+      },
+    });
+    test.effects=['dual-rumble'];
+    pad.vibrationActuator=effectMotor;
+  })()`);
+  await poll(async()=>!await disabled(),'P2 dual-rumble actuator available');
+  await click('#controller-rumble-test');
+  const [manual]=await calls();
+  assert.deepEqual(manual,{kind:'dual-rumble',params:{startDelay:0,duration:500,strongMagnitude:1,weakMagnitude:1}});
+  assert.match(await status(),/complet/i);
+
+  for(const [result,expected] of [['not-supported',/support/i],['preempted',/interrupt|preempt/i],['reject-empty',/browser rejected the test pulse/i]]){
+    await evaluate('window.__keyboardTest.motorResult='+JSON.stringify(result));
+    await click('#controller-rumble-test');
+    const message=await status();
+    assert.match(message,expected);
+    await delay(250); // Device status is refreshed at 100 ms intervals.
+    assert.equal(await status(),message,'a device poll erased the test outcome');
+  }
+  await evaluate("window.__keyboardTest.effects=['trigger-rumble']");
+  await poll(disabled,'actuator advertises no dual-rumble effect');
+  await click('#controller-rumble-test');
+  assert.equal((await calls()).length,4,'unsupported effects must not receive a motor request');
+
+  await evaluate(`(()=>{
+    const test=window.__keyboardTest,pad=test.pads[1];
+    pad.hapticActuators=[{type:'vibration',async pulse(magnitude,duration){
+      test.rumble.push({kind:'pulse',magnitude,duration});return true;
+    }}];
+    test.effects=['dual-rumble'];
+    test.motorResult='not-supported';
+  })()`);
+  await poll(async()=>!await disabled(),'dual-rumble actuator with legacy fallback available');
+  await click('#controller-rumble-test');
+  const legacy={kind:'pulse',duration:500,magnitude:1};
+  assert.deepEqual((await calls()).slice(-2),[manual,legacy],'unsupported effect retries the separate pulse method');
+  await evaluate('window.__keyboardTest.pads[1].vibrationActuator=null');
+  await click('#controller-rumble-test');
+  assert.deepEqual((await calls()).at(-1),legacy);
+  assert.match(await status(),/complet/i);
+  await evaluate(`window.__keyboardTest.pads[1].hapticActuators[0].pulse=()=>
+    new Promise(resolve=>{window.__keyboardTest.finishTest=resolve;})`);
+  await click('#controller-rumble-test');
+  await setValue('#rumble-player',0);
+  await poll(disabled,'P1 has no rumble actuator');
+  const p1Status=await status();
+  await evaluate('window.__keyboardTest.finishTest(true)');
+  await delay(250);
+  assert.equal(await status(),p1Status,'stale P2 result must not be shown for P1');
+  await setValue('#rumble-player',1);
+  await evaluate('window.__keyboardTest.pads[1].hapticActuators=[]');
+  await poll(disabled,'connected controller with no actuator disables the test');
+  assert.match(await status(),/exposes no rumble output/i);
+  report.rumbleTest={manual,legacy};
+  report.checks.push('The Devices test requested a strong manual pulse on either supported API. Unsupported or interrupted effects stayed visible after polling, and a controller without an actuator still supported gameplay.');
+}
 async function checkStompHaptics(){
   await menuCommand('dkm','reset-game');
   await poll(()=>evaluate('window.dkcDebug.status().loaded&&!window.dkcDebug.status().loading&&window.dkcDebug.status().frameCount===0'),'fresh stock boot for stomp replay');
@@ -76,7 +151,7 @@ async function checkStompHaptics(){
   const atFall=await evaluate(`window.dkcDebug.replayFingerprints(${JSON.stringify(runs)})`);
   assert.equal(atFall.frameCount,7575);
   await evaluate(`window.__keyboardTest.stompPulses=[];
-    window.__keyboardTest.pads[0].vibrationActuator={playEffect:(kind,params)=>{
+    window.__keyboardTest.pads[0].vibrationActuator={type:'dual-rumble',effects:['dual-rumble'],playEffect:(kind,params)=>{
       window.__keyboardTest.stompPulses.push({kind,params});return Promise.resolve('complete');
     }};`);
   await menuCommand('config','saves');
@@ -90,16 +165,23 @@ async function checkStompHaptics(){
     await poll(()=>evaluate(`window.__keyboardTest.stomps===${count}`),'stock game reported a real enemy rebound');
     await evaluate('window.__keyboardTest.pads[0].axes[0]=0;window.dkcDebug.pause()');
   }
+  async function replayFromFall(count){
+    await menuCommand('config','saves');await click('#app-settings [data-command="quick-load"]');
+    await poll(()=>evaluate('document.querySelector("#save-status").textContent==="Loaded state from slot 1."'),'falling snapshot restored');
+    await done();await playToStomp(count);
+  }
   await playToStomp(1);
-  assert.deepEqual(await evaluate('window.__keyboardTest.stompPulses'),[
-    {kind:'dual-rumble',params:{startDelay:0,duration:55,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535}}
-  ]);
+  const standard={kind:'dual-rumble',params:{startDelay:0,duration:140,strongMagnitude:0.8,weakMagnitude:1}};
+  const light={kind:'dual-rumble',params:{startDelay:0,duration:55,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535}};
+  assert.deepEqual(await evaluate('window.__keyboardTest.stompPulses'),[standard]);
+  await menuCommand('config','devices');await setValue('#stomp-strength','light');await done();
+  assert.equal(await evaluate("JSON.parse(localStorage.getItem('dkc.controller-settings.v2')).stompStrength"),'light');
+  await replayFromFall(2);
+  assert.deepEqual(await evaluate('window.__keyboardTest.stompPulses'),[standard,light]);
   await menuCommand('config','devices');await click('#controller-rumble');await done();
-  await menuCommand('config','saves');await click('#app-settings [data-command="quick-load"]');
-  await poll(()=>evaluate('document.querySelector("#save-status").textContent==="Loaded state from slot 1."'),'falling snapshot restored');
-  await done();await playToStomp(2);
-  assert.equal(await evaluate('window.__keyboardTest.stompPulses.length'),1,'rumble-off must silence the second real stomp');
-  report.checks.push('Real stock Jungle gameplay rebounds from an enemy at frame 7579. The assigned simulated actuator receives the native pulse once. Restoring the same fall with rumble off produces another stomp and no motor request.');
+  await replayFromFall(3);
+  assert.deepEqual(await evaluate('window.__keyboardTest.stompPulses'),[standard,light],'rumble-off must silence the third real stomp');
+  report.checks.push('The same stock enemy stomp produced the default 140 ms pulse, the original 55 ms Light pulse, and no request when disabled on the assigned simulated controller.');
 }
 async function layout(width,height,theme){await client.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await client.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:theme},{name:'prefers-reduced-motion',value:'reduce'}]});await client.send('Page.bringToFront');await delay(220);}
 try{
@@ -148,7 +230,7 @@ try{
   await setValue('#input-source','gamepad');await poll(()=>evaluate('window.dkcDebug.keyboard().mode==="gamepad"'),'Gamepad mode');assert.equal(await evaluate('document.querySelector("#controller-panel").hidden'),false);assert.equal(await evaluate('document.querySelector("#keyboard-panel").hidden'),true);await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1}');await done();await resume();await expected(1,'held gamepad reaches worker in Gamepad mode');await nativeKey('rawKeyDown','ArrowRight');await expected(1,'keyboard ignored in Gamepad mode');await nativeKey('keyUp','ArrowRight');await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:false,value:0}');await expected(0,'pad release');
   await client.send('Page.reload',{ignoreCache:true});await ready();assert.equal((await keyboard()).mode,'gamepad');assert.match(await evaluate('document.querySelector("#menu-config [data-input-label]").textContent'),/Gamepad|Controller/);await input();await setValue('#input-source','keyboard');await done();
   report.checks.push('Input-source switching activates only the selected device and persists across reload; existing gamepad mappings remain available.');
-  await evaluate(`window.__keyboardTest.pads.push({...structuredClone(window.__keyboardTest.pads[0]),index:1});window.__keyboardTest.rumble=[];window.__keyboardTest.pads[1].vibrationActuator={playEffect:(kind,params)=>{window.__keyboardTest.rumble.push({kind,params});return Promise.resolve('complete');}};`);
+  await evaluate('window.__keyboardTest.pads.push({...structuredClone(window.__keyboardTest.pads[0]),index:1})');
   await input();await setValue('#input-source','both');await setValue('#input-player',1);await setValue('#input-source','both');
   await poll(()=>evaluate('document.querySelector("#controller-device").options.length===3'),'two identical devices receive distinct selectors');
   await setValue('#controller-device',await evaluate('document.querySelector("#controller-device").options[2].value'));
@@ -159,8 +241,7 @@ try{
   await padButton(1,6,true);
   await poll(()=>evaluate('document.querySelector("#assist-shortcut-status").textContent==="Controller shortcut saved."'),'capture Player 2 save-state button');
   await padButton(1,6,false);
-  await click('#settings-tab-devices');await setValue('#rumble-player',1);await poll(()=>evaluate('!document.querySelector("#controller-rumble-test").disabled'),'P2 vibration API available');
-  await click('#controller-rumble-test');assert.equal(await evaluate('window.__keyboardTest.rumble.at(-1)?.params.duration'),55);
+  await checkRumbleControls();
   await done();await resume();
   await evaluate('window.__keyboardTest.pads[0].buttons[0]={pressed:true,value:1};window.__keyboardTest.pads[1].buttons[1]={pressed:true,value:1}');
   await nativeKey('rawKeyDown','KeyX');await nativeKey('rawKeyDown','KeyJ');
@@ -183,11 +264,12 @@ try{
 
   await checkStompHaptics();
   await input();await setValue('#input-source','none');await setValue('#input-player',0);await setValue('#input-source','keyboard');await done();
-  report.checks.push('Player 1 and Player 2 accept simultaneous keyboard and gamepad input on independent SNES ports, including two controllers with identical IDs. Test rumble selects the requested player and sends the native 55 ms pulse to an injected actuator.');
+  report.checks.push('Player 1 and Player 2 accept simultaneous keyboard and gamepad input on independent SNES ports, including two controllers with identical IDs.');
   const legacy=await evaluate(`(()=>{
     const keys=JSON.parse(localStorage.getItem('dkc.keyboard-settings.v2'));
     keys.version=1;keys.assistKeys['rewind-step']='Backspace';keys.assistKeys['fast-forward']='Tab';
     const pads=JSON.parse(localStorage.getItem('dkc.controller-settings.v2'));
+    delete pads.stompStrength;
     pads.assistBindings['fast-forward']={type:'button',index:7,threshold:0.5};
     for(const [kind,value] of [['keyboard',keys],['controller',pads]]){
       localStorage.setItem('dkc.'+kind+'-settings.v1',JSON.stringify(value));
@@ -207,6 +289,7 @@ try{
   const migrated=await poll(()=>evaluate('window.__keyboardTest.exported?.then(JSON.parse)'),'export migrated configuration');
   assert.deepEqual(migrated.keyboard.player2.bindings.b,['KeyJ']);
   assert.equal(migrated.controllers.assistBindings['quick-save'].index,6);
+  assert.equal(migrated.controllers.stompStrength,'standard');
   assert.deepEqual(Object.keys(migrated.keyboard.assistKeys).sort(),['quick-load','quick-save']);
   assert.deepEqual(Object.keys(migrated.controllers.assistBindings).sort(),['quick-load','quick-save']);
   assert.deepEqual(await evaluate('[localStorage.getItem("dkc.keyboard-settings.v1"),localStorage.getItem("dkc.controller-settings.v1")]'),legacy);

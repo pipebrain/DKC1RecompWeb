@@ -463,10 +463,15 @@ The public mobile preview continues to serve Phase 2.
 The clean candidate builds one stock Wasm and restores Phase 2 stock states.
 Desktop Chrome reopened Candy's SRAM across a full quit and replayed a
 two-player Contest handoff against native. Config import/export, combined
-input on both ports and a stomp pulse on a simulated actuator also passed.
-The next release checks are Android and iOS with assigned controllers and a
-physical stomp/ordinary jump comparison. The public preview still runs
-Phase 2. [Clean candidate verification](VALIDATION.md#phase-3-clean-v110-candidate)
+input on both ports and the simulated controller checks also passed.
+The user reported every test they ran passed except rumble. On their Bluetooth
+8BitDo SN30 Pro+ in Mac mode, Chrome completed the original 55 ms enemy-stomp
+pulse, but the user felt nothing. Replaying the same enemy stomp with the
+new Standard pulse (140 ms, 80% strong and 100% weak) produced vibration
+the user could feel. Config → Devices retains the original pulse as Light.
+The public preview serves Phase 2. Android and iOS device-specific rumble
+results for the clean build are unrecorded.
+[Clean candidate verification](VALIDATION.md#phase-3-clean-v110-candidate)
 
 ### Phase 4 · independent WebGPU renderer
 
