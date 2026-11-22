@@ -17,7 +17,7 @@ This edition keeps the original game as its foundation and adds:
 - Direct WebGPU presentation, with the original game centered at 4:3.
 - A single application menu, a compact layout, and system light/dark appearance.
 - An editable keyboard profile selected by default, plus configurable controller profiles.
-- Local cartridge-save persistence, save import/export, and same-ROM reloading.
+- Remembered ROMs, local cartridge saves, save import/export, and same-ROM reloading.
 - About and Help content loaded from editable Markdown files.
 
 The browser host has no frontend framework or third-party JavaScript runtime dependency. Its graphics currently use the original 256 × 224 framebuffer with nearest scaling. Widescreen, enhanced graphics, rewind, save states, cheats, and NetPlay are not implemented in this edition.

@@ -7,17 +7,17 @@ let previousSram=null,framePool=[],audioPool=[],framesOutstanding=0,audioOutstan
 let droppedPresentations=0,lateTicks=0,pausedReason='not-loaded';
 const text=new TextDecoder();
 const send=(message,transfer=[])=>self.postMessage(message,transfer);
-const heap=()=>new Uint8Array(wasm.exports.memory.buffer);
-function cString(pointer){const bytes=heap();let end=pointer;while(end<bytes.length&&bytes[end])end++;return text.decode(bytes.subarray(pointer,end));}
-function coreError(operation){const pointer=wasm.exports.dkc_last_error?.();throw new Error(`${operation}: ${pointer?cString(pointer):'core returned an error'}`);}
+const heap=(instance=wasm)=>new Uint8Array(instance.exports.memory.buffer);
+function cString(pointer,instance=wasm){const bytes=heap(instance);let end=pointer;while(end<bytes.length&&bytes[end])end++;return text.decode(bytes.subarray(pointer,end));}
+function coreError(operation,instance=wasm){const pointer=instance.exports.dkc_last_error?.();throw new Error(`${operation}: ${pointer?cString(pointer,instance):'core returned an error'}`);}
 function state(){return {loaded,running,hasStarted,paused:!running,pausedReason,frameCount,fps:FPS,width:loaded?wasm.exports.dkc_width():256,height:loaded?wasm.exports.dkc_height():224,rate:loaded?wasm.exports.dkc_audio_rate():32040,droppedPresentations,lateTicks,imports:inventory};}
-function stop(reason='paused'){running=false;pausedReason=reason;clearTimeout(timer);timer=0;input=0;if(loaded)checkSave();}
+function stop(reason='paused'){running=false;pausedReason=reason;clearTimeout(timer);timer=0;input=0;}
 function checkSave(force=false){
   if(!loaded)return;
   const size=wasm.exports.dkc_sram_size(),current=heap().subarray(wasm.exports.dkc_sram(),wasm.exports.dkc_sram()+size);
   let changed=force||!previousSram;
   if(!changed)for(let i=0;i<size;i++)if(current[i]!==previousSram[i]){changed=true;break;}
-  if(changed){previousSram=current.slice();const buffer=previousSram.slice().buffer;send({type:'sram-changed',buffer},[buffer]);}
+  if(changed){previousSram=current.slice();const buffer=previousSram.slice().buffer;send({type:'sram-changed',buffer,imported:force},[buffer]);}
 }
 function present(){
   if(framesOutstanding>=3){droppedPresentations++;return;}
@@ -38,7 +38,7 @@ function audio(){
 }
 function advance(buttons,display=true,playAudio=true){
   if(wasm.exports.dkc_step(buttons)!==0)coreError('Game step failed');
-  hasStarted=true;frameCount++;if(display)present();if(playAudio)audio();checkSave();
+  hasStarted=true;frameCount++;checkSave();if(display)present();if(playAudio)audio();
 }
 function tick(){
   if(!running)return;
@@ -53,8 +53,7 @@ function tick(){
   }catch(error){stop('error');send({type:'error',error:error.message,stack:error.stack});}
 }
 async function hash(bytes){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');}
-async function initialize(buffer){
-  stop('loading');loaded=false;
+async function initialize(buffer,save){
   if(buffer.byteLength!==ROM_SIZE)throw new Error('Unsupported ROM size. Expected a headerless 4,194,304-byte DKC USA v1.0 ROM.');
   if(await hash(buffer)!==ROM_SHA)throw new Error('Unsupported ROM SHA-256. Expected unmodified DKC USA v1.0.');
   send({type:'loading',message:'Compiling WebAssembly…'});
@@ -62,16 +61,27 @@ async function initialize(buffer){
   if(!response.ok)throw new Error(`Wasm build not found (${response.status}). Build web/dkc.wasm first.`);
   const module=await WebAssembly.compile(await response.arrayBuffer());
   let instance=null;
-  const prepared=importsFor(module,()=>instance,message=>send(message));inventory=prepared.inventory;
-  send({type:'imports',imports:inventory});
-  instance=await WebAssembly.instantiate(module,prepared.imports);wasm=instance;
+  const prepared=importsFor(module,()=>instance,message=>send(message));
+  instance=await WebAssembly.instantiate(module,prepared.imports);
+  const core=instance.exports;
   const required=['memory','dkc_init','dkc_alloc','dkc_free','dkc_step','dkc_framebuffer','dkc_width','dkc_height','dkc_pitch','dkc_audio_buffer','dkc_audio_frames','dkc_audio_rate','dkc_sram','dkc_sram_size','dkc_last_error'];
-  const missing=required.filter(name=>!wasm.exports[name]);if(missing.length)throw new Error(`Missing Wasm exports: ${missing.join(', ')}`);
-  wasm.exports._initialize?.();
-  const pointer=wasm.exports.dkc_alloc(buffer.byteLength);if(!pointer)throw new Error('Cannot allocate ROM memory.');
-  try{heap().set(new Uint8Array(buffer),pointer);if(wasm.exports.dkc_init(pointer,buffer.byteLength)!==0)coreError('Game initialization failed');}
-  finally{wasm.exports.dkc_free(pointer);}
-  loaded=true;hasStarted=false;frameCount=0;input=0;previousSram=null;pausedReason='ready';droppedPresentations=0;lateTicks=0;
+  const missing=required.filter(name=>!core[name]);if(missing.length)throw new Error(`Missing Wasm exports: ${missing.join(', ')}`);
+  core._initialize?.();
+  const pointer=core.dkc_alloc(buffer.byteLength);if(!pointer)throw new Error('Cannot allocate ROM memory.');
+  try{heap(instance).set(new Uint8Array(buffer),pointer);if(core.dkc_init(pointer,buffer.byteLength)!==0)coreError('Game initialization failed',instance);}
+  finally{core.dkc_free(pointer);}
+  const sram=new Uint8Array(core.memory.buffer,core.dkc_sram(),core.dkc_sram_size());
+  if(save){
+    if(!(save instanceof ArrayBuffer)||save.byteLength!==sram.length)throw new Error('Invalid cartridge save size.');
+    sram.set(new Uint8Array(save));
+  }
+  // The initial memory (including restored data) is clean. Only a later game
+  // write or an explicit file import should replace the browser's save.
+  const initialSram=sram.slice();
+  stop('loading');
+  previousSram=initialSram;
+  wasm=instance;inventory=prepared.inventory;
+  loaded=true;hasStarted=false;frameCount=0;input=0;pausedReason='ready';droppedPresentations=0;lateTicks=0;
   present();return state();
 }
 async function runDiagnosticFrames(count,buttons,collectAudioHash=false){
@@ -83,7 +93,7 @@ async function runDiagnosticFrames(count,buttons,collectAudioHash=false){
 }
 async function command(data){
   switch(data.type){
-    case 'load':return initialize(data.buffer);
+    case 'load':return initialize(data.buffer,data.save);
     case 'pause':stop(data.reason||'paused');send({type:'stats',...state()});return state();
     case 'resume':if(!loaded)throw new Error('Load a ROM first.');hasStarted=true;if(!running){running=true;pausedReason=null;deadline=performance.now()+INTERVAL;timer=setTimeout(tick,INTERVAL);}return state();
     case 'input':input=data.buttons&4095;return;
@@ -92,7 +102,7 @@ async function command(data){
       if(!loaded)throw new Error('Load a ROM first.');
       const count=Number(data.count);if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Frame count must be an integer from 0 to 100,000.');
       stop('debug-run');await runDiagnosticFrames(count,data.buttons&4095);
-      present();checkSave();return state();
+      present();return state();
     }
     case 'replay-fingerprints':{
       if(!loaded||running||frameCount!==0)throw new Error('Fingerprint replay requires a freshly loaded, paused game.');

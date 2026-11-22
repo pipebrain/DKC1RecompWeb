@@ -11,17 +11,19 @@ import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-let rom=null,inputTabsOnly=false,dkmMenuOnly=false;
+let rom=null,inputTabsOnly=false,dkmMenuOnly=false,romStorageOnly=false;
 for(let i=2;i<process.argv.length;i++){
   if(process.argv[i]==='--rom')rom=resolve(process.argv[++i]);
   else if(process.argv[i]==='--input-tabs')inputTabsOnly=true;
   else if(process.argv[i]==='--dkm-menu')dkmMenuOnly=true;
-  else if(process.argv[i]==='--help'){console.log('node scripts/ui_check.mjs [--rom /absolute/game.smc] [--input-tabs|--dkm-menu]');process.exit(0);}
+  else if(process.argv[i]==='--rom-storage')romStorageOnly=true;
+  else if(process.argv[i]==='--help'){console.log('node scripts/ui_check.mjs [--rom /absolute/game.smc] [--input-tabs|--dkm-menu|--rom-storage]');process.exit(0);}
   else throw new Error(`Unknown option: ${process.argv[i]}`);
 }
+if(romStorageOnly&&!rom)throw new Error('--rom-storage requires --rom /path/to/game.smc');
 if(rom)await stat(rom);
 const stamp=new Date().toISOString().replace(/[:.]/g,'-')+`-${process.pid}`;
-const output=join(root,dkmMenuOnly?'build/dkm-menu-check':inputTabsOnly?'build/input-tabs-check':'build/ui-check',stamp),profile=join(root,'.local/ui-check-profile',stamp);
+const output=join(root,romStorageOnly?'build/rom-storage-check':dkmMenuOnly?'build/dkm-menu-check':inputTabsOnly?'build/input-tabs-check':'build/ui-check',stamp),profile=join(root,'.local/ui-check-profile',stamp);
 await mkdir(output,{recursive:true});await mkdir(profile,{recursive:true});
 const report={started:new Date().toISOString(),romLoaded:Boolean(rom),checks:[],layouts:[],javascriptErrors:[],consoleErrors:[],result:'running'};
 let server,chrome,client,session;
@@ -113,7 +115,7 @@ async function assertCoinAndMenus(){
   assert(value.disabled.includes('Cheat')&&value.disabled.includes('NetPlay'),'Unimplemented Cheat/NetPlay commands must stay disabled.');
   const order=await evaluate(`Array.from(document.querySelectorAll('#menu-config [data-command]')).map(e=>e.dataset.command)`);
   assert.deepEqual(order,['controllers','devices','options','video','sound','paths','saves','speed'],'Config ordering differs from the requested structure.');
-  assert(await evaluate(`document.querySelector('#menu-config [data-command="paths"]').disabled&&document.querySelector('[data-settings-tab="paths"]').disabled`),'Unavailable Paths entry must remain disabled.');
+  assert(await evaluate(`!document.querySelector('#menu-config [data-command="paths"]').disabled&&!document.querySelector('[data-settings-tab="paths"]').disabled`),'ROM storage settings must be reachable through Paths.');
   const artwork=await evaluate(`(async()=>{const image=new Image();image.src='./dk-coin.png';await image.decode();const canvas=document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;const context=canvas.getContext('2d');context.drawImage(image,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let transparent=0,opaque=0,colored=0;for(let i=0;i<pixels.length;i+=4){if(pixels[i+3]===0)transparent++;if(pixels[i+3]>200){opaque++;if(Math.max(pixels[i],pixels[i+1],pixels[i+2])-Math.min(pixels[i],pixels[i+1],pixels[i+2])>2)colored++;}}return {width:canvas.width,height:canvas.height,transparent,opaque,colored};})()`);
   assert(artwork.width>0&&artwork.height>0&&artwork.transparent>0&&artwork.opaque>0,'Coin image must load with real transparent and opaque pixels.');assert.equal(artwork.colored,0,'Coin artwork is not monochrome.');
   report.coinArtwork=artwork;
@@ -139,6 +141,79 @@ async function resetAndVerify(menu){
 }
 function contain(rect,width,height,label){assert(rect.x>=-1&&rect.y>=-1&&rect.right<=width+1&&rect.bottom<=height+1,`${label} is outside viewport: ${JSON.stringify(rect)}`);}
 async function inPage(action,...args){return evaluate('('+action.toString()+')('+args.map(value=>JSON.stringify(value)).join(',')+')');}
+async function romStorageChecks(){
+  async function pickRom(){
+    const {root:doc}=await client.send('DOM.getDocument');
+    const {nodeId}=await client.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'#rom-file'});
+    await client.send('DOM.setFileInputFiles',{nodeId,files:[rom]});
+    await poll(()=>inPage(()=>window.dkcDebug.status().loaded&&!window.dkcDebug.status().loading&&!document.querySelector('#rom-file').files.length),'ROM picker completion');
+  }
+  async function reopen(){
+    const old=await evaluate('performance.timeOrigin');
+    await client.send('Page.reload');
+    await poll(()=>inPage(time=>performance.timeOrigin!==time&&window.dkcDebug&&!document.querySelector('#remember-rom').disabled,old),'player storage initialization');
+  }
+  async function inspect(){
+    return inPage(async()=>{
+      const storage=await import('./storage.js');
+      const {enabled,image}=await storage.readRememberedRom();
+      const bytes=await storage.loadSave();
+      return {enabled,length:image?.byteLength||0,sram:bytes?[...new Uint8Array(bytes)]:null};
+    });
+  }
+  const selectPaths=async()=>{await command('config','paths');await poll(()=>visible('#remember-rom'),'ROM preference in Paths');};
+  await selectPaths();assert.equal(await inPage(()=>document.querySelector('#remember-rom').checked),true);await closeSettings();
+  await pickRom();
+  const sample=Array.from({length:2048},(_,i)=>i%251);
+  await inPage(async data=>{await window.dkcDebug.importSave(data);await window.dkcDebug.flushSaves();},sample);
+  assert.deepEqual(await inspect(),{enabled:true,length:4194304,sram:sample});
+  await reopen();
+  const restored=await evaluate('window.dkcDebug.status()');
+  assert(restored.loaded&&restored.paused&&!restored.hasStarted&&restored.frameCount===0);
+  assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sample);
+  report.checks.push('A verified selection reopens at frame zero with its existing SRAM and Start Game available.');
+
+  await fileCommand('file','open-rom','rom-file');
+  await inPage(()=>{
+    const dt=new DataTransfer();
+    dt.items.add(new File([new Uint8Array(4194304)],'invalid.smc'));
+    const input=document.querySelector('#rom-file');input.files=dt.files;input.dispatchEvent(new Event('change'));
+  });
+  await poll(()=>inPage(()=>document.querySelector('#status').textContent.includes('SHA-256')),'invalid replacement rejected');
+  await key('Escape');
+  assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sample);
+  await reopen();assert.equal(await evaluate('window.dkcDebug.status().loaded'),true);
+  report.checks.push('Canceling or choosing a wrong-digest ROM preserves the playable cartridge, remembered copy and SRAM.');
+
+  await viewport(390,844);await selectPaths();await click('#remember-rom');
+  await poll(()=>inPage(()=>!document.querySelector('#remember-rom').disabled),'forget commit');
+  assert.deepEqual(await inspect(),{enabled:false,length:0,sram:sample});
+  assert.equal(await evaluate('window.dkcDebug.status().loaded'),true);
+  await reopen();assert.equal(await evaluate('window.dkcDebug.status().loaded'),false);
+  await pickRom();assert.deepEqual(await inspect(),{enabled:false,length:0,sram:sample});
+  await selectPaths();await click('#remember-rom');await closeSettings();
+  assert.deepEqual(await inspect(),{enabled:true,length:4194304,sram:sample});
+  report.checks.push('Compact Paths removes the local ROM, preserves SRAM across reopening and reselection, and can remember the active cartridge again.');
+
+  await inPage(async()=>{const {setRememberRom}=await import('./storage.js');await setRememberRom(true,new ArrayBuffer(4194304));});
+  await reopen();assert.equal(await evaluate('window.dkcDebug.status().loaded'),false);
+  assert.match(await evaluate("document.querySelector('#status').textContent"),/SHA-256/);
+  await key('Escape');await pickRom();await reopen();
+  assert.equal(await evaluate('window.dkcDebug.status().loaded'),true);
+  assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sample);
+  report.checks.push('A corrupt remembered ROM fails verification, and choosing the original repairs it with SRAM intact.');
+
+  // Simulate the browser refusing only ROM storage. The real SRAM database stays available.
+  const {identifier}=await client.send('Page.addScriptToEvaluateOnNewDocument',{source:`const original=IDBFactory.prototype.open;IDBFactory.prototype.open=function(name,...rest){if(name==='dkc-browser-rom')throw new DOMException('Storage refused','SecurityError');return original.call(this,name,...rest);};`});
+  await reopen();assert.match(await evaluate("document.querySelector('#status').textContent"),/Storage refused/);
+  await key('Escape');await pickRom();
+  assert.equal(await evaluate('window.dkcDebug.status().loaded'),true);
+  assert.match(await evaluate("document.querySelector('#rom-storage-status').textContent"),/Storage refused/);
+  assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),sample);
+  await client.send('Page.removeScriptToEvaluateOnNewDocument',{identifier});
+  await reopen();assert.equal(await evaluate('window.dkcDebug.status().loaded'),true);
+  report.checks.push('A denied ROM database allows manual selection and play, reports the failure and keeps the previous ROM and SRAM.');
+}
 async function inputTabsChecks(){
   await assertMenuOnly();
   if(rom){
@@ -190,9 +265,11 @@ async function inputTabsChecks(){
   await poll(()=>visible('[data-settings-pane="speed"]'),'sidebar End to Speed');
   await key('Home');await poll(()=>visible('#input-settings-page'),'sidebar Home to Input page');
   await click('[data-settings-tab="sound"]');await inPage(()=>document.querySelector('#settings-tab-sound').focus());await key('ArrowDown');
-  await poll(()=>visible('[data-settings-pane="saves"]'),'sidebar ArrowDown skips disabled Paths');
+  await poll(()=>visible('[data-settings-pane="paths"]'),'sidebar ArrowDown reaches Paths');
+  await key('ArrowDown');
+  await poll(()=>visible('[data-settings-pane="saves"]'),'sidebar ArrowDown reaches Saves');
   assert.equal(await inPage(()=>document.activeElement.closest('[role="tablist"]').classList.contains('settings-navigation')),true,'Sidebar navigation escaped its tablist.');
-  report.checks.push('Keyboard arrows and Home/End remain in the active tablist; main sidebar skips disabled Paths.');
+  report.checks.push('Keyboard arrows and Home/End remain in the active tablist, including Paths and Saves.');
 
   await settingsTab('controllers');await click('#controller-new');
   await inPage(()=>{const input=document.querySelector('#controller-name');input.value='Input tabs unsaved regression';input.dispatchEvent(new Event('input',{bubbles:true}));});
@@ -266,7 +343,7 @@ async function dkmMenuChecks(){
 }
 
 try{
-  report.sources=Object.fromEntries(await Promise.all(['web/index.html','web/style.css','web/ui-shell.js','web/main.js','web/controller-ui.js','web/dk-coin.png'].map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));
+  report.sources=Object.fromEntries(await Promise.all(['web/index.html','web/style.css','web/ui-shell.js','web/main.js','web/storage.js','web/worker.js','web/controller-ui.js','web/dk-coin.png'].map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));
   const origin=`http://127.0.0.1:${await unusedPort()}/`;
   server=spawn(process.env.PYTHON||'python3',[join(root,'scripts/serve.py'),'--port',new URL(origin).port],{cwd:root,stdio:['ignore','pipe','pipe']});log(server,'server.log');
   await poll(async()=>{const response=await fetch(origin);return response.ok;},'local UI server');
@@ -285,7 +362,9 @@ try{
   await viewport(1440,900);
   await client.send('Page.navigate',{url:origin});
   await poll(()=>evaluate(`Boolean(window.dkcDebug&&document.querySelector('#status')?.textContent.startsWith('Ready')&&document.querySelector('#app-menubar'))`),'redesigned app and WebGPU',30000);
-  if(dkmMenuOnly){
+  if(romStorageOnly){
+    await romStorageChecks();
+  }else if(dkmMenuOnly){
     await dkmMenuChecks();
   }else if(inputTabsOnly){
     await inputTabsChecks();

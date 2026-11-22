@@ -153,10 +153,14 @@ try{
   report.checks.push('New/edit/save/discard, JSON export/download, malformed import rejection, import/save, and loading an existing profile pass through the visible UI.');
   const beforeReload=await controllers();await closePanel();await reload();await poll(async()=>(await controllers()).device?.id===RAW_ID,'raw controller after reload');
   const afterReload=await controllers();assert.equal(afterReload.profile.id,beforeReload.profile.id,'Selected profile did not survive reload.');assert(afterReload.savedProfiles.some(item=>item.name==='Imported representative raw'));
-  if(rom){await loadRom();await startPlay();}
+  if(rom){
+    const restored=await evaluate('window.dkcDebug.status()');
+    assert(restored.loaded&&!restored.running&&!restored.loading,'Remembered ROM must return ready to start.');
+    await startPlay();
+  }
   await snapshot(raw([10,11]));await expectInput(12,'saved raw mapping restored after page reload');await snapshot(raw());
   report.checks.push('Saved profiles and per-controller selection persist across page reload.');
-  if(rom){await loadRom();assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),report.sramSentinel,'Controller profile storage changed persisted cartridge SRAM.');await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(originalSram)});await window.dkcDebug.flushSaves();})()`);originalSram=null;delete report.sramSentinel;report.checks.push('Controller save/import/reload leaves the separate cartridge SRAM intact; original test bytes restored.');}
+  if(rom){await evaluate('window.dkcDebug.pause()');assert.deepEqual(await evaluate('window.dkcDebug.saveBytes()'),report.sramSentinel,'Controller profile storage changed persisted cartridge SRAM.');await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(originalSram)});await window.dkcDebug.flushSaves();})()`);originalSram=null;delete report.sramSentinel;report.checks.push('Controller save/import/reload leaves the separate cartridge SRAM intact; original test bytes restored.');}
   await openPanel();await evaluate(`document.querySelector('#controller-panel').scrollIntoView({block:'start'})`);await screenshot('profile-restored.png');
   report.final=await controllers();assert.equal(report.javascriptErrors.length,0);assert.equal(report.consoleErrors.length,0);report.result='passed';
 }catch(error){report.result='failed';report.error={message:error.message,stack:error.stack};process.exitCode=1;if(client&&session)try{report.failureHost=await evaluate('({url:location.href,ready:document.readyState,status:document.querySelector("#status")?.textContent,debug:typeof window.dkcDebug,resources:performance.getEntriesByType("resource").map(r=>r.name)})');await screenshot('failure.png');report.failureState=await controllers();report.failureInput=await evaluate('window.__controllerTest.inputs.slice(-20)');}catch{}}

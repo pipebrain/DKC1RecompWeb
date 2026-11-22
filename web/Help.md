@@ -2,11 +2,13 @@
 
 ## Start a game
 
-1. Choose **DKM → Load ROM** and select your headerless Donkey Kong Country USA v1.0 ROM.
+1. On your first visit, choose **DKM → Load ROM** and select your headerless Donkey Kong Country USA v1.0 ROM. On later visits, the player opens your remembered ROM at **Ready to Start**.
 2. Choose **DKM → Start Game**, or focus the game screen and press your mapped **Start** input (Return with the default keyboard profile).
 3. Choose **Config → Sound** to enable the original stereo soundtrack and sound effects.
 
 The ROM is checked locally. The supported file is 4,194,304 bytes with SHA-256 `fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15`.
+
+**Config → Paths → Remember ROM on this device** is on by default. Turning it off removes the local ROM copy and keeps your cartridge saves. You can still play the loaded game and choose the file again next time. If this browser cannot store the ROM, choose it through DKM on each visit.
 
 ## Keyboard is the default input
 
@@ -56,7 +58,9 @@ Enable Sound through Config first. If the browser requires audio interaction aga
 
 ## Cartridge saves
 
-Save normally at Candy's in the game. Cartridge SRAM is stored in this browser automatically.
+Jump into the barrel at Candy’s Save Point. The game shows your saved slot, play time, and completion percentage. The player writes the cartridge save to this browser automatically. You can check the save message in DKM before closing.
+
+Reopen the same address in the same browser profile, choose **DKM → Start Game**, then select your saved file on the game’s file-selection screen. **DKM → Load Save** is for importing a separate save file.
 
 - **DKM → Export Save** downloads a copy of the cartridge save.
 - **DKM → Load Save** imports a 2,048-byte cartridge save. Choose **DKM → Reload Game**, then Start Game, to let the game read it.
@@ -79,7 +83,7 @@ A hosted site and localhost have separate browser storage. Export cartridge save
 
 ## Available features
 
-Video currently uses the original 4:3 presentation and nearest scaling. Speed uses normal game timing with pause/resume. Paths, Cheat, and NetPlay remain visible but disabled. Native-release enhancements such as widescreen, CRT filters, rewind, save states, replacement music, and mods are not enabled in this browser edition.
+Video currently uses the original 4:3 presentation and nearest scaling. Speed uses normal game timing with pause/resume. Paths controls local ROM storage. Cheat and NetPlay remain disabled. Native-release enhancements such as widescreen, CRT filters, rewind, save states, replacement music, and mods are not enabled in this browser edition.
 
 ## Documentation source
 

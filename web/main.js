@@ -1,5 +1,5 @@
 import {createPresenter} from './graphics.js';
-import {loadSave,storeSave} from './storage.js';
+import {loadSave,readRememberedRom,rememberPickedRom,setRememberRom,storeSave} from './storage.js';
 import {initControllerUI} from './controller-ui.js';
 import {initAppShell} from './ui-shell.js';
 import {initKeyboardUI} from './keyboard-ui.js';
@@ -10,10 +10,11 @@ import {pausePresentation} from './pause-presentation.js';
 const $=selector=>document.querySelector(selector);
 const canvas=$('#screen'),statusElement=$('#status'),saveStatus=$('#save-status');
 const worker=new Worker(new URL('./worker.js',import.meta.url),{type:'module'});
-const ROM_SHA='fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15';
+const ROM_SIZE=4194304,ROM_SHA='fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15';
 let nextId=1,pending=new Map(),presenter=null,latestFrame=null,presentedFrame=0,loading=false,retainedRom=null,lastDevicePaint=0;
 let audioContext=null,audioNode=null,sound=false,keyBits=0,gamepadBits=0,debugBits=0,lastInput=-1;
 let state={loaded:false,running:false,hasStarted:false,playbackError:false,paused:true,frameCount:0},logs=[],audioStats={},saveChain=Promise.resolve();
+let committedSave=null,pendingSave=null;
 const pressedCodes=new Set();
 const physicalCodes=new Set(),freshKeyEvents=new WeakSet();
 const startShortcuts={keyboard:createStartShortcut(),gamepad:createStartShortcut()};
@@ -121,9 +122,18 @@ function updateState(value){
   if(state.loaded)$('#frame-info').textContent=`256 × 224 · frame ${state.frameCount.toLocaleString()}`;
   updateShell();
 }
-function persist(buffer){
-  saveChain=saveChain.then(()=>storeSave(buffer)).then(()=>saveMessage('Saved in this browser')).catch(error=>saveMessage(`Save failed: ${error.message}`,true));
-  return saveChain;
+function persist(buffer,imported=false){
+  const snapshot={buffer,imported};
+  pendingSave=snapshot;
+  saveMessage('Saving cartridge progress…');
+  // A failed transaction leaves the live SRAM available for export. A later
+  // write can retry from the last bytes that actually committed.
+  saveChain=saveChain.catch(()=>{}).then(async()=>{
+    await storeSave(buffer,imported?undefined:committedSave);
+    committedSave=buffer;
+    if(pendingSave===snapshot){pendingSave=null;saveMessage('Saved in this browser');}
+  });
+  saveChain.catch(error=>saveMessage(`Could not save in this browser. ${error.message} Use DKM → Export Save before closing.`,true));
 }
 worker.onmessage=({data})=>{
   if(data.type==='response'){
@@ -138,7 +148,7 @@ worker.onmessage=({data})=>{
     if(sound&&audioNode&&state.running)audioNode.port.postMessage({type:'samples',buffer:data.buffer,rate:data.rate},[data.buffer]);
     else recycle('recycle-audio',data.buffer);return;
   }
-  if(data.type==='sram-changed'){persist(data.buffer);return;}
+  if(data.type==='sram-changed'){persist(data.buffer,data.imported);return;}
   if(data.type==='stats'){updateState(data);return;}
   if(data.type==='imports'){state.imports=data.imports;return;}
   if(data.type==='loading'){status(data.message);return;}
@@ -198,25 +208,43 @@ async function resume({shortcut=null}={}){
   resumeAttempt=attempt;updateShell();
   try{return await attempt.promise;}finally{if(resumeAttempt===attempt)resumeAttempt=null;updateShell();}
 }
-async function loadRom(buffer,{preserveSave=false}={}){
+async function loadRom(buffer,{preserveSave=false,rememberSelection=false}={}){
   if(loading)throw new Error('A ROM is already loading.');
   if(!presenter)throw new Error('WebGPU is not ready.');
   loading=true;updateState(state);
   try{
-    await pause('loading');status('Verifying ROM…');saveMessage('');
-    if(buffer.byteLength!==4194304)throw new Error('Expected a headerless 4,194,304-byte DKC USA v1.0 ROM.');
+    status('Verifying ROM…');
+    if(!(buffer instanceof ArrayBuffer)||buffer.byteLength!==ROM_SIZE)throw new Error('Expected a headerless 4,194,304-byte DKC USA v1.0 ROM.');
     const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',buffer))].map(n=>n.toString(16).padStart(2,'0')).join('');
     if(digest!==ROM_SHA)throw new Error('ROM SHA-256 does not match unmodified DKC USA v1.0.');
     const nextRom=buffer.slice(0);
-    const currentSave=preserveSave?(await request('get-sram')).buffer:null;
-    updateState({loaded:false,running:false,hasStarted:false,playbackError:false,paused:true,frameCount:0});
-    const value=await request('load',{buffer},[buffer]);updateState(value);
+    await pause('loading');
+    if(pendingSave){
+      // The pause acknowledgement follows all preceding SRAM messages. Finish
+      // that write before rereading the cartridge slot or replacing the core.
+      try{await saveChain;}
+      catch{
+        persist(pendingSave.buffer,pendingSave.imported);
+        try{await saveChain;}catch{/* The live snapshot and its export warning stay available. */}
+      }
+    }
+    let save=null,readError=null;
+    const useLiveSave=state.loaded&&(preserveSave||Boolean(pendingSave));
+    if(useLiveSave)save=(await request('get-sram')).buffer;
+    else{
+      try{save=await loadSave();}
+      catch(error){readError=error;if(state.loaded)save=(await request('get-sram')).buffer;}
+    }
+    const value=await request('load',{buffer,save},[buffer]);
+    updateState({...value,playbackError:false});
+    if(!useLiveSave&&!readError)committedSave=save;
     retainedRom=nextRom;
     if(latestFrame){recycle('recycle-frame',latestFrame.buffer);latestFrame=null;}
     presentedFrame=0;presenter.clear();
-    try{await saveChain;const saved=currentSave||await loadSave();if(saved){await request('set-sram',{buffer:saved},[saved]);saveMessage('Loaded cartridge save');}}
-    catch(error){saveMessage(`Could not load saved progress: ${error.message}`,true);}
+    if(readError)saveMessage(`Could not read saved progress. ${readError.message} Use DKM → Export Save to keep a local copy.`,true);
+    else if(!pendingSave)saveMessage(committedSave?'Loaded cartridge save':'');
     lastInput=-1;sendInput();
+    if(rememberSelection)await rememberSelectionLocally(retainedRom);
     status('ROM verified. Choose DKM → Start Game to play.');return state;
   }catch(error){try{updateState(await request('get-state'));}catch{}status(error.message,true);throw error;}
   finally{loading=false;updateState(state);}
@@ -281,7 +309,60 @@ window.addEventListener('blur',()=>{cancelResume();physicalCodes.clear();release
 window.addEventListener('gamepadconnected',resetStartShortcuts);
 window.addEventListener('gamepaddisconnected',()=>{cancelResume();gamepadBits=0;sendInput();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.loaded)pause('hidden').catch(console.error);});
-$('#rom-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{await loadRom(await file.arrayBuffer());}catch(error){console.error(error);}finally{event.target.value='';}});
+const rememberBox = $('#remember-rom');
+const romNotice = $('#rom-storage-status');
+let rememberEnabled = true;
+let rememberFailure = '';
+
+function showRomPreference(enabled, message) {
+  rememberEnabled = enabled;
+  rememberBox.checked = enabled;
+  romNotice.textContent = message;
+}
+
+async function rememberSelectionLocally(image) {
+  rememberFailure = '';
+  rememberBox.disabled = true;
+  try {
+    const enabled = await rememberPickedRom(image);
+    showRomPreference(enabled, enabled ? 'Your ROM is saved in this browser.' : 'Choose a ROM each time you open the player.');
+  } catch (error) {
+    rememberFailure = `The ROM is playable for this session. Local storage failed: ${error.message}`;
+    showRomPreference(rememberEnabled, rememberFailure);
+  } finally {
+    rememberBox.disabled = false;
+  }
+}
+
+rememberBox.addEventListener('change', async () => {
+  const enabled = rememberBox.checked;
+  rememberBox.disabled = true;
+  try {
+    await setRememberRom(enabled, retainedRom);
+    const message = retainedRom ? 'Your ROM is saved in this browser.' : 'The next verified ROM you choose will be saved here.';
+    showRomPreference(enabled, enabled ? message : 'Local ROM removed. Choose a ROM on your next visit.');
+  } catch (error) {
+    showRomPreference(rememberEnabled, `Could not change ROM storage: ${error.message}`);
+  } finally {
+    rememberBox.disabled = false;
+  }
+});
+
+$('#rom-file').addEventListener('change', async event => {
+  const input = event.target;
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    await playerReady;
+    if (file.size !== ROM_SIZE) throw new Error('Expected a headerless 4,194,304-byte DKC USA v1.0 ROM.');
+    await loadRom(await file.arrayBuffer(), {rememberSelection: true});
+    if (rememberFailure) status(rememberFailure, true);
+  } catch (error) {
+    status(error.message, true);
+  } finally {
+    input.value = '';
+  }
+});
 async function toggleFullscreen(){
   if(document.fullscreenElement)await document.exitFullscreen();
   else{
@@ -299,8 +380,13 @@ async function exportSave(){
 $('#export-save').addEventListener('click',()=>exportSave().catch(error=>saveMessage(error.message,true)));
 $('#save-file').addEventListener('change',async event=>{
   const file=event.target.files[0];if(!file)return;
-  try{const buffer=await file.arrayBuffer();if(buffer.byteLength!==2048)throw new Error('Save must be exactly 2,048 bytes.');await pause('import');await request('set-sram',{buffer},[buffer]);saveMessage('Imported cartridge save');status('Save imported. Choose DKM → Reload Game to load its game files.');}
-  catch(error){saveMessage(error.message,true);}finally{event.target.value='';}
+  try{
+    const buffer=await file.arrayBuffer();if(buffer.byteLength!==2048)throw new Error('Save must be exactly 2,048 bytes.');
+    await pause('import');await request('set-sram',{buffer},[buffer]);
+    status('Save imported. Choose DKM → Reload Game to load its game files.');
+    // persist() reports transaction failures with the export recovery command.
+    await saveChain.then(()=>saveMessage('Imported cartridge save'),()=>{});
+  }catch(error){saveMessage(error.message,true);}finally{event.target.value='';}
 });
 
 window.dkcDebug={
@@ -325,9 +411,42 @@ window.dkcDebug={
   flushSaves:()=>saveChain,
   enableSound,
 };
-try{
-  if(!window.isSecureContext)throw new Error('Use localhost or HTTPS for WebGPU and local ROM verification.');
-  if(!navigator.gpu)throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over HTTPS or localhost.');
-  presenter=await createPresenter(canvas);status('Ready · choose your DKC USA v1.0 ROM.');
-}catch(error){status(error.message,true);}
+async function initializePlayer() {
+  let remembered;
+  let storageError;
+  try {
+    remembered = await readRememberedRom();
+    const {enabled, image} = remembered;
+    let message = 'Choose a ROM each time you open the player.';
+    if (enabled) message = image ? 'Your ROM is saved in this browser.' : 'The next verified ROM you choose will be saved here.';
+    showRomPreference(enabled, message);
+  } catch (error) {
+    storageError = `Local ROM storage is unavailable. ${error.message} Use DKM → Load ROM to select your file.`;
+    romNotice.textContent = storageError;
+  }
+  try {
+    if (!window.isSecureContext) throw new Error('Use localhost or HTTPS for WebGPU and local ROM verification.');
+    if (!navigator.gpu) throw new Error('WebGPU is unavailable. Use a WebGPU-enabled browser over HTTPS or localhost.');
+    presenter = await createPresenter(canvas);
+    if (storageError) {
+      status(storageError, true);
+    } else if (remembered.enabled && remembered.image !== undefined) {
+      try {
+        await loadRom(remembered.image);
+        status('Ready · remembered ROM loaded. Choose DKM → Start Game to play.');
+      } catch (error) {
+        const message = `Could not open the remembered ROM. ${error.message} Choose DKM → Load ROM to try again.`;
+        romNotice.textContent = message;
+        status(message, true);
+      }
+    } else {
+      status('Ready · choose your DKC USA v1.0 ROM.');
+    }
+  } catch (error) {
+    status(error.message, true);
+  } finally {
+    rememberBox.disabled = false;
+  }
+}
+const playerReady = initializePlayer();
 requestAnimationFrame(animate);

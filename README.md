@@ -24,8 +24,8 @@ uses its separate pinned source checkout under ignored `.local/upstream/`.
 With the local build ready, double-click **Play.command** in the project root
 or run `./Play.command` in Terminal. It opens Chrome at `http://localhost:8000/`,
 the same address as the original Mac launcher for access to saved games and input
-profiles. Choose **DKM → Load ROM**, select your USA v1.0 ROM, then choose
-**DKM → Start Game**. Keep Terminal open while playing. Press **Control-C** there
+profiles. The first time, choose **DKM → Load ROM** and select your USA v1.0
+ROM. On subsequent visits it opens automatically. Choose **DKM → Start Game**. Keep Terminal open while playing. Press **Control-C** there
 to stop the server.
 
 ## Local build
@@ -42,7 +42,7 @@ python3 scripts/build_wasm.py
 python3 scripts/serve.py
 ```
 
-Open [the local player](http://127.0.0.1:8000/) in Chrome. Choose **DKM → Load ROM**
+Open [the local player](http://localhost:8000/) in Chrome. Choose **DKM → Load ROM**
 (or **Menu → Load ROM**), select the same ROM, then use **DKM → Start Game**
 or press **Space** with the game focused. Use **Config → Sound** to enable audio.
 The ROM is read locally
@@ -97,10 +97,9 @@ compact **Menu** in the same navigation element. The only content outside
 navigation is the game screen; there are no headers, toolbars, status strips,
 or empty-state controls. A static monochrome DK coin precedes the ZSNES-inspired
 **DKM**, **Config**, **Cheat**, **NetPlay**, and **Misc** groups. **Config** hosts
-Input, Devices, Options, Video, Sound, Saves, and Speed. The separate Input,
+Input, Devices, Options, Video, Sound, Paths, Saves, and Speed. The separate Input,
 Devices, and Options menu items select three tabs in one shared settings page.
-Paths, Cheat, and NetPlay
-are visibly disabled until implemented. Opening Config pauses the game.
+Paths controls local ROM storage. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
 **Misc → Help** opens keyboard controls separately from Config. Menus also support keyboard navigation,
 with **⌘O** for Load ROM and **⌘,** for Config on Mac.
 The interface follows [the design brief](docs/UI_DESIGN.md) with automatic
@@ -111,8 +110,13 @@ About and Help load from editable [web/About.md](web/About.md) and
 Help content disables its menu commands. About credits and links to the
 original repositories and this private browser repository.
 
-Normal cartridge SRAM is stored in IndexedDB. Save in-game at Candy's, then
-use **DKM → Export Save** to keep a copy. **Load Save** accepts a 2,048-byte SRAM
+The browser remembers a verified ROM locally by default. Turning off
+**Config → Paths → Remember ROM on this device** removes that copy and keeps
+your cartridge saves. If local ROM storage is unavailable, use the file picker.
+
+Jump into the barrel at Candy’s Save Point to save. To continue after closing Chrome,
+open the same address in the same profile, choose **DKM → Start Game** and select
+that file in the game. Use **DKM → Export Save** to keep a backup. **Load Save** accepts a 2,048-byte SRAM
 file; choose **Reload Game** to let the game read the imported files. Storage is tied
 to the browser profile and the exact local origin, including port number.
 
@@ -196,6 +200,7 @@ python3 scripts/check_runtime.py
 The browser runner uses an isolated Chrome profile and temporary local port,
 captures evidence under `build/browser-check/`, verifies SRAM persistence and
 the audio pipeline, and restores its test SRAM before closing. The input
-fixture contains only controller masks and frame counts. A full playthrough,
-agent-operated physical controller test, long audio session, and a detailed
-Candy save/load playtest remain outside the recorded automated coverage.
+fixture contains only controller masks and frame counts. A separate Chrome test
+saves at Candy’s, quits Chrome, reopens the remembered ROM and selects the
+updated game file. [Candy verification and reproduction](docs/VALIDATION.md#phase-2-cartridge-storage-and-candys-save-point).
+Full-game, long-session audio and physical-controller coverage remain open.

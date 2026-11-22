@@ -650,11 +650,75 @@ test duration, and individual case results were not supplied. The report does
 not establish a specific platform support matrix, full-game playthrough,
 long-duration run, or agent-operated mobile hardware test.
 
+## Phase 2 cartridge storage and Candy’s Save Point
+
+The fixture starts from a read-only copy of the local 2,048-byte cartridge
+save, with slot 1 at 00:12 / 09%. The stock v0.0.17 native reference starts
+at frame zero on each leg. The controller inputs select the slot, visit
+Coral Capers, return to Candy’s Save Point and jump into the barrel. The game
+writes the new slot during the following neutral inputs. The native cold boot
+uses those new SRAM bytes and selects the slot through the game’s file screen.
+
+| Checkpoint | Frame | Visible result |
+| --- | ---: | --- |
+| Initial file selection | 5,526 | Slot 1, 00:12 / 09% |
+| Initial world map | 7,332 | Candy’s Save Point |
+| Coral Capers | 12,665 | Level entered |
+| Return to Candy | 15,350 | World map, original SRAM |
+| Candy’s Game Save | 15,828 | Slot 1, 00:14 / 09% |
+| File selection after restarting | 5,526 | Slot 1, 00:14 / 09% |
+| Loaded game after restarting | 7,332 | Candy’s Save Point, map entrance 0x00FA |
+
+Three independent native runs of each leg matched all seven memory, video and audio
+fingerprints. The new SRAM first appears at frame 15,699.
+
+Chrome 158.0.8127.36 on Apple Metal 3 reproduced all seven visual checkpoints
+using controller input replay. Between the two legs it exited cleanly and
+launched with a different process ID, the same profile and the same URL.
+The second process opened zero file pickers, restored the saved SRAM before
+frame one, and matched all seven native memory, graphics and cumulative audio
+fingerprints on a replay of the continued slot. Both sessions requested only
+the application’s files over HTTP GET. The ROM and starter came through the
+local pickers. Three independent runs of the final browser harness passed.
+Their reports and screenshots are in these subdirectories of `build/browser-check/`.
+
+- `2026-11-22T10-36-38-669Z-27916/`
+- `2026-11-22T10-36-52-765Z-27964/`
+- `2026-11-22T10-36-52-766Z-27965/`
+
+The starter SHA-256 is
+`1e5bd0511a7dceb6e0ab6bc38a4618accdc381cc4312c9892d06ea59aaf2c497`.
+The saved cartridge SHA-256 is
+`2d61079badca173c26d21e81b32ac72c5cb800bcd4c49985e67cda2de87d7a7b`.
+The route uses the existing local save to reach Candy. It uses ordinary
+controller masks from there, with no memory edits, loaded snapshots, or writes
+to the source ROM or save.
+
+To repeat with the same private starter, choose a fresh output directory under
+`build/` and run the following from the project root. Generated evidence stays
+under the ignored build tree.
+
+```sh
+rom='Donkey Kong Country (U) (V1.0) [!].smc'
+out="build/candy-$(date +%Y%m%d-%H%M%S)"
+python3 scripts/candy_reference.py --rom "$rom" --starter-sram 'web/Donkey Kong Country.srm' --out "$out"
+.local/tools/node-v22.16.0-darwin-arm64/bin/node scripts/browser_check.mjs --rom "$rom" --candy-reference "$out/oracle.json"
+.local/tools/node-v22.16.0-darwin-arm64/bin/node scripts/ui_check.mjs --rom "$rom" --rom-storage
+```
+
+The separate ROM settings test exercises desktop and compact Paths, picker
+cancellation, opt-out across visits, removal with SRAM preserved, wrong-digest
+replacements, corrupt cached bytes and a denied ROM database.
+A Chrome fault-injection run also exercised SRAM read/write denial, a damaged
+legacy save, conflicting tabs, live export, and failed Wasm initialization.
+Reports are under `build/rom-storage-check/2026-11-22T10-34-30-493Z-27295/`
+and `build/browser-check/2026-11-22T10-33-24-985Z-27166/`.
+
 ## Limits
 
 No full playthrough, completed-level gate, agent-operated physical controller
-test, long-duration timing/audio run, detailed Candy save/load playtest,
-device-specific support matrix, or induced game-watchdog failure test is
+test, long-duration timing/audio run, device-specific support matrix,
+or induced game-watchdog failure test is
 recorded. The user reported Safari/Chrome functional acceptance before the
 interface overhaul; browser
 versions were not supplied. Agent controller checks use injected inputs.

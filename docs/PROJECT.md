@@ -36,10 +36,11 @@ The user added GitHub Pages hosting for Android/iOS testing to version 1.
   DK coin, DKM (Load ROM; separator; Start Game, Reload Game; separator;
   Load Save, Export Save), Config (Input,
   Devices, Options, Video, Sound, Paths, Saves, Speed), Cheat, NetPlay, and
-  Misc (Help, About). Config/Input retains controller profiles. Paths, Cheat,
-  and NetPlay are not implemented and remain visible but disabled, as confirmed
-  by the user. Input, Devices, and Options are separate Config menu commands
-  that select three tabs within one shared Input settings page.
+  Misc (Help, About). Config/Input retains controller profiles. Config → Paths
+  controls the remembered ROM on this device. Cheat and NetPlay remain
+  visible but disabled, as confirmed by the user. Input, Devices, and Options
+  are separate Config menu commands that select three tabs within one shared
+  Input settings page.
 - The primary DKM command reads Start Game before first launch, Pause Game
   while running, and Resume Game after pausing. It toggles host playback and
   is disabled while unloaded, loading, transitioning, or after fatal errors.
@@ -261,7 +262,7 @@ of SNES pixels are not implemented.
   and corresponding compact-menu sections. Reload Game uses the selected ROM
   in memory, starts a fresh paused Wasm instance, and preserves SRAM and
   controller profiles. Config exposes the existing Input, Devices, Options,
-  Video, Sound, Saves, and Speed capabilities. Paths, Cheat, and NetPlay remain
+  Video, Sound, Saves, and Speed capabilities. In v1, Paths, Cheat, and NetPlay remained
   visibly disabled. No upstream enhancement or multiplayer port is implied.
 - The confirmed Input/Devices/Options grouping now uses three horizontal tabs
   in one Input settings page. Separate Config commands select the matching
@@ -356,7 +357,27 @@ For manual Mac testing, the root [Play.command](../Play.command) launches the
 built player through the project's loopback server. It opens Chrome at the
 original Mac launcher's `http://localhost:8000/` origin. A Chrome run against
 that launcher URL matched the release-native 600-frame boot on all seven
-fingerprints and passed the audio, SRAM and pause/resume checks.
+fingerprints and passed the audio, SRAM and pause/resume checks. The user
+also reported that the Phase 2 local launcher test passed.
+
+## Phase 2 remembered ROM and cartridge saves
+
+DKM → Load ROM keeps the verified bytes in this origin’s IndexedDB by default.
+On the next visit the player verifies them again and restores the existing
+2,048-byte cartridge save before the first game frame. The game opens at Ready to Start.
+Turning off Config → Paths → Remember ROM on this device removes the local ROM
+and keeps SRAM and profiles. The picker also works when ROM storage is denied.
+
+The save database retains its v1 key and format. The worker detects changes
+after each successful frame. The host waits for existing writes before replacing
+the cartridge and offers Export Save if a write fails. Normal writes check the
+previously committed bytes so a stale tab cannot silently overwrite newer progress.
+
+On Mac Chrome, slot 1 advanced from 00:12 / 09% to 00:14 / 09% at Candy’s
+barrel. After a full Chrome quit, a fresh process reopened the ROM, showed
+the updated slot in game and loaded Candy’s map. The 2,048 restored bytes and
+the continued game’s video, memory and cumulative audio matched native.
+[Route and reproduction](VALIDATION.md#phase-2-cartridge-storage-and-candys-save-point)
 
 ## Remaining validation
 
@@ -368,8 +389,8 @@ fingerprints and passed the audio, SRAM and pause/resume checks.
   See [CONTROLLERS.md](CONTROLLERS.md).
 - Long-session sound/timing behavior. Visible keyboard, sound on/off, and
   pause/resume were accepted by the user in Safari and Chrome.
-- Candy's normal in-game save/load path has no detailed recorded playtest.
-  SRAM transport and browser reload persistence are verified automatically.
+- The Candy save and cold-reopen route is verified on desktop Chrome.
+  Phase 2 mobile storage and recovery still need device testing.
 - Other browsers/OSes beyond the user's Safari/Chrome checks, lower-performance
   devices, and background recovery.
 - Extended routes and an induced game-watchdog failure remain open beyond the
@@ -380,7 +401,7 @@ fingerprints and passed the audio, SRAM and pause/resume checks.
 The private source tag [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0)
 marks the user-accepted browser/Pages baseline at `543fbe1`.
 
-The verified stock v0.0.17 build is the Phase 2 comparison baseline. The
-next planned milestone is ROM and cartridge-save handling, including a
-normal Candy save, close, reopen and load. The [release parity plan](RELEASE_PARITY.md)
-tracks the remaining player features and the Mac HD preview.
+The stock v0.0.17 baseline and its ROM/cartridge-save milestone are verified
+on desktop Chrome. The next planned player milestone covers two-player input,
+controller navigation and sound settings. [Remaining features and acceptance
+checks](RELEASE_PARITY.md#player-features-and-acceptance)

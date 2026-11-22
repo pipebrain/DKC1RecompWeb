@@ -35,8 +35,8 @@ source beside the menu command. The keyboard profile can be edited with Set
 key/Clear and saved, discarded, or restored to defaults. Selecting Gamepad
 activates the existing controller editor and its separate stored profiles.
 Other settings pages do not display this tab strip. The user confirmed that
-unavailable features should remain visible but disabled. Paths is
-disabled because native-style path configuration is not implemented. Config
+unavailable features should remain visible but disabled. Config → Paths has a single checkbox for remembering the verified ROM on this device.
+Turning it off removes the local ROM copy and preserves SRAM. Config
 panes describe current capabilities: Video is stock 4:3/nearest plus
 fullscreen; Sound enables original stereo audio; Speed is normal 1x with
 playback control. Upstream enhancement ports are a separate task.

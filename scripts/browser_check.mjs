@@ -9,6 +9,7 @@ import {createServer} from 'node:net';
 import {dirname,resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
+import {verifyCandyRestart} from './browser_candy_check.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const NATIVE_FRAMES={
@@ -29,10 +30,15 @@ for(let i=2;i<process.argv.length;i++){
     if(!path||path.startsWith('--'))throw new Error('--native-reference requires a native comparison.json path.');
     options.nativeReference=resolve(path);
   }
+  else if(arg==='--candy-reference'){
+    const path=process.argv[++i];
+    if(!path||path.startsWith('--'))throw new Error('--candy-reference requires the local native Candy oracle.json.');
+    options.candyReference=resolve(path);
+  }
   else if(arg==='--frames')options.frames=Number(process.argv[++i]);
   else if(arg==='--url'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--url requires a site directory URL.');options.url=normalizeBaseUrl(value);}
   else if(arg==='--manifest'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--manifest requires a local Pages manifest path.');options.manifest=resolve(value);}
-  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256] [--native-reference comparison.json]\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
+  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256] [--native-reference comparison.json]\nnode scripts/browser_check.mjs --rom /absolute/game.smc --candy-reference build/candy-route/oracle.json\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
   else throw new Error(`Unknown argument: ${arg}`);
 }
 if(!options.smoke&&!options.rom)throw new Error('--rom is required unless --smoke is selected.');
@@ -40,6 +46,7 @@ if(!Number.isInteger(options.frames)||options.frames<0||options.frames>100000)th
 if(options.expectedFrame!==null&&!/^[0-9a-f]{64}$/.test(options.expectedFrame))throw new Error('--expected-frame must contain exactly 64 hexadecimal characters.');
 if(options.smoke&&(options.input||options.expectedFrame))throw new Error('--input and --expected-frame require a game check, not --smoke.');
 if(options.nativeReference&&(options.smoke||options.frames===0))throw new Error('--native-reference requires a game check of at least one frame.');
+if(options.candyReference&&(options.smoke||options.url||options.nativeReference||options.input||options.expectedFrame))throw new Error('--candy-reference is a standalone local game check.');
 if(options.manifest&&!options.url)throw new Error('--manifest requires --url.');
 if(options.rom)await stat(options.rom);
 let inputRuns=null,inputSummary=null;
@@ -185,7 +192,7 @@ async function evaluate(expression,timeout=120000){
 }
 async function waitReady(){
   await poll(()=>evaluate(`Boolean(window.dkcDebug && document.querySelector('#status'))`),'browser host script');
-  await poll(()=>evaluate(`document.querySelector('#status').textContent!=='Checking WebGPU…'`),'WebGPU initialization',30000);
+  await poll(()=>evaluate(`document.querySelector('#status').textContent.startsWith('Ready') || document.querySelector('#status').classList.contains('error')`),'player startup and cartridge restoration',60000);
   const status=await evaluate(`({message:document.querySelector('#status').textContent,error:document.querySelector('#status').classList.contains('error'),debug:window.dkcDebug.status()})`);
   return status;
 }
@@ -193,13 +200,24 @@ async function screenshot(name){
   const result=await client.send('Page.captureScreenshot',{format:'png',fromSurface:true,captureBeyondViewport:false},session);
   await writeFile(join(output,name),Buffer.from(result.data,'base64'));
 }
-async function closeChrome(){
+async function closeChrome(requireGraceful=false){
   if(client){try{await client.send('Browser.close',{},null,5000);}catch{}client.close();client=null;}
-  if(chrome){const child=chrome;chrome=null;if(child.exitCode===null)await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(5000)]);if(child.exitCode===null){child.kill('SIGTERM');await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(2000)]);}}
+  if(chrome){
+    const child=chrome;
+    const live=()=>child.exitCode===null && child.signalCode===null;
+    if(live())await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(5000)]);
+    if(live()){
+      if(requireGraceful)throw new Error('Chrome did not quit after Browser.close.');
+      child.kill('SIGTERM');
+      await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(2000)]);
+    }
+    chrome=null;
+  }
   session=null;
 }
-async function launch(extraFlags,attempt){
-  profile=join(profileRoot,String(attempt));await mkdir(profile,{recursive:true});
+async function launch(extraFlags,attempt,profileDirectory=join(profileRoot,String(attempt))){
+  profile=profileDirectory;await mkdir(profile,{recursive:true});
+  await rm(join(profile,'DevToolsActivePort'),{force:true});
   const flags=['--headless=new','--remote-debugging-port=0',`--user-data-dir=${profile}`,'--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--window-size=1280,1100',...extraFlags,'about:blank'];
   const binary=process.env.CHROME_BIN||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
   chrome=spawn(binary,flags,{cwd:root,stdio:['ignore','pipe','pipe']});logProcess(chrome,`chrome-${attempt}.log`);
@@ -212,6 +230,11 @@ async function launch(extraFlags,attempt){
   const target=await client.send('Target.createTarget',{url:'about:blank'});
   const attached=await client.send('Target.attachToTarget',{targetId:target.targetId,flatten:true});session=attached.sessionId;
   await client.send('Runtime.enable',{},session);await client.send('Page.enable',{},session);
+  if(options.candyReference){
+    attemptReport.fileChoosers=[];
+    client.on('Page.fileChooserOpened',(data,id)=>{if(id===session)attemptReport.fileChoosers.push(data.mode);});
+    await client.send('Page.setInterceptFileChooserDialog',{enabled:true},session);
+  }
   await client.send('Network.enable',{},session);
   await client.send('Page.setLifecycleEventsEnabled',{enabled:true},session);
   client.on('Network.requestWillBeSent',(data,id)=>{if(id===session)attemptReport.network.push({event:'request',id:data.requestId,url:data.request.url,type:data.type,method:data.request.method,hasPostData:Boolean(data.request.hasPostData)});});
@@ -231,19 +254,47 @@ async function launch(extraFlags,attempt){
   try{attemptReport.systemGpu=(await client.send('SystemInfo.getInfo')).gpu;}catch(error){attemptReport.systemGpuError=error.message;}
   return ready;
 }
+async function dkmCommand(command){
+  await evaluate(`(()=>{
+    const trigger=document.querySelector('[aria-controls="menu-dkm"]');
+    if(!trigger || !trigger.getClientRects().length)throw new Error('DKM menu unavailable.');
+    if(trigger.getAttribute('aria-expanded')!=='true')trigger.click();
+    const button=document.querySelector('#menu-dkm [data-command='+CSS.escape(${JSON.stringify(command)})+']');
+    if(!button || button.disabled || !button.getClientRects().length)throw new Error('Unavailable DKM command.');
+    button.click();
+  })()`);
+}
+async function chooseDkmFile(command,file,inputId){
+  const opened=client.event('Page.fileChooserOpened',session);
+  await dkmCommand(command);
+  const {backendNodeId}=await opened;
+  const {node}=await client.send('DOM.describeNode',{backendNodeId},session);
+  assert(node.attributes.some((value,index)=>value==='id'&&node.attributes[index+1]===inputId),`Unexpected ${command} file picker.`);
+  await client.send('DOM.setFileInputFiles',{backendNodeId,files:[file]},session);
+}
 async function selectRom(){
   const {root:document}=await client.send('DOM.getDocument',{},session);
   const {nodeId}=await client.send('DOM.querySelector',{nodeId:document.nodeId,selector:'#rom-file'},session);
   assert(nodeId,'ROM picker is missing.');
   await client.send('DOM.setFileInputFiles',{files:[options.rom],nodeId},session);
   await poll(async()=>{
-    const value=await evaluate(`({debug:window.dkcDebug.status(),message:document.querySelector('#status').textContent,error:document.querySelector('#status').classList.contains('error')})`);
+    const value=await evaluate(`({debug:window.dkcDebug.status(),pickerDone:!document.querySelector('#rom-file').files.length,message:document.querySelector('#status').textContent,error:document.querySelector('#status').classList.contains('error')})`);
     if(value.error&&!value.debug.loading){const error=new Error(value.message);error.fatal=true;throw error;}
-    return value.debug.loaded&&!value.debug.loading?value:false;
+    return value.pickerDone&&value.debug.loaded&&!value.debug.loading?value:false;
   },'verified ROM and standalone Wasm initialization',180000);
   const state=await evaluate('window.dkcDebug.status()');assert.equal(state.running,false,'ROM should initialize paused.');return state;
 }
-async function reloadAndSelect(){const loaded=client.event('Page.loadEventFired',session);await client.send('Page.reload',{ignoreCache:true},session);await loaded;await poll(()=>evaluate(`document.readyState==='complete' && Boolean(window.dkcDebug)`),'page reload',30000);const ready=await waitReady();assert(!ready.error,ready.message);return selectRom();}
+async function reopenCartridge(){
+  const loaded=client.event('Page.loadEventFired',session);
+  await client.send('Page.reload',{ignoreCache:true},session);
+  await loaded;
+  const ready=await waitReady();
+  assert(!ready.error,ready.message);
+  // Older hosted builds still require the picker on each visit.
+  if(!ready.debug.loaded)return selectRom();
+  assert(!ready.debug.loading&&!ready.debug.running&&ready.debug.frameCount===0);
+  return ready.debug;
+}
 function bytesEqual(actual,expected,message){assert.deepEqual(actual,expected,message);}
 async function checkUnavailableFullscreen(){
   report.fullscreenCapabilityFixture=await evaluate(`(async()=>{
@@ -298,7 +349,21 @@ try{
   report.checks.push('Handwritten host loads and obtains a WebGPU adapter.');
   if(options.url)await checkUnavailableFullscreen();
   await screenshot('ready.png');
-  if(!options.smoke){
+  if(options.candyReference){
+    report.mode='candy-restart';
+    delete report.framesRequested;
+    const flags=report.unsafeWebgpuFlagRequired?['--enable-unsafe-webgpu']:[];
+    await verifyCandyRestart({referencePath:options.candyReference,rom:options.rom,root,report,evaluate,poll,screenshot,
+      chooseDkmFile,dkmCommand,async restart(){
+        const previousChrome=chrome,previousProfile=profile,previousOrigin=origin;
+        await closeChrome(true);
+        assert.equal(previousChrome.exitCode,0,'The first Chrome process must exit cleanly.');
+        await launch(flags,'reopen',previousProfile);
+        assert.notEqual(chrome.pid,previousChrome.pid,'Chrome restart must use a new process.');
+        assert.equal(await evaluate('location.href'),previousOrigin,'Chrome must reopen the same URL.');
+        return {firstPid:previousChrome.pid,secondPid:chrome.pid,firstExitCode:previousChrome.exitCode,sameProfile:profile===previousProfile,sameOrigin:true};
+      }});
+  }else if(!options.smoke){
     report.initial=await selectRom();report.imports=report.initial.imports;
     assert.equal(report.initial.loaded,true);assert.equal(report.initial.running,false);
     report.checks.push('ROM picker verifies supported local ROM and initializes standalone Wasm paused.');
@@ -338,9 +403,9 @@ try{
     const sentinel=[...originalSave];sentinel[2047]^=0x5a;
     await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(sentinel)});await window.dkcDebug.flushSaves();})()`);
     bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel,'SRAM import/export round trip failed.');
-    await reloadAndSelect();bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel,'IndexedDB SRAM did not survive page reload.');
+    await reopenCartridge();bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),sentinel,'IndexedDB SRAM did not survive page reload.');
     await evaluate(`(async()=>{await window.dkcDebug.importSave(${JSON.stringify(originalSave)});await window.dkcDebug.flushSaves();})()`);
-    await reloadAndSelect();bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),originalSave,'Original SRAM was not restored persistently.');
+    await reopenCartridge();bytesEqual(await evaluate('window.dkcDebug.saveBytes()'),originalSave,'Original SRAM was not restored persistently.');
     report.saveRestored=true;originalSave=null;report.checks.push('2,048-byte SRAM import/export and IndexedDB page-reload persistence; original bytes restored.');
     const before=await evaluate('window.dkcDebug.refresh()');
     await evaluate('window.dkcDebug.enableSound(true)');
