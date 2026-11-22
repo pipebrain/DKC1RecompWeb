@@ -79,6 +79,25 @@ not mean legacy; `358x224` always does.)
 
 ## Typical workflows
 
+**Private Magnific sprite experiment:** use `extract_jungle_sprite_inventory.py`
+for checksum-locked Jungle family extraction and `magnific_precision_experiment.py`
+for exact plate preparation/assembly. See `TOOLS.md` and
+`docs/MAGNIFIC_PRECISION_V2_EXPERIMENT.md`. Provider submission is a separate MCP
+step; source-family coverage does not prove all live composite materials.
+`magnific_scene_materials.py` covers captured background context aliases;
+`magnific_banana_hud.py` builds every normal banana count from verified primitives.
+For resident level packs, `build_hd_preload_manifest.py PACK` validates/indexes
+all private rasters; `DKC1_HD_SCENE_PRELOAD=1` loads them on the first prepare,
+including fade and ineligible scenes, and prevents gameplay texture reads.
+`build_hd_object_silhouettes.py` indexes exact object masks and authored native
+colors so night/CGRAM-shifted live captures reuse registered art. See the
+preload and trace contracts in `TOOLS.md`.
+For the connected Nano scenery experiment, use `audit_hd_jungle_map.py`,
+`build_hd_connected_pack.py`, and `build_hd_stream_boundaries.py`; the last tool
+accepts only byte-identical source subregions. Use `hd_sprite_matte.py` on a new
+private pack to remove generation-matte fringes without keying out gray paint.
+See `docs/HD_NANO_POLISH_REVIEW.md` for bounded coverage and visual acceptance.
+
 **Widescreen bug of ANY kind:** start at
 **`docs/WIDESCREEN_PLAYBOOK.md`** — the symptom-first decision guide:
 five entry points, the eight-rung localization ladder (pixel →
@@ -125,3 +144,20 @@ pixel proportions. Read `docs/IOS.md` for the limited validated scene scope.
 The same default-off diagnostic build supports `--verify-graphics`, reusing
 the native Metal output/cache oracle, plus paused upscale-preview captures.
 See `TOOLS.md` for source-frame inputs, output hashes and UI probe limits.
+For the default-off Mac HD GPU compositor, use `verify_hd_scene.py --preload
+--metal` with the indexed private pack. This performs CPU/GPU pixel comparison
+on every eligible frame; disable validation for timing. `test_hd_metal.py` covers
+immutable packets and GPU pool lifetime. Metal options and trace fields are
+listed in TOOLS.md under Local HD scene experiment.
+
+For HD scenery popping during scrolling, preserve the tester state and use
+`verify_hd_scene.py --cases replay --state STATE --input-play INPUTS --frames N
+--coverage` plus the earlier clean-entry route. Compare source-stable scenery
+in motion; zero missing-material counts alone do not prove stable art identity.
+See `docs/HD_NANO_POPIN_REVIEW.md` for the connected-subtile fallback case.
+
+For the private Jungle Bonus 1 HD cave, use the exact tester state plus the
+controller-only outdoor/Rambi/bonus/exit route in `docs/HD_NANO_BONUS_REVIEW.md`.
+`connected-cave.bin` is a separate source-verified world; check color-window
+semantics and OBJ palette math before widening any HD scene capability.
+`build_hd_object_composites.py` fills only fully source-covered OBJ combinations.
