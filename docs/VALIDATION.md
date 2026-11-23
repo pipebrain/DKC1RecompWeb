@@ -16,7 +16,16 @@ when disabled. Test rumble requested 500 ms. Config export, import and
 reopening the hosted page preserved volume, Player 2 routing and Light.
 The local report is
 `build/phase3-pages-live-compact/2026-11-22T21-44-39-538Z-27589/evidence.json`.
-Physical Android and iOS results for this candidate are pending.
+On Android 16 (CPH2647, build `UKQ1.3231108.001`), the user reported
+that Chrome `158.0.8127.42` displayed “The browser exposes no rumble output
+for this controller.” The user confirmed sound, resume after switching apps,
+and save states passed. Controller mode remains unrecorded.
+
+On iOS, the user confirmed sound, resume after switching apps, and save
+states passed in Safari and Chrome. Safari exhibited audio drift that
+persisted after loading a save state and after Reload Game. The user did
+not observe drift in Chrome. Neither browser produced controller rumble
+in this test. Safari drift is a known issue for v1.1.0.
 
 ## Phase 3 clean v1.1.0 candidate
 

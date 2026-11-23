@@ -28,7 +28,12 @@ previous previews. [Preview release](https://github.com/pipebrain/DKC1RecompWeb-
 | Pages manifest | `9b8fcdefc6231b4f3b5d8f5dc422b98247599b1e1665615378ccb8c7f2710a30` |
 | Stock Wasm | `3b15c52350846a2ebac4137113f3d3cad2d53cdeaa9496fdeb758a9e1b415f6d` |
 
-Physical Android and iOS testing of this preview is pending. The previous
+Sound, resume after switching apps, and save states passed in Android
+Chrome, iOS Safari, and iOS Chrome. Controller rumble was unavailable in
+these mobile tests. iOS Safari showed persistent audio drift after save-state
+load and game reload. [Device results](VALIDATION.md#clean-v110-live-pages-preview)
+
+The previous
 43-file archive remains available for rollback with SHA-256
 `1a3d6518c669539d5dc52bcdf98a685f246e43385c15d6e44ac49c264446ae4a`.
 [Phase 2 release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-phase2-1a3d6518c669)

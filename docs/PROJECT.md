@@ -470,8 +470,12 @@ new Standard pulse (140 ms, 80% strong and 100% weak) produced vibration
 the user could feel. Config → Devices retains the original pulse as Light.
 The [public mobile preview](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
 now serves the clean build from private commit `d6adeae`, including the
-rumble fix. The next check is physical Android and iOS gameplay, controller
-reconnection, and stomp rumble on devices that expose it. [Deployment](PAGES.md)
+rumble fix. Sound, resume after switching apps, and save states passed on
+Android Chrome, iOS Safari, and iOS Chrome. Mobile rumble was unavailable
+in these tests. The user approved tagging v1.1.0 with a known Safari issue
+on iOS: audio drift persisted after loading a save state or reloading the
+game. iOS Chrome showed no drift during testing.
+[Device results](VALIDATION.md#clean-v110-live-pages-preview)
 [Clean candidate verification](VALIDATION.md#phase-3-clean-v110-candidate)
 
 ### Phase 4 · independent WebGPU renderer
