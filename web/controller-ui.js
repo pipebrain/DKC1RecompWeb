@@ -9,7 +9,6 @@ const STOMP_EFFECTS={
   standard:{duration:140,startDelay:0,strongMagnitude:0.8,weakMagnitude:1},
   light:{duration:55,startDelay:0,strongMagnitude:0x2800/65535,weakMagnitude:0x5000/65535},
 };
-const TEST_EFFECT={duration:500,startDelay:0,strongMagnitude:1,weakMagnitude:1};
 
 function rumbleOutputs(pad){
   const motors=[pad?.vibrationActuator,...(pad?.hapticActuators||[])];
@@ -35,7 +34,7 @@ async function playRumble({dual,legacy},effect){
   return 'not-supported';
 }
 
-export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>'keyboard'}={}) {
+export function initControllerUI({getMode=()=>'keyboard',onNotice=()=>{},bindingDialog}={}) {
   const panel=$('controller-panel'),message=$('controller-message'),deviceSelect=$('controller-device'),profileSelect=$('controller-profile');
   let settings=defaultControllerSettings(),storedVersion=null,storageAvailable=true,pads=[],selectedKey=null,player=0;
   const deviceSlots=new Map();
@@ -63,7 +62,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
   }catch(error){storageAvailable=false;tell(`Controller settings could not be loaded: ${error.message}`,true);}
   function selectedPad(){return pads.find(p=>deviceKey(p)===selectedKey)||null;}
   function findProfile(id){return id===DEFAULT_PROFILE.id?DEFAULT_PROFILE:settings.profiles.find(p=>p.id===id);}
-  function cancelCapture(){capture=null;assistCapture=null;$('controller-capture-cancel').hidden=true;}
+  function cancelCapture(){if(capture)bindingDialog.dismiss();capture=null;assistCapture=null;}
   function chooseProfile(id){
     cancelCapture();const found=findProfile(id)||DEFAULT_PROFILE;profile=clone(found);committedId=found.id;dirty=false;renderEditor();
   }
@@ -78,7 +77,6 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     refreshProfiles();$('controller-capture-mode').value=settings.captureMode;
     $('player-deadzone').value=route().deadzone??'';
     $('controller-rumble').checked=settings.rumble;
-    $('stomp-strength').value=settings.stompStrength;
     const builtin=profile.id===DEFAULT_PROFILE.id;
     $('controller-name').value=profile.name;$('controller-name').disabled=builtin;
     $('controller-deadzone').value=profile.deadzone;$('controller-deadzone').disabled=builtin;
@@ -151,15 +149,6 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     }
     deviceSelect.value=selected.lastDevice||'';
   }
-  function paintLive(){
-    const pad=selectedPad();
-    $('controller-device-info').textContent=pad?`${pad.id} · ${pad.mapping==='standard'?'Browser standard mapping':'Raw / non-standard mapping'} · ${pad.buttons.length} buttons · ${pad.axes.length} axes`:'Connect a controller and press a button so the browser can expose it.';
-    $('controller-live-buttons').textContent=pad?Array.from(pad.buttons,(button,index)=>{const value=typeof button==='number'?button:button.value;return `B${index}: ${Number(value||0).toFixed(2)}${button.pressed?' ●':''}`;}).join('  '):'—';
-    $('controller-live-axes').textContent=pad?Array.from(pad.axes,(value,index)=>`Axis ${index}: ${Number(value).toFixed(3)}`).join('  '):'—';
-    $('controller-mapped').textContent=ACTIONS.filter(a=>previewBits&a.bit).map(a=>a.label).join(', ')||'None';
-    const summary=$('controller-summary');
-    summary.textContent=pad?pad.mapping!=='standard'&&profile.id===DEFAULT_PROFILE.id?'Raw controller detected · use Input to bind a profile':`${profile.name} · ${pad.id}`:'Controller: connect and press a button';
-  }
   function poll(values){
     registerPads(values);
     const preferred=playerPad(player),next=preferred?deviceKey(preferred):route().lastDevice;
@@ -184,7 +173,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     }
     if(capture){
       if(!pad){cancelCapture();tell('Controller disconnected. Reconnect it before listening.',true);}
-      else if(performance.now()>capture.until){cancelCapture();tell('No input captured. Release the controls, then try Listen again.');}
+      else if(performance.now()>capture.until){cancelCapture();tell('No input captured. Release the controls, then try again.');}
       else{
         try{
           // Compare against the rest snapshot, so gradual stick movement is captured.
@@ -201,32 +190,21 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     }
     previewBits=pad?evaluateProfile(profile,pad,route().deadzone===null?profile.deadzone:route().deadzone/100):0;
     outputBits=panel.hidden&&!dirty&&!capture?previewBits:0;
-    const now=performance.now();if(now-lastPaint>100){lastPaint=now;updateRumble();refreshDevices();paintLive();}
+    if(!panel.hidden&&performance.now()-lastPaint>100){lastPaint=performance.now();refreshDevices();}
     return outputBits;
   }
-  async function open({notify=true,focus=true}={}){
+  function open(){
     if(!panel.hidden)return true;
-    // Set visibility before notifying the host so opening its Settings sheet
-    // can activate this pane without recursively opening the controller UI.
     panel.hidden=false;
-    if(notify)try{await onOpen();}catch(error){tell(error.message,true);}
-    renderEditor();refreshDevices();paintLive();
-    const pane=panel.closest('[data-settings-pane]');
-    if(pane)pane.scrollTop=0;
-    else if(!panel.closest('dialog'))panel.scrollIntoView({block:'start'});
-    if(focus)deviceSelect.focus({preventScroll:true});
+    renderEditor();refreshDevices();
     return true;
   }
   function canClose(){if(dirtyGuard())return false;cancelCapture();return true;}
-  function close({notify=true}={}){
+  function close(){
     if(!canClose())return false;
-    if(panel.hidden)return true;
-    cancelCapture();panel.hidden=true;
-    // The Settings host restores focus to the menu that opened the sheet.
-    if(notify)try{Promise.resolve(onClose()).catch(error=>tell(error.message,true));}catch(error){tell(error.message,true);}
+    panel.hidden=true;
     return true;
   }
-  $('controller-capture-cancel').addEventListener('click',()=>{cancelCapture();tell('Listening cancelled.');});
   deviceSelect.addEventListener('change',()=>{
     if(dirtyGuard()){deviceSelect.value=route().lastDevice||'';return;}
     const key=deviceSelect.value||null,other=route(1-player);
@@ -260,7 +238,7 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
       const next=clone(settings);next.profiles=[...profiles,validated];
       const selected=route(player,next);selected.lastProfile=validated.id;
       if(selectedKey){Object.defineProperty(selected.assignments,selectedKey,{value:validated.id,enumerable:true,configurable:true,writable:true});}
-      writeSettings(next);settings=next;profile=clone(validated);committedId=profile.id;dirty=false;cancelCapture();renderEditor();tell('Profile saved in this browser. Close Config, then resume.');
+      writeSettings(next);settings=next;profile=clone(validated);committedId=profile.id;dirty=false;cancelCapture();renderEditor();tell('Profile saved in this browser.');onNotice('Profile saved.',profile.name);
     }catch(error){tell(error.message,true);}
   });
   $('controller-discard').addEventListener('click',()=>{chooseProfile(committedId);tell('Unsaved changes discarded.');});
@@ -295,13 +273,14 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     const row=document.createElement('div');row.className='controller-binding-row';
     const label=document.createElement('strong');label.textContent=action.label;row.append(label);
     const bindings=document.createElement('div');bindings.id=`controller-binding-${action.id}`;bindings.className='controller-bindings';row.append(bindings);
-    const listen=document.createElement('button');listen.type='button';listen.textContent='Listen';listen.dataset.controllerListen='';listen.dataset.action=action.id;
+    const listen=document.createElement('button');listen.type='button';listen.textContent='Set';listen.dataset.controllerListen='';listen.dataset.action=action.id;
     listen.setAttribute('aria-label',`Listen for ${action.label}`);
     listen.addEventListener('click',()=>{
       const pad=selectedPad(),mode=$('controller-capture-mode').value;
       if(!pad){tell('Connect a controller and press a button first.',true);return;}
       if(mode==='hat'&&!['up','right','down','left'].includes(action.id)){tell('Hat capture applies to a direction. Use Axis value for other actions.',true);return;}
-      capture={action:action.id,mode,baseline:snapshot(pad),until:performance.now()+12000};$('controller-capture-cancel').hidden=false;tell(`Listening for ${action.label}. Move or press the control you want; release held controls first.`);
+      capture={action:action.id,mode,baseline:snapshot(pad),until:performance.now()+12000};
+      bindingDialog.show(action.label,()=>{cancelCapture();tell('Listening cancelled.');});
     });row.append(listen);
     const clear=document.createElement('button');clear.type='button';clear.textContent='Clear';clear.dataset.controllerClear='';clear.dataset.action=action.id;clear.setAttribute('aria-label',`Clear bindings for ${action.label}`);clear.addEventListener('click',()=>{profile.bindings[action.id]=[];markDirty();});row.append(clear);
     $('controller-bindings').append(row);
@@ -327,62 +306,73 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
   $('controller-capture-mode').addEventListener('change',event=>saveOption(next=>{next.captureMode=event.target.value;}));
   $('player-deadzone').addEventListener('change',event=>saveOption(next=>{route(player,next).deadzone=event.target.value===''?null:Number(event.target.value);}));
   $('controller-rumble').addEventListener('change',event=>{
-    try{const next={...settings,rumble:event.target.checked};writeSettings(next);settings=next;updateRumble();}
-    catch(error){event.target.checked=settings.rumble;$('rumble-status').textContent=error.message;}
-  });
-  $('stomp-strength').addEventListener('change',event=>{
-    try{
-      const next={...settings,stompStrength:event.target.value};
-      writeSettings(next);
-      settings=next;
-    }catch(error){event.target.value=settings.stompStrength;$('rumble-status').textContent=error.message;}
+    try{const next={...settings,rumble:event.target.checked};writeSettings(next);settings=next;rumbleRequest++;updateRumble();onNotice('Setting saved.',settings.rumble?'Rumble on':'Rumble off');}
+    catch(error){event.target.checked=settings.rumble;onNotice('Rumble: '+error.message);}
   });
   function saveOption(change){
     try{const next=clone(settings);change(next);writeSettings(next);settings=next;}
     catch(error){tell(error.message,true);}
     renderEditor();
   }
-  let rumbleTarget='',rumbleRequest=0;
-  function updateRumble(){
-    const port=Number($('rumble-player').value),pad=playerPad(port);
-    const {dual,legacy}=rumbleOutputs(pad);
-    const target=JSON.stringify([port,pad?.index,pad&&deviceKey(pad),Boolean(dual),Boolean(legacy),settings.rumble]);
-    if(target===rumbleTarget)return;
-    rumbleTarget=target;
-    ++rumbleRequest;
-    $('controller-rumble-test').disabled=!settings.rumble||!(dual||legacy);
-    let message;
-    if(!settings.rumble)message='Stomp rumble is off.';
-    else if(!pad)message=`No controller detected for Player ${port+1}. Press a controller button or check Config → Input.`;
-    else message=dual||legacy?'Ready to test rumble.':'The browser exposes no rumble output for this controller.';
-    $('rumble-status').textContent=pad?`${pad.id} · ${message}`:message;
+  let rumbleRequest=0, rumbleDraft=null;
+  const rumbleRows=$('rumble-advanced');
+  const rumbleControls=[...rumbleRows.querySelectorAll('[data-rumble-value]')];
+  const rumbleLabels={duration:'Duration',low:'Low motor',high:'High motor'};
+  function rumbleValues(){
+    const {duration,strongMagnitude,weakMagnitude}=STOMP_EFFECTS[settings.stompStrength];
+    return settings.stompEffect||{duration,low:Math.round(strongMagnitude*100),high:Math.round(weakMagnitude*100)};
   }
-  $('rumble-player').addEventListener('change',updateRumble);
+  function rumbleEffect(){
+    const effect=rumbleDraft||settings.stompEffect;
+    return effect?{duration:effect.duration,startDelay:0,strongMagnitude:effect.low/100,weakMagnitude:effect.high/100}
+      :STOMP_EFFECTS[settings.stompStrength];
+  }
+  function paintRumbleValues(){
+    const values=rumbleValues();
+    for(const control of rumbleControls)control.value=values[control.dataset.rumbleValue];
+  }
+  rumbleRows.addEventListener('input',event=>{
+    const control=event.target,key=control.dataset.rumbleValue;
+    if(!key||!control.value||!control.validity.valid)return;
+    rumbleDraft={...rumbleValues(),[key]:Number(control.value)};
+    for(const peer of rumbleControls)if(peer!==control&&peer.dataset.rumbleValue===key)peer.value=control.value;
+  });
+  rumbleRows.addEventListener('change',event=>{
+    const control=event.target,key=control.dataset.rumbleValue;
+    if(!key)return;
+    try{
+      if(!control.value||!control.validity.valid)throw new Error('Enter a value in the displayed range.');
+      const value=Number(control.value),next={...settings,stompEffect:{...rumbleValues(),[key]:value}};
+      writeSettings(next);settings=next;
+      onNotice('Setting saved.',`${rumbleLabels[key]} · ${value}${key==='duration'?' ms':'%'}`);
+    }catch(error){onNotice('Rumble: '+error.message);}
+    finally{rumbleDraft=null;paintRumbleValues();}
+  });
+  function updateRumble(){
+    $('rumble-advanced').hidden=!settings.rumble;
+  }
   $('controller-rumble-test').addEventListener('click',async()=>{
-    updateRumble();
-    if($('controller-rumble-test').disabled)return;
-    const pad=playerPad(Number($('rumble-player').value)),request=++rumbleRequest;
-    const status=$('rumble-status');
-    status.textContent=`${pad.id} · Testing rumble…`;
+    if(!settings.rumble)return;
+    registerPads(pads); // Input modes may have changed since the last animation frame.
+    const port=Number($('rumble-player').value),pad=playerPad(port);
+    const request=++rumbleRequest;
+    if(!pad){onNotice('Rumble: no controller assigned.',`Player ${port+1}`);return;}
     let message;
     try{
-      const result=await playRumble(rumbleOutputs(pad),TEST_EFFECT);
-      if(result==='complete')message='Browser completed the test pulse.';
-      else if(result==='not-supported')message='The browser does not support this rumble effect.';
+      const result=await playRumble(rumbleOutputs(pad),rumbleEffect());
+      if(result==='complete')message='Test pulse completed.';
+      else if(result==='not-supported')message='The browser exposes no rumble output for this controller.';
       else if(result==='preempted')message='Test pulse was interrupted.';
-      else message=`The browser could not complete the test pulse (${result??'no result'}).`;
-    }catch(error){
-      const reason=error?.message||error?.name;
-      message=reason?`The browser rejected the test pulse. ${reason}`:'The browser rejected the test pulse.';
-    }
-    if(request===rumbleRequest)status.textContent=`${pad.id} · ${message}`;
+      else message='The test pulse could not complete.';
+    }catch(error){message=error.message||'The browser rejected the test pulse.';}
+    if(request===rumbleRequest)onNotice(`Rumble: ${message}`,pad.id);
   });
   function saveAssist(id,binding){
     const next={...settings,assistBindings:{...settings.assistBindings,[id]:binding}};writeSettings(next);settings=next;
   }
   function resetEditor(){
     const pad=playerPad(player);selectedKey=pad?deviceKey(pad):route().lastDevice;
-    chooseProfile(profileFor(player,pad).id);lastDevices=null;refreshDevices();paintLive();
+    chooseProfile(profileFor(player,pad).id);lastDevices=null;refreshDevices();
   }
   function inputState(n=0){
     const pad=routed[n];if(!pad)return {buttons:0,source:null};
@@ -390,24 +380,24 @@ export function initControllerUI({onOpen=async()=>{},onClose=()=>{},getMode=()=>
     const consumed=Array.from(heldAssist,id=>settings.assistBindings[id]).filter(binding=>bindingPressed(binding,pad,0.3));
     return {buttons:evaluateProfile(active,pad,zone===null?active.deadzone:zone/100,consumed),source:`${deviceKey(pad)}:${pad.index}:${active.id}`};
   }
-  resetEditor();updateRumble();
-  return {poll,open,close,canClose,hasUnsavedChanges:()=>dirty,isEditing:()=>dirty||Boolean(capture||assistCapture),
+  resetEditor();updateRumble();paintRumbleValues();
+  return {poll,open,close,canClose,isEditing:()=>dirty||Boolean(capture||assistCapture),
     isCapturing:()=>Boolean(capture||assistCapture),inputState,heldAssist:()=>new Set(heldAssist),exportSettings:()=>clone(settings),
     applySettings(value){
       if(!canClose())throw new Error('Save or discard controller changes first.');
-      settings=validateControllerSettings(value);storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);storageAvailable=true;registerPads(pads);resetEditor();updateRumble();
+      settings=validateControllerSettings(value);storedVersion=localStorage.getItem(CONTROLLER_STORAGE_KEY);storageAvailable=true;registerPads(pads);resetEditor();rumbleDraft=null;updateRumble();paintRumbleValues();
     },
     setPlayer(n){if(!canClose())return false;player=n;resetEditor();return true;},
     pulseStomp(){
       const pad=routed.find(Boolean);
-      if(settings.rumble&&pad)playRumble(rumbleOutputs(pad),STOMP_EFFECTS[settings.stompStrength]).catch(()=>{});
+      if(settings.rumble&&pad)playRumble(rumbleOutputs(pad),rumbleEffect()).catch(()=>{});
     },
     assistBinding:id=>settings.assistBindings[id],clearAssist:id=>saveAssist(id,null),
     listenAssist(id,callback){
       const pad=selectedPad();if(!pad)throw new Error('Connect and select a controller first.');
       cancelCapture();assistListener=callback;assistCapture={id,baseline:snapshot(pad),until:performance.now()+12000};
     },
-    cancelCapture,release(){cancelCapture();outputBits=0;},status(n=player){
+    cancelCapture,status(n=player){
     const pad=n===player?selectedPad():playerPad(n),shownProfile=n===player?profile:profileFor(n,pad);
     return {open:!panel.hidden,dirty,capturing:capture?{action:capture.action,mode:capture.mode}:null,device:pad?{id:pad.id,mapping:pad.mapping||'',index:pad.index,buttons:pad.buttons.length,axes:pad.axes.length}:null,profile:clone(shownProfile),mappedBits:previewBits,outputBits,storageAvailable,savedProfiles:settings.profiles.map(p=>({id:p.id,name:p.name}))};
   }};
@@ -418,7 +408,7 @@ export function createSettingsNavigation(){
   let previous=0,wasOpen=false;
   let menuHeld=true;
   return function navigate(pads,blocked,rawBits=0,onMenu=()=>{},afterClose=()=>{}){
-    const dialog=document.querySelector('#app-settings[open]');
+    const dialog=document.querySelector('#settings:not([hidden]) #app-settings');
     const standard=Array.from(pads||[]).filter(p=>p?.connected!==false&&p?.mapping==='standard');
     const down=(pad,i)=>Boolean(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5||pad.buttons[i]>.5);
     const menu=standard.some(p=>down(p,16)||(down(p,9)&&down(p,8)));

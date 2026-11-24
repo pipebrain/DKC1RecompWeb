@@ -23,7 +23,7 @@ export async function createPresenter(canvas) {
     }`});
   const pipeline = await device.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
   const bindings = device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:texture.createView()},{binding:1,resource:sampler}]});
-  let lost = null;
+  let lost = null, scale = null;
   device.lost.then(info => { lost = new Error(`WebGPU device lost: ${info.message || info.reason}`); });
   function render() {
     if (lost) throw lost;
@@ -35,8 +35,9 @@ export async function createPresenter(canvas) {
     if (canvas.width!==width || canvas.height!==height) {canvas.width=width;canvas.height=height;}
     const encoder=device.createCommandEncoder();
     const pass=encoder.beginRenderPass({colorAttachments:[{view:context.getCurrentTexture().createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});
-    const targetAspect=4/3;
-    const viewWidth=Math.min(width,height*targetAspect), viewHeight=viewWidth/targetAspect;
+    const targetAspect=scale===null?4/3:256/224;
+    const viewWidth=Math.min(width,height*targetAspect,scale===null?Infinity:224*scale*targetAspect*ratio);
+    const viewHeight=viewWidth/targetAspect;
     pass.setViewport((width-viewWidth)/2,(height-viewHeight)/2,viewWidth,viewHeight,0,1);
     pass.setPipeline(pipeline);pass.setBindGroup(0,bindings);pass.draw(3);pass.end();
     device.queue.submit([encoder.finish()]);
@@ -61,7 +62,7 @@ export async function createPresenter(canvas) {
   document.addEventListener('fullscreenchange', scheduleResize);
   function clear() { draw(new Uint8Array(256 * 224 * 4)); }
   clear();
-  return {draw, clear, device, destroy(){
+  return {draw, clear, device, setScale(value){if(scale!==value){scale=value;scheduleResize();}}, destroy(){
     destroyed = true;
     observer.disconnect();
     cancelAnimationFrame(resizeFrame);

@@ -1,4 +1,4 @@
-// Small Markdown reader for the application's own editable About/Help files.
+// Small Markdown reader for the application’s editable About page.
 // Content is always added as DOM text; raw HTML and executable links are not parsed.
 const MAX_DOCUMENT_LENGTH=65536;
 
@@ -95,35 +95,20 @@ export function renderMarkdown(markdown,element){
   element.replaceChildren(fragment);
 }
 
-export function loadContentPages({aboutElement,helpElement,onAvailability=()=>{}}={}){
-  const elements={about:aboutElement,help:helpElement};
-  for(const element of Object.values(elements))if(!element?.ownerDocument||typeof element.replaceChildren!=='function')throw new TypeError('About and Help containers are required.');
-  const availability={about:false,help:false,errors:{}};let generation=0;
-  const state=()=>({...availability,errors:{...availability.errors}});
-  const notify=()=>onAvailability(state());
-  async function load(name,version){
-    let markdown=null,error=null;
+export function loadContentPages({aboutElement}){
+  let state={about:false,errors:{}};
+  const ready=(async()=>{
     try{
-      const file=name==='about'?'About.md':'Help.md';
-      const response=await fetch(new URL(`./${file}`,import.meta.url),{cache:'no-store',credentials:'same-origin'});
-      if(!response.ok)throw new Error(`${file} is unavailable (${response.status}).`);
-      markdown=await response.text();
-      if(!markdown.replace(/^\uFEFF/,'').trim())throw new Error(`${file} is empty.`);
-      if(markdown.length>MAX_DOCUMENT_LENGTH)throw new Error(`${file} is too large.`);
-      if(/text\/html/i.test(response.headers.get('content-type')||'')||/^\s*(?:<!doctype\s+html|<html\b)/i.test(markdown))throw new Error(`${file} did not return Markdown.`);
-    }catch(cause){error=cause instanceof Error?cause.message:String(cause);}
-    if(version!==generation)return;
-    if(error){elements[name].replaceChildren();availability[name]=false;availability.errors[name]=error;}
-    else{
-      try{renderMarkdown(markdown,elements[name]);availability[name]=true;delete availability.errors[name];}
-      catch(cause){elements[name].replaceChildren();availability[name]=false;availability.errors[name]=cause instanceof Error?cause.message:String(cause);}
-    }
-    notify();
-  }
-  function reload(){
-    const version=++generation;availability.about=false;availability.help=false;availability.errors={};notify();
-    return Promise.all(['about','help'].map(name=>load(name,version))).then(state);
-  }
-  const ready=reload();
-  return {ready,state,reload};
+      const response=await fetch(new URL('./About.md',import.meta.url),{credentials:'same-origin'});
+      if(!response.ok)throw new Error(`About.md is unavailable (${response.status}).`);
+      const markdown=await response.text();
+      if(!markdown.replace(/^\uFEFF/,'').trim())throw new Error('About.md is empty.');
+      if(markdown.length>MAX_DOCUMENT_LENGTH)throw new Error('About.md is too large.');
+      if(/text\/html/i.test(response.headers.get('content-type')||'')||/^\s*(?:<!doctype\s+html|<html\b)/i.test(markdown))throw new Error('About.md did not return Markdown.');
+      renderMarkdown(markdown,aboutElement);
+      state={about:true,errors:{}};
+    }catch(error){state={about:false,errors:{about:error.message}};}
+    return state;
+  })();
+  return {ready,state:()=>state};
 }

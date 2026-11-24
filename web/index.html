@@ -1,174 +1,251 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-appearance="black">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f5f5f7">
-  <title>Donkey Kong Country</title>
+  <meta name="theme-color" content="#000000">
+  <title>DKC1R Web</title>
   <link rel="icon" href="./favicon.ico" type="image/x-icon" sizes="16x16 32x32 48x48">
   <link rel="icon" href="./favicon.png" type="image/png" sizes="64x64">
   <link rel="stylesheet" href="./style.css">
   <script type="module" src="./main.js"></script>
 </head>
 <body>
-<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="icon-definitions" aria-hidden="true"><defs>
-<symbol id="icon-controller" viewBox="0 0 24 24"><path d="M7.5 7.5h9c2 0 3.5 1.8 4 4l1 5c.4 2-1.6 3.2-3 1.8l-3-2.8h-7l-3 2.8c-1.4 1.4-3.4.2-3-1.8l1-5c.5-2.2 2-4 4-4Z"/><path d="M7.5 10v5m-2.5-2.5h5m5.5-1.5h.01m2.5 3h.01"/></symbol>
-<symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 3v6m8 0v6m-6 0v6"/></symbol>
-<symbol id="icon-save" viewBox="0 0 24 24"><path d="M5 3h12l4 4v14H3V3h2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8"/></symbol>
-<symbol id="icon-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/></symbol>
-<symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
-<symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z"/></symbol>
-</defs></svg>
-<div class="app-window">
-<nav id="app-menubar" class="app-menubar" aria-label="Application menu" role="menubar">
- <span class="menu-coin" role="img" aria-label="DK coin"><span class="dk-coin" aria-hidden="true"></span></span>
- <div class="menu-group desktop-menu"><button class="menu-trigger app-name" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-dkm">DKM</button><div id="menu-dkm" class="app-menu" role="menu" hidden><button role="menuitem" data-command="open-rom">Load ROM…<kbd>⌘O</kbd></button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><div class="menu-notices" role="none"><p id="status" role="status">Checking WebGPU…</p><p id="save-status" aria-live="polite"></p></div></div></div>
- <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-config">Config</button><div id="menu-config" class="app-menu" role="menu" hidden><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><hr><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" data-command="load-config">Load Config…</button><button role="menuitem" data-command="save-config">Save Config…</button></div></div>
- <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="Cheat support is not implemented">Cheat</button>
- <button class="menu-trigger desktop-menu unavailable-menu" role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button>
- <div class="menu-group desktop-menu"><button class="menu-trigger" role="menuitem" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-misc">Misc</button><div id="menu-misc" class="app-menu" role="menu" hidden><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button></div></div>
- <div class="menu-group compact-more"><button class="menu-trigger" role="menuitem" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-more">Menu<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-more"/></svg></button><div id="menu-more" class="app-menu" role="menu" hidden><p class="menu-section-label" role="presentation">DKM</p><button role="menuitem" data-command="open-rom">Load ROM…</button><hr><button role="menuitem" data-command="start-game" data-needs-game data-start-game>Start Game</button><button role="menuitem" data-command="reset-game" data-needs-game>Reload Game</button><hr><button role="menuitem" data-command="import-save" data-needs-game>Load Save…</button><button role="menuitem" data-command="export-save" data-needs-game>Export Save</button><hr><p class="menu-section-label" role="presentation">Config</p><button role="menuitem" data-command="controllers"><span>Input…</span><small data-input-label>Keyboard (default)</small></button><button role="menuitem" data-command="devices">Devices…</button><button role="menuitem" data-command="options">Options…</button><button role="menuitem" data-command="video">Video…</button><button role="menuitem" data-command="sound">Sound…</button><button role="menuitem" data-command="paths">Paths…</button><button role="menuitem" data-command="saves">Saves…</button><button role="menuitem" data-command="speed">Speed…</button><hr><button role="menuitem" data-command="load-config">Load Config…</button><button role="menuitem" data-command="save-config">Save Config…</button><hr><button role="menuitem" disabled title="Cheat support is not implemented">Cheat</button><button role="menuitem" disabled title="NetPlay is not implemented">NetPlay</button><hr><p class="menu-section-label" role="presentation">Misc</p><button role="menuitem" data-command="keyboard" disabled>Help</button><button role="menuitem" data-command="about" disabled>About</button><hr><div class="menu-notices" role="none"><p data-status-copy="status" role="status"></p><p data-status-copy="save-status" aria-live="polite"></p></div></div></div>
-</nav>
-<main class="game-workspace">
- <section class="player" aria-label="Game player"><div class="screen-wrap"><canvas id="screen" width="768" height="672" tabindex="0" aria-label="Donkey Kong Country game screen"></canvas><div id="pause-overlay" class="pause-overlay" role="status" aria-live="polite" aria-atomic="true" hidden><div class="pause-card"><svg class="pause-symbol" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="5" width="6" height="22" rx="2"/><rect x="19" y="5" width="6" height="22" rx="2"/></svg><h2 id="pause-title">Paused</h2><p id="pause-input"></p><p id="pause-hint"></p></div></div></div></section>
-</main>
-</div>
-<input id="config-file" type="file" accept=".json,application/json" hidden>
-<input id="rom-file" type="file" accept=".smc,.sfc" hidden>
-<dialog id="app-settings" class="settings-sheet" aria-labelledby="settings-title">
-  <div class="sheet-header"><h2 id="settings-title">Config</h2><button id="settings-done" class="primary compact-button" type="button">Done</button></div>
-  <div class="settings-layout">
-    <nav class="settings-navigation" aria-label="Configuration sections" role="tablist">
-      <button type="button" id="settings-page-input" role="tab" data-settings-page="input" aria-controls="input-settings-page" aria-selected="true">Input</button>
-      <button type="button" id="settings-tab-video" role="tab" data-settings-tab="video" aria-controls="settings-pane-video" aria-selected="false">Video</button>
-      <button type="button" id="settings-tab-sound" role="tab" data-settings-tab="sound" aria-controls="settings-pane-sound" aria-selected="false">Sound</button>
-      <button type="button" id="settings-tab-paths" role="tab" data-settings-tab="paths" aria-controls="settings-pane-paths" aria-selected="false">Paths</button>
-      <button type="button" id="settings-tab-saves" role="tab" data-settings-tab="saves" aria-controls="settings-pane-saves" aria-selected="false">Saves</button>
-      <button type="button" id="settings-tab-speed" role="tab" data-settings-tab="speed" aria-controls="settings-pane-speed" aria-selected="false">Speed</button>
-    </nav>
-    <div class="settings-content">
-      <section id="input-settings-page" class="input-settings-page" role="tabpanel" aria-labelledby="settings-page-input">
-        <div class="input-tabs" role="tablist" aria-label="Input settings">
-          <button type="button" id="settings-tab-controllers" role="tab" data-settings-tab="controllers" aria-controls="settings-pane-controllers" aria-selected="true">Input</button>
-          <button type="button" id="settings-tab-devices" role="tab" data-settings-tab="devices" aria-controls="settings-pane-devices" aria-selected="false">Devices</button>
-          <button type="button" id="settings-tab-options" role="tab" data-settings-tab="options" aria-controls="settings-pane-options" aria-selected="false">Options</button>
-        </div>
-      <section id="settings-pane-controllers" class="settings-pane" data-settings-pane="controllers" role="tabpanel" aria-labelledby="settings-tab-controllers">
-        <div class="input-source-field"><label for="input-player">Player</label><select id="input-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><label for="input-source">Input device</label><select id="input-source"><option value="keyboard" selected>Keyboard (default)</option><option value="gamepad">Gamepad</option><option value="both">Keyboard and gamepad</option><option value="none">Disabled</option></select></div>
-        <section id="keyboard-panel" class="keyboard-panel" aria-labelledby="keyboard-heading">
-          <div class="controller-heading"><h2 id="keyboard-heading">Keyboard</h2></div>
-          <p class="small">Choose Set key to replace an assignment, or Add key for an alternate. Save to apply your changes.</p>
-          <div class="keyboard-actions"><button id="keyboard-save" class="primary" type="button" disabled>Save</button><button id="keyboard-discard" type="button" disabled>Discard changes</button><button id="keyboard-defaults" type="button">Restore defaults</button><button id="keyboard-capture-cancel" type="button" hidden>Cancel learning</button></div>
-          <p id="keyboard-draft" class="controller-draft">Default keyboard mapping</p><p id="keyboard-message" role="status" aria-live="polite"></p>
-          <div id="keyboard-bindings" class="keyboard-binding-list"></div>
-          <p class="settings-footnote">Tab and Escape are reserved during game-key capture. Space controls playback when unassigned.</p>
-        </section>
-        <section id="controller-panel" class="controller-panel" aria-labelledby="controller-heading" hidden>
-      <div class="controller-heading"><h2 id="controller-heading">Input</h2></div>
-      <p class="small">Connect a controller and press a button to make it available. Each profile keeps your preferred controls.</p>
-      <div class="controller-fields">
-        <label>Controller<select id="controller-device"><option value="">No controller detected</option></select></label>
-        <label>Load profile<select id="controller-profile"></select></label>
-        <label>Profile name<input id="controller-name" maxlength="80" autocomplete="off"></label>
-        <label>Stick dead zone<input id="controller-deadzone" type="number" min="0.01" max="0.95" step="0.05" value="0.35"></label>
-      </div>
-      <div class="controller-fields"><label>Player stick dead zone (%)<input id="player-deadzone" type="number" min="0" max="100" step="1" placeholder="Use profile"></label></div>
-      <p id="controller-device-info" class="small"></p>
-      <p id="controller-summary" class="small">Controller: connect and press a button</p>
-      <div class="controller-actions">
-        <button id="controller-new" type="button">New profile</button><button id="controller-copy" type="button">Duplicate</button>
-        <button id="controller-save" type="button">Save</button><button id="controller-discard" type="button">Discard changes</button>
-      </div>
-      <details class="controller-profile-files"><summary>Profile files and options</summary><div class="controller-actions">
-        <button id="controller-export" type="button">Export profile…</button><label class="button" for="controller-import">Import profile…<input id="controller-import" type="file" accept=".json,application/json" hidden></label><button id="controller-delete" class="destructive" type="button">Delete profile</button>
-      </div></details>
-      <p id="controller-draft" class="controller-draft"></p><p id="controller-message" role="status" aria-live="polite">The default profile is read-only. Copy it or create a blank profile to configure raw inputs.</p>
-      <div class="controller-capture-options"><label>Listen for<select id="controller-capture-mode"><option value="auto">Button or stick movement</option><option value="button">Button only</option><option value="axis">Stick / trigger axis</option><option value="axis-value">Exact axis / hat value</option><option value="hat">8-way hat direction</option></select></label><button id="controller-capture-cancel" type="button" hidden>Cancel listening</button></div>
-      <p class="small">Release a control, choose Listen, then press or move it. For a D-pad on one axis, choose 8-way hat direction.</p>
-      <div id="controller-bindings" class="controller-bindings"></div>
-      <details class="controller-manual"><summary>Enter a binding manually</summary>
-        <div class="controller-fields">
-          <label>Game action<select id="controller-bind-action"></select></label>
-          <label>Input kind<select id="controller-bind-type"><option value="button">Button</option><option value="axis-negative">Axis −</option><option value="axis-positive">Axis +</option><option value="axis-value">Exact axis value</option><option value="hat-up">8-way hat · up</option><option value="hat-right">8-way hat · right</option><option value="hat-down">8-way hat · down</option><option value="hat-left">8-way hat · left</option></select></label>
-          <label>Input index<input id="controller-bind-index" type="number" min="0" max="127" step="1" value="0"></label>
-          <label data-binding-fields="button axis-negative axis-positive">Threshold<input id="controller-bind-threshold" type="number" min="0.01" max="1" step="0.05" value="0.35"></label>
-          <label data-binding-fields="axis-negative axis-positive">Axis at rest<input id="controller-bind-rest" type="number" min="-1" max="1" step="0.01" value="0"></label>
-          <label data-binding-fields="axis-value">Axis value<input id="controller-bind-value" type="number" min="-4" max="4" step="0.001" value="0"></label>
-          <label data-binding-fields="axis-value">Value tolerance<input id="controller-bind-tolerance" type="number" min="0.001" max="0.5" step="0.01" value="0.08"></label>
-        </div><button id="controller-bind-add" type="button">Add binding</button>
-      </details>
-      <details class="controller-live"><summary>Live controller inputs</summary><p class="small">Inputs are shown even while this panel has focus. They are not sent to the game while configuring.</p><h3>Buttons</h3><p id="controller-live-buttons">—</p><h3>Axes</h3><p id="controller-live-axes">—</p><h3>Mapped game actions</h3><p id="controller-mapped">None</p></details>
-    </section>
-        <details id="assist-shortcuts"><summary>Save-state shortcuts</summary><p class="small">Assign a key or controller input to save or load the slot selected in Config → Saves.</p><div id="assist-shortcut-rows"></div><p id="assist-shortcut-status" role="status"></p></details>
-      </section>
-      <section id="settings-pane-devices" class="settings-pane" data-settings-pane="devices" role="tabpanel" aria-labelledby="settings-tab-devices" hidden>
-        <div class="pane-heading"><h3>Devices</h3><p>Keyboard and controllers available to this browser.</p></div>
-        <div class="settings-group">
-          <div class="settings-row"><label for="controller-rumble">Stomp rumble</label><input id="controller-rumble" type="checkbox" checked></div>
-          <div class="settings-row"><label for="stomp-strength">Stomp strength</label><select id="stomp-strength"><option value="standard">Standard</option><option value="light">Light (original)</option></select></div>
-          <div class="settings-row"><label for="rumble-player">Test controller</label><select id="rumble-player"><option value="0">Player 1</option><option value="1">Player 2</option></select><button type="button" id="controller-rumble-test" disabled>Test rumble</button></div>
-          <p id="rumble-status" role="status"></p>
-        </div>
-        <div id="device-list" class="settings-group device-list" aria-live="polite">Keyboard — default input. Connect a controller and press a button to make it available.</div>
-        <p class="settings-footnote">Select a controller and assign its profile in Input.</p><button type="button" data-command="controllers">Open Input…</button>
-      </section>
-      <section id="settings-pane-options" class="settings-pane" data-settings-pane="options" role="tabpanel" aria-labelledby="settings-tab-options" hidden>
-        <div class="pane-heading"><h3>Options</h3><p>Application behavior.</p></div>
-        <div class="settings-group">
-          <label class="settings-row"><span>Pause when the window loses focus</span><input type="checkbox" data-pref="pauseWhenInactive"></label>
-          <label class="settings-row"><span>Appearance</span><select data-pref="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-        </div>
-      <button type="button" data-command="keyboard" disabled>Keyboard Controls…</button>
-      </section>
-      </section>
-      <section id="settings-pane-video" class="settings-pane" data-settings-pane="video" role="tabpanel" aria-labelledby="settings-tab-video" hidden>
-        <div class="pane-heading"><h3>Video</h3></div>
-        <div class="settings-group">
-          <div class="settings-row"><span>Game display</span><span>256 × 224 · 4:3</span></div>
-          <label class="settings-row"><span>Full screen on Start</span><input type="checkbox" data-pref="fullscreenOnStart"></label>
-          <div class="settings-row"><span>Full screen</span><button type="button" data-command="fullscreen" data-fullscreen-label>Enter Full Screen</button></div>
-        </div>
-      </section>
-      <section id="settings-pane-sound" class="settings-pane" data-settings-pane="sound" role="tabpanel" aria-labelledby="settings-tab-sound" hidden>
-        <div class="pane-heading"><h3>Sound</h3><p>Original soundtrack and sound effects.</p></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Game audio</h4><p>Play the original stereo soundtrack and sound effects.</p></div><button type="button" data-command="audio" data-sound-label aria-pressed="true">Sound On</button></div></div>
-        <div class="settings-group">
-          <label class="settings-row"><span>Volume · <output data-value-for="volume"></output>%</span><input type="range" min="0" max="100" data-pref="volume"></label>
-          <label class="settings-row"><span>Audio prebuffer</span><select data-pref="audioPreroll"><option value="1">1 block</option><option value="2">2 blocks</option><option value="3">3 blocks</option><option value="4">4 blocks</option></select></label>
-          <label class="settings-row"><span>Correct audio clock drift</span><input type="checkbox" data-pref="audioDriftCorrection"></label>
-        </div>
-      </section>
-      <section id="settings-pane-paths" class="settings-pane" data-settings-pane="paths" role="tabpanel" aria-labelledby="settings-tab-paths" hidden>
-        <div class="pane-heading"><h3>Paths</h3></div>
-        <div class="settings-group"><div class="settings-row"><div><h4><label for="remember-rom">Remember ROM on this device</label></h4><p id="remember-rom-details">Keep a local copy for your next visit. Turning this off removes the copy and keeps your cartridge saves.</p></div><input id="remember-rom" type="checkbox" checked disabled aria-describedby="remember-rom-details"></div></div>
-        <p id="rom-storage-status" class="settings-footnote" role="status">Checking local storage…</p>
-      </section>
-      <section id="settings-pane-speed" class="settings-pane" data-settings-pane="speed" role="tabpanel" aria-labelledby="settings-tab-speed" hidden>
-        <div class="pane-heading"><h3>Speed</h3><p>Game timing and playback.</p></div>
-        <div class="settings-group">
-          <div class="settings-row"><span>Game speed</span><span>Normal · 1×</span></div>
-          <div class="settings-row"><span>Playback</span><button type="button" data-needs-game data-command="toggle" data-toggle-label>Start</button></div>
-        </div>
-      </section>
-      <section id="settings-pane-saves" class="settings-pane" data-settings-pane="saves" role="tabpanel" aria-labelledby="settings-tab-saves" hidden>
-        <div class="pane-heading"><h3>Saves</h3><p>Manage cartridge saves and save states.</p></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Saved in this browser</h4><p>Save at Candy’s in the game. Your cartridge save is kept here automatically.</p></div><span class="row-symbol"><svg viewBox="0 0 24 24"><use href="#icon-save"/></svg></span></div></div>
-        <div class="settings-group"><div class="settings-row"><div><h4>Export game save</h4><p>Keep a copy or move your progress to another browser.</p></div><button id="export-save" disabled>Export…</button></div><div class="settings-row"><div><h4>Import game save</h4><p>Choose a 2,048-byte cartridge save, then choose Reload Game.</p></div><label class="button" id="import-label" aria-disabled="true" for="save-file">Choose File…<input id="save-file" type="file" accept=".srm,.sav" hidden disabled></label></div></div>
-        <div class="settings-group">
-          <label class="settings-row"><span>Save state slot</span><select data-pref="stateSlot"><option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option><option value="4">Slot 4</option><option value="5">Slot 5</option></select></label>
-          <div class="settings-row"><span>Game state</span><div class="command-buttons"><button type="button" data-command="quick-save" data-needs-game>Save State</button><button type="button" data-command="quick-load" data-needs-game>Load State</button></div></div>
-        </div>
-        <p class="settings-footnote">Save states stay in this browser. Export Save downloads your cartridge progress.</p>
-      </section>
-
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <symbol id="menu-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="back-icon" viewBox="0 0 24 24"><path d="M20 12H4m7-7-7 7 7 7"/></symbol>
+  <symbol id="close-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="next-icon" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="menu-open-icon" viewBox="0 0 24 24"><path d="M3 6h16M3 12h10M3 18h16M21 9l-3 3 3 3"/></symbol>
+  <symbol id="play-icon" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+  <symbol id="pause-icon" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+  <symbol id="restore-icon" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 5v6h6m3-4v5l3 2"/></symbol>
+  <symbol id="reload-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-1.4 5.5M20 5v6h-6"/></symbol>
+  <symbol id="save-icon" viewBox="0 0 24 24"><path d="M5 3h12l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 18v-7h10v7M7 3v5h9V3"/></symbol>
+  <symbol id="open-file-icon" viewBox="0 0 24 24"><path d="M3 18V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v2M3 18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-1.5l2-6.5a1 1 0 0 0-1-1H7a2 2 0 0 0-2 1.5Z"/></symbol>
+  <symbol id="bookmark-icon" viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z"/></symbol>
+  <symbol id="expand-icon" viewBox="0 0 24 24"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></symbol>
+  <symbol id="cheats-icon" viewBox="0 0 24 24"><path d="m4 17 9-9 3 3-9 9H4v-3Zm7-7 3 3M19 3v6m-3-3h6M6 3v4M4 5h4m11 10v4m-2-2h4"/></symbol>
+  <symbol id="settings-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4"/></symbol>
+  <symbol id="info-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+</svg>
+<header class="app-bar">
+  <button class="icon-button" id="open-menu" type="button" aria-label="Expand navigation" aria-haspopup="dialog" aria-controls="navigation-rail" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#menu-icon"/></svg></button>
+  <button class="icon-button" id="settings-done" type="button" aria-label="Back" hidden><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button>
+  <img class="brand-mark" src="./dk-coin.png" width="32" height="32" alt="">
+  <h1 id="app-title" tabindex="-1">DKC1R Web</h1>
+</header>
+<main>
+  <div id="game" class="game-frame screen-wrap" tabindex="-1">
+    <canvas id="screen" width="768" height="672" tabindex="0" aria-label="Game screen"></canvas>
+    <button class="game-overlay" id="game-overlay" type="button"><span>Load ROM</span></button>
+  </div>
+  <span class="fps-counter" id="fps-counter" hidden></span>
+  <section id="saves" class="page" aria-labelledby="app-title" hidden>
+    <div class="card-grid" id="save-cards">
+      <button class="add-card" id="add-save" type="button"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg>Add save state</button>
     </div>
+    <dialog class="confirmation" id="delete-state-dialog" aria-labelledby="delete-state-title"><form method="dialog"><h2 id="delete-state-title">Delete save state?</h2><div class="dialog-actions"><button value="cancel" autofocus>Cancel</button><button value="delete">Delete</button></div></form></dialog>
+    <template id="add-save-icon"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg></template>
+    <template id="save-card-template">
+      <article class="save-card">
+        <button class="load-card" type="button">
+          <span class="card-art"><img alt="" width="128" height="112" hidden></span>
+          <span class="card-caption"><strong></strong><time></time></span>
+        </button>
+        <button class="icon-button delete-card" type="button"><svg class="icon" aria-hidden="true"><use href="#close-icon"/></svg></button>
+      </article>
+    </template>
+  </section>
+  <section id="settings" class="page" aria-labelledby="app-title" hidden>
+    <div id="app-settings">
+    <div id="settings-home">
+    <section class="settings-group"><h2>Audio</h2><div class="settings-list">
+        <label class="settings-row">Game sound<input class="settings-switch" type="checkbox" data-pref="sound"></label>
+        <div class="settings-row range-setting"><label for="volume-slider">Volume (%)</label><input id="volume-slider" type="range" min="0" max="100" data-pref="volume"><input class="range-value" type="number" min="0" max="100" aria-label="Volume percentage" data-pref="volume"></div>
+        <button class="settings-row" type="button" data-detail="sound">Advanced audio<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+    </div></section>
+    <section class="settings-group" aria-labelledby="input-group-title">
+      <h2 id="input-group-title">Input</h2>
+      <div class="settings-list">
+        <label class="settings-row">Player 1 profile<select id="player-one" data-save-label="Player 1 profile"></select></label>
+        <label class="settings-row">Player 2 profile<select id="player-two" data-save-label="Player 2 profile"></select></label>
+        <button class="settings-row" type="button" data-detail="controllers">Manage input profiles<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+      </div>
+    </section>
+    <section class="settings-group"><h2>System</h2><div class="settings-list">
+        <label class="settings-row">Appearance<select data-pref="appearance"><option value="black">Black</option><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <button class="settings-row" type="button" data-command="load-config">Load Settings<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+        <button class="settings-row" type="button" data-command="save-config">Save Settings<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+        <button class="settings-row" type="button" data-detail="options">Advanced system<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+    </div></section>
+    <section class="settings-group"><h2>Game</h2><div class="settings-list">
+        <label class="settings-row">Pause on focus loss<input class="settings-switch" type="checkbox" data-pref="pauseWhenInactive"></label>
+    </div></section>
+    <section class="settings-group"><h2>Video</h2><div class="settings-list">
+        <label class="settings-row"><span>Scale <output class="supporting" id="scale-resolution"></output></span><select data-pref="displayScale"><option value="fit">Scale to Fit</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="custom">Custom</option></select></label>
+        <label class="settings-row" id="custom-scale-row" hidden>Custom scale<input type="number" min="1" max="16" data-pref="customScale"></label>
+        <label class="settings-row">Fullscreen on start<input class="settings-switch" type="checkbox" data-pref="fullscreenOnStart"></label>
+        <label class="settings-row">Display FPS counter<input class="settings-switch" type="checkbox" data-pref="showFps"></label>
+        <button class="settings-row" type="button" data-detail="video">Advanced video<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+    </div></section>
+    <section class="settings-group"><h2>Files</h2><div class="settings-list">
+        <button class="settings-row" type="button" data-command="open-rom">Load ROM<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+        <label class="settings-row">Remember ROM<input id="remember-rom" class="settings-switch" type="checkbox" checked disabled></label>
+    </div></section>
+    <p class="settings-footnote" id="rom-storage-status" role="status"></p>
+    </div>
+    <div data-settings-pane="sound" hidden>
+    <section class="settings-group"><h2>Advanced audio</h2><div class="settings-list">
+        <label class="settings-row">Audio prebuffer<select data-pref="audioPreroll"><option value="1">1 block</option><option value="2">2 blocks</option><option value="3">3 blocks</option><option value="4">4 blocks</option></select></label>
+        <label class="settings-row">Correct audio clock drift<input class="settings-switch" type="checkbox" data-pref="audioDriftCorrection"></label>
+    </div></section>
+    </div>
+    <div data-settings-pane="video" hidden>
+    <section class="settings-group"><h2>Advanced video</h2><div class="settings-list">
+        <div class="settings-row range-setting"><label for="fpsOpacity-slider">FPS counter opacity (%)</label><input id="fpsOpacity-slider" type="range" min="0" max="100" data-pref="fpsOpacity"><input class="range-value" type="number" min="0" max="100" aria-label="FPS counter opacity percentage" data-pref="fpsOpacity"></div>
+    </div></section>
+    </div>
+    <div data-settings-pane="options" hidden>
+    <section class="settings-group"><h2>Advanced system</h2><div class="settings-list">
+        <div class="settings-row range-setting"><label for="uiBackgroundOpacity-slider">UI background opacity (%)</label><input id="uiBackgroundOpacity-slider" type="range" min="0" max="100" data-pref="uiBackgroundOpacity"><input class="range-value" type="number" min="0" max="100" aria-label="UI background opacity percentage" data-pref="uiBackgroundOpacity"></div>
+        <label class="settings-row">Notifications<input class="settings-switch" type="checkbox" data-pref="notificationsEnabled" checked></label>
+        <label class="settings-row">Verbose notifications<input class="settings-switch" type="checkbox" data-pref="verboseNotifications" data-notification-option></label>
+        <label class="settings-row">Notification fade out<input class="settings-switch" type="checkbox" data-pref="notificationFade" data-notification-option></label>
+        <label class="settings-row">Maximum notifications<input type="number" min="1" max="8" data-pref="notificationMax" data-notification-option></label>
+        <label class="settings-row">Notification duration (seconds)<input type="number" min="1" max="15" data-pref="notificationDuration" data-notification-option></label>
+        <button class="settings-row" type="button" data-command="restore-settings">Restore Default Settings<svg class="icon" aria-hidden="true"><use href="#restore-icon"/></svg></button>
+    </div></section>
+    </div>
+      <div class="profile-panel" data-detail="Input Profiles" data-settings-pane="controllers" hidden>
+        <button class="new-profile-button" id="add-profile" type="button"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg>New profile</button>
+        <ul class="settings-list profile-list" id="profile-list"></ul>
+        <p id="profiles-empty" hidden>No input profiles.</p>
+        <template id="profile-list-item">
+          <li><button class="settings-row" type="button"><span></span><svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button></li>
+        </template>
+      </div>
+      <div class="profile-panel" data-detail="Profile" data-settings-pane="profile" hidden>
+        <h2>Control mappings</h2>
+        <div class="settings-list" id="profile-mappings" aria-label="Control mappings"></div>
+        <template id="mapping-row-template">
+          <div class="settings-row mapping-row">
+            <div class="mapping-summary"><strong></strong><div class="supporting"></div></div>
+            <div class="mapping-actions"><button type="button">Set</button><button type="button">Clear</button></div>
+          </div>
+        </template>
+        <div class="settings-list" aria-label="Rumble settings">
+          <label class="settings-row">Rumble<input id="stomp-rumble" class="settings-switch" type="checkbox" role="switch" aria-controls="rumble-advanced"></label>
+          <div class="settings-list" id="rumble-advanced" hidden>
+            <label class="settings-row">Duration (ms)<input type="number" min="1" max="5000" required></label>
+            <div class="settings-row range-setting">
+              <label for="rumble-low-slider">Low motor (%)</label>
+              <input id="rumble-low-slider" type="range" min="0" max="100" value="80">
+              <input class="range-value" type="number" min="0" max="100" value="80" required aria-label="Low motor percentage">
+            </div>
+            <div class="settings-row range-setting">
+              <label for="rumble-high-slider">High motor (%)</label>
+              <input id="rumble-high-slider" type="range" min="0" max="100" value="100">
+              <input class="range-value" type="number" min="0" max="100" value="100" required aria-label="High motor percentage">
+            </div>
+            <button class="settings-row" id="preview-stomp" type="button">Test Rumble</button>
+          </div>
+        </div>
+        <div class="settings-list">
+          <button class="settings-row" id="rename-profile" type="button">Rename profile</button>
+          <button class="settings-row delete-profile-button" id="delete-profile" type="button">Delete profile</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="cheats" class="page" aria-labelledby="app-title" hidden>
+    <section class="settings-group" aria-labelledby="warp-destinations-title">
+      <h2 id="warp-destinations-title">Warp destinations</h2>
+      <div class="settings-list" id="warp-destinations">
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Bouncy Bonanza — Winky room</span><span class="supporting">Interior · $0003 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Winky’s Walkway</span><span class="supporting">Main level · $00D9 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Orang-utan Gang — checkpoint</span><span class="supporting">Checkpoint · $001D · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Orang-utan Gang — start</span><span class="supporting">Main level · $000D · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Ice Age Alley</span><span class="supporting">Main level · $00A7 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Mine Cart Carnage</span><span class="supporting">Main level · $002E · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Snow Barrel Blast</span><span class="supporting">Main level · $0024 · Native initialization observed</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+      </div>
+    </section>
+  </section>
+  <section id="about" class="page" aria-labelledby="app-title" hidden><div id="about-content" class="markdown-content"></div></section>
+</main>
+<div class="snackbar-host" id="snackbar-host" role="log" aria-label="Notifications" aria-relevant="additions"></div>
+<dialog class="navigation-rail" id="navigation-rail" aria-label="Navigation">
+  <button class="icon-button" id="collapse-menu" type="button" aria-label="Collapse navigation"><svg class="icon" aria-hidden="true"><use href="#menu-open-icon"/></svg></button>
+  <nav class="destinations" aria-label="Main navigation">
+    <button class="rail-action" id="start-game" data-command="start-game" data-start-game type="button" disabled><span>Start Game</span><svg class="icon" aria-hidden="true"><use href="#play-icon"/></svg></button>
+    <button class="rail-action" id="reload-game" data-command="reset-game" data-needs-game type="button" disabled>Reload Game<svg class="icon" aria-hidden="true"><use href="#reload-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="quick-save" data-command="quick-save" data-needs-game disabled>Quick Save<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+    <button class="rail-action" type="button" id="quick-load" data-command="quick-load" data-needs-game disabled>Quick Load<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+    <button class="destination" type="button" data-command="save-states">Save States<svg class="icon" aria-hidden="true"><use href="#bookmark-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="save-game-save" data-command="export-save" data-needs-game disabled>Save Game<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+    <button class="rail-action" type="button" id="load-game-save" data-command="import-save" data-needs-game disabled>Load Games<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="full-screen" data-command="fullscreen" data-fullscreen-label>Full Screen<svg class="icon" aria-hidden="true"><use href="#expand-icon"/></svg></button>
+    <button class="destination" type="button" data-command="cheats">Cheats<svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg></button>
+    <button class="destination" type="button" data-command="settings">Settings<svg class="icon" aria-hidden="true"><use href="#settings-icon"/></svg></button>
+    <hr>
+    <button class="destination" type="button" data-command="about">About<svg class="icon" aria-hidden="true"><use href="#info-icon"/></svg></button>
+  </nav>
+</dialog>
+<dialog class="profile-dialog" id="profile-dialog" aria-labelledby="new-profile-title">
+  <form id="new-profile">
+    <h2 id="new-profile-title">New profile</h2>
+    <label>Profile name<input id="profile-name" type="text" maxlength="40" required autofocus></label>
+    <div class="dialog-actions">
+      <button type="button" id="cancel-profile">Cancel</button>
+      <button type="submit">Create profile</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="profile-dialog" id="delete-profile-dialog" aria-labelledby="delete-profile-title" aria-describedby="delete-profile-message">
+  <h2 id="delete-profile-title">Delete profile?</h2>
+  <p id="delete-profile-message"></p>
+  <div class="dialog-actions">
+    <button type="button" id="cancel-delete-profile" autofocus>Cancel</button>
+    <button type="button" id="confirm-delete-profile" class="delete-profile-button">Delete profile</button>
   </div>
 </dialog>
-<dialog id="help-dialog" class="help-sheet" aria-labelledby="help-title">
-  <div class="sheet-header"><h2 id="help-title">Help</h2><button type="button" class="primary compact-button" data-close-help>Done</button></div>
-  <div class="help-content"><div id="help-content" class="markdown-content"></div></div>
+<dialog class="profile-dialog" id="binding-dialog" aria-labelledby="binding-title" aria-describedby="binding-message">
+  <header class="binding-dialog-header">
+    <h2 id="binding-title" tabindex="-1" autofocus>Set binding</h2>
+    <button class="icon-button" id="cancel-binding" type="button" aria-label="Cancel binding"><svg class="icon" aria-hidden="true"><use href="#close-icon"/></svg></button>
+  </header>
+  <p id="binding-message">Waiting for input…</p>
 </dialog>
-<dialog id="about-dialog" class="about-sheet" aria-labelledby="about-title"><button class="about-close icon-button" data-close-about aria-label="Close about">×</button><span class="dk-coin" role="img" aria-label="DK coin"></span><h2 id="about-title">About</h2><div id="about-content" class="markdown-content"></div><button class="primary" data-close-about>Done</button></dialog>
+<dialog class="confirmation" id="restore-settings-dialog" aria-labelledby="restore-settings-title"><form method="dialog"><h2 id="restore-settings-title">Restore default settings?</h2><p>This resets preferences and input profiles.</p><div class="dialog-actions"><button value="cancel" autofocus>Cancel</button><button value="restore">Restore</button></div></form></dialog>
+<input id="config-file" type="file" accept=".json,application/json" hidden>
+<input id="rom-file" type="file" accept=".smc,.sfc" hidden>
+<input id="save-file" type="file" accept=".srm,.sav" hidden disabled>
 </body>
 </html>

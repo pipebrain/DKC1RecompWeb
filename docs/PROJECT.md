@@ -1,6 +1,6 @@
 # DKC1RecompWeb / DKC and DKL browser project
 
-Updated: 2026-11-22 (America/Toronto).
+Updated: 2026-11-24 (America/Toronto).
 
 ## Goal and scope
 
@@ -14,7 +14,7 @@ as another campaign, retaining SNES Country as the behavioral foundation.
 Land extraction and level integration are outside Phase 1.
 The user added GitHub Pages hosting for Android/iOS testing to version 1.
 
-## Confirmed decisions
+## Confirmed decisions through v1.1.0
 
 - Use WebAssembly and WebGPU.
 - Only `.screen-wrap` is made fullscreen, with centered 4:3 output fitted to
@@ -477,6 +477,59 @@ on iOS: audio drift persisted after loading a save state or reloading the
 game. iOS Chrome showed no drift during testing.
 [Device results](VALIDATION.md#clean-v110-live-pages-preview)
 [Clean candidate verification](VALIDATION.md#phase-3-clean-v110-candidate)
+
+### v1.1.2 · DKC1R Web
+
+The v1.1.2 release starts from `v1.1.0` and uses
+the same stock v0.0.17 Wasm. The reviewed phone-first prototype supplies the
+app bar, expanded navigation rail, theme colors, stacked notifications, and
+Settings, Save States, Cheats, and About pages. The default appearance is
+Black on fresh installations and after Restore Default Settings. Existing
+appearance preferences carry forward. The app uses the DK coin artwork and
+favicon. The game overlay offers Load ROM, Start Game, or Resume Game as
+appropriate.
+
+Settings are stored locally and travel in version 4 config files. Earlier
+version 1 through 3 files import their player assignments, bindings, and
+rumble preferences into named profiles. The approved Input Profiles UI uses
+per-player profile dropdowns, a profile list, and one editor. Each profile can
+contain keyboard, mouse, and gamepad inputs. Rumble settings and Test Rumble
+are part of the profile. Advanced system enables Notifications by default.
+Turning them off clears active notifications and disables their options.
+
+The five existing state slots retain their storage keys. Quick Save and the
+Add save state card write to the first empty slot. Quick Load restores the
+newest saved state, including saves placed into a freed slot. Undated states
+use the highest slot as a fallback when no timed saves exist. New cards
+capture a PNG and the save time. Earlier captures can still load, and cards
+for those slots show their frame number. Cards currently use slot names.
+Scale to Fit uses the stock 4:3 presentation. Explicit scales use the 256 × 224
+source aspect ratio and shrink to fit small viewports. The FPS counter stays
+anchored below the app bar and underneath the shared page backgrounds.
+Only the game frame enters browser fullscreen. The seven Cheats destinations
+show an unavailable notification when selected.
+
+**Local verification.** Node tests cover config migration, keyboard and
+controller bindings, and playback shortcuts. The live Chrome shell check
+covers five viewport sizes, ROM/start/pause/reload, fullscreen, state cards,
+config migration and reset, named profile editing and selection, mixed
+keyboard/mouse/gamepad input on two ports, raw hat diagonals, and per-profile
+rumble with simulated controllers. Three browser Jungle replays matched the pinned native
+reference. The Candy route produced matching cartridge save bytes and
+restored them with the remembered ROM after restarting Chrome.
+
+Run the shell check with Node 22 and a local copy of the supported ROM.
+
+```sh
+node scripts/browser_check.mjs --unringed --rom '/absolute/path/to/game.smc'
+```
+
+**Release follow-up.** Test v1.1.2 on physical Android Chrome, iOS Safari, and
+iOS Chrome. Check audio after switching apps, controller input and hardware
+rumble, and save/reopen. The state card title can use a level name when the
+stock browser core supplies reliable scene metadata. The public source
+repository publishes the allowlisted release package through GitHub Pages.
+See [GitHub Pages and mobile testing](PAGES.md).
 
 ### Phase 4 · independent WebGPU renderer
 

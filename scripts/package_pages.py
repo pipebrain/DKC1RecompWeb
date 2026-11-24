@@ -18,10 +18,10 @@ SCHEMA = 'dkc1recompweb.pages'
 MANIFEST = 'pages-manifest.json'
 WEB_FILES = (
     'index.html', 'style.css', 'main.js', 'graphics.js', 'storage.js',
-    'controller-ui.js', 'ui-shell.js', 'keyboard-ui.js', 'content-pages.js',
-    'start-shortcut.js', 'pause-presentation.js', 'gamepad-profiles.js',
+    'input-profiles.js', 'input-profile-ui.js', 'ui-shell.js', 'content-pages.js',
+    'start-shortcut.js', 'gamepad-profiles.js',
     'keyboard-profiles.js', 'audio-worklet.js', 'worker.js', 'wasm-imports.js',
-    'dk-coin.png', 'favicon.ico', 'favicon.png', 'About.md', 'Help.md',
+    'dk-coin.png', 'favicon.ico', 'favicon.png', 'About.md',
 )
 CLEAN_PLAYER_FILES = ('settings.js', 'assist.js')
 NOTICE_FILES = (
@@ -33,12 +33,15 @@ NOTICE_FILES = (
     'licenses/emscripten-LICENSE.txt', 'licenses/musl-COPYRIGHT.txt',
     'licenses/compiler-rt-LICENSE.txt',
 )
-BASELINE_FILES = frozenset((*WEB_FILES, *NOTICE_FILES, 'dkc.wasm', '.nojekyll'))
-PACKAGE_FILES = BASELINE_FILES | frozenset(CLEAN_PLAYER_FILES)
+PACKAGE_FILES = frozenset((*WEB_FILES, *CLEAN_PLAYER_FILES, *NOTICE_FILES, 'dkc.wasm', '.nojekyll'))
 # Verify the exact file lists of past mobile previews for archive recovery.
-PHASE2_PACKAGE = PACKAGE_FILES | {'video-settings.js', 'video.wgsl', 'music-pack.js',
-                                 'msu-player.js', 'hd-pack.js', 'dkc-dixie.wasm'}
-APPROVED_PACKAGES = (BASELINE_FILES, PHASE2_PACKAGE, PACKAGE_FILES)
+PROFILE_UI_WITH_HINT = PACKAGE_FILES | {'pause-presentation.js'}
+LEGACY_UI_FILES = (PROFILE_UI_WITH_HINT - {'input-profiles.js', 'input-profile-ui.js'}) | {'controller-ui.js', 'keyboard-ui.js'}
+BASELINE_FILES = (LEGACY_UI_FILES - set(CLEAN_PLAYER_FILES)) | {'Help.md'}
+CLEAN_V1_1_PACKAGE = LEGACY_UI_FILES | {'Help.md'}
+PHASE2_PACKAGE = CLEAN_V1_1_PACKAGE | {'video-settings.js', 'video.wgsl', 'music-pack.js',
+                                     'msu-player.js', 'hd-pack.js', 'dkc-dixie.wasm'}
+APPROVED_PACKAGES = (BASELINE_FILES, PHASE2_PACKAGE, CLEAN_V1_1_PACKAGE, LEGACY_UI_FILES, PROFILE_UI_WITH_HINT, PACKAGE_FILES)
 PACKAGE_DIRS = frozenset(str(parent) for name in PACKAGE_FILES
                          for parent in PurePosixPath(name).parents if str(parent) != '.')
 WASM_HEADER = b'\x00asm\x01\x00\x00\x00'

@@ -29,6 +29,18 @@ function present(){
   new Uint8Array(buffer).set(heap().subarray(pointer,pointer+size));
   framesOutstanding++;send({type:'frame',buffer,width,height,frameCount},[buffer]);
 }
+function statePreview(core){
+  const width=core.dkc_width()/2,height=core.dkc_height()/2,pitch=core.dkc_pitch();
+  const rgba=new Uint8ClampedArray(width*height*4),memory=heap(),base=core.dkc_framebuffer();
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const from=base+y*2*pitch+x*8,to=(y*width+x)*4;
+    rgba[to]=memory[from+2];
+    rgba[to+1]=memory[from+1];
+    rgba[to+2]=memory[from];
+    rgba[to+3]=255;
+  }
+  return {width,height,rgba};
+}
 function audio(){
   const frames=wasm.exports.dkc_audio_frames();if(!frames)return;
   if(audioOutstanding>=8)return;
@@ -118,7 +130,8 @@ async function command(data){
     case 'snapshot':{
       if(!loaded)throw new Error('Load a game first.');
       const entry=captureState(wasm.exports,frameCount);
-      return {...entry,variant,sha256:await hash(entry.buffer)};
+      const preview=statePreview(wasm.exports);
+      return {...entry,variant,preview,sha256:await hash(entry.buffer)};
     }
     case 'restore-state':{
       if(!loaded)throw new Error('Load a game first.');

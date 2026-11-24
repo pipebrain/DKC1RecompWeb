@@ -1,11 +1,13 @@
-# DKM
+# DKC1R Web
+
+Version 1.1.2
 
 A browser home for Donkey Kong Country, built on DKC1Recomp and its pinned snesrecomp core.
 
 ## Source repositories
 
-- [Browser project: DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb) (private repository; GitHub access required)
-- [Public test deployment: DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
+- [Browser project: DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb)
+- [Play DKC1R Web](https://pipebrain.github.io/DKC1RecompWeb/)
 - [Original project: DKC1Recomp](https://github.com/elliotttate/DKC1Recomp)
 - [Original recompilation framework: snesrecomp](https://github.com/elliotttate/snesrecomp)
 
@@ -15,13 +17,13 @@ This edition keeps the original game as its foundation and adds:
 
 - Standalone WebAssembly with a handwritten JavaScript host.
 - Direct WebGPU presentation of the complete 256 × 224 game frame, centered at 4:3 with nearest-neighbor scaling.
-- A single application menu, a compact layout, and system light/dark appearance.
-- Independent controls for two players, simultaneous keyboard and gamepad input, and stomp rumble on supported controllers.
+- A navigation rail for portrait and landscape, with Black, Light, Dark, and System appearance options.
+- Two assignable input profiles with keyboard, mouse, and gamepad bindings and per-profile stomp rumble.
 - Remembered ROMs, local cartridge saves, save import/export, and same-ROM reloading.
-- Five save-state slots with assignable Quick Save and Quick Load shortcuts.
+- Save-state cards with screenshots, Quick Save to an empty slot, and Quick Load for the latest state.
 - Local settings and configuration files for transferring both players’ bindings and preferences.
 
-The handwritten browser host uses WebAssembly, WebGPU and standard browser APIs. Open Config to adjust settings or transfer them to another browser.
+The handwritten browser host uses WebAssembly, WebGPU and standard browser APIs. Open Settings to adjust settings or transfer them to another browser.
 
 ## Credits and provenance
 

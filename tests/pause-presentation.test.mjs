@@ -37,7 +37,7 @@ test('disconnected, incompatible and out-of-range mappings offer a working fallb
 });
 test('hints describe focus, menu and dialog prerequisites',()=>{
   const value=pausePresentation(ready,{keyboard,foreground:false,focused:false,menuOpen:true});
-  assert.match(value.hint,/Return to this page.*close the menu.*click the game screen.*Return to start/);
+  assert.match(value.hint,/Return to this page.*close the menu.*focus the game screen.*Return to start/);
   assert.match(pausePresentation(ready,{keyboard,dialogOpen:true}).hint,/Close the dialog/);
 });
 test('pending audio and fatal errors do not falsely promise immediate resume',()=>{

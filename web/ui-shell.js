@@ -1,252 +1,236 @@
-// Native-inspired app chrome, implemented with browser APIs only.
+import {DEFAULT_PROFILE,evaluateProfile} from './gamepad-profiles.js';
+
+// Application chrome. Commands run in the player so the UI never simulates a game state.
 export function initAppShell({
-  onCommand=()=>{}, onBeforeOpenSettings=async()=>true,
-  onBeforeCloseSettings=async()=>true, onMenuOpen=()=>{}, getState=()=>({}),
-}={}) {
-  const settings=document.getElementById('app-settings');
-  const about=document.getElementById('about-dialog');
-  const help=document.getElementById('help-dialog');
-  const triggers=[...document.querySelectorAll('.menu-trigger[aria-controls]')];
-  const tabs=[...document.querySelectorAll('[data-settings-tab]')].filter(tab=>!tab.disabled);
-  const inputSections=new Set(['controllers','devices','options']);
-  const inputPage=document.getElementById('input-settings-page');
-  const inputPageButton=document.getElementById('settings-page-input');
-  const panes=[...document.querySelectorAll('[data-settings-pane]')];
-  let openTrigger=null,activeTab='controllers',settingsBusy=false,settingsOpener=null,aboutOpener=null,helpOpener=null,pendingStatus=false;
-  const enabledItems=menu=>[...menu.querySelectorAll('[role^="menuitem"]')].filter(item=>!item.disabled);
-  const visibleTriggers=()=>triggers.filter(item=>item.getClientRects().length);
-  function revealInMenu(item) {
-    const menu=item?.closest('.app-menu');
-    if(!menu)return;
-    const rect=item.getBoundingClientRect(),bounds=menu.getBoundingClientRect();
-    if(rect.top<bounds.top+6)menu.scrollTop-=bounds.top+6-rect.top;
-    else if(rect.bottom>bounds.bottom-6)menu.scrollTop+=rect.bottom-bounds.bottom+6;
+  onCommand, onBeforeOpenSettings, onBeforeCloseSettings, onMenuOpen, getState, getPreferences, onLeavePage,
+}) {
+  const byId=id=>document.getElementById(id);
+  const rail=byId('navigation-rail'), menu=byId('open-menu'), back=byId('settings-done');
+  const title=byId('app-title'), logo=document.querySelector('.brand-mark');
+  const game=byId('game'), canvas=byId('screen'), overlay=byId('game-overlay');
+  const fps=byId('fps-counter'), home=byId('settings-home'), host=byId('snackbar-host');
+  const pages=new Map([...document.querySelectorAll('main > .page')].map(page=>[page.id,page]));
+  const panes=new Map([...home.parentElement.querySelectorAll('[data-settings-pane]')].map(pane=>[pane.dataset.settingsPane,pane]));
+  const pageTitles={settings:'Settings',saves:'Save States',cheats:'Cheats',about:'About'};
+  const paneTitles={controllers:'Input Profiles',sound:'Advanced audio',options:'Advanced system',video:'Advanced video'};
+  const gameButtons=[...document.querySelectorAll('[data-needs-game]')];
+  const start=byId('start-game'), startLabel=start.querySelector('span'), startIcon=start.querySelector('use');
+  const fullscreen=byId('full-screen'), loadRom=home.querySelector('[data-command="open-rom"]');
+  let activePage=null, activeTab=null, settingsBusy=false, detailOpener=null, homeScroll=0, profileScroll=0, profileOpener=null, profileTitle='', lastFps=0;
+  const timers=new Map();
+
+  function removeNotice(notice) {
+    clearTimeout(timers.get(notice));
+    timers.delete(notice);
+    notice.remove();
   }
-  function focusMenuItem(item) {
-    if(!item)return;
-    item.focus({preventScroll:true});revealInMenu(item);
+  function trimNotices() {
+    const {notificationsEnabled,notificationMax}=getPreferences();
+    const limit=notificationsEnabled?notificationMax:0;
+    while(host.children.length>limit)removeNotice(host.firstElementChild);
   }
-  function syncNotices() {
-    for(const copy of document.querySelectorAll('[data-status-copy]')){
-      const source=document.getElementById(copy.dataset.statusCopy);
-      copy.textContent=source.textContent;copy.classList.toggle('error',source.classList.contains('error'));
+  function notify(message,context='') {
+    const options=getPreferences();
+    if(!options.notificationsEnabled)return;
+    const notice=document.createElement('div');
+    notice.className='snackbar';
+    const label=document.createElement('span');
+    label.textContent=message;
+    notice.append(label);
+    if(options.verboseNotifications&&context){
+      const detail=document.createElement('span');
+      detail.className='snackbar-context';
+      detail.textContent=context;
+      notice.append(detail);
     }
+    host.append(notice);
+    trimNotices();
+    timers.set(notice,setTimeout(()=>{
+      if(!getPreferences().notificationFade){removeNotice(notice);return;}
+      notice.classList.add('is-dismissing');
+      timers.set(notice,setTimeout(()=>removeNotice(notice),200));
+    },options.notificationDuration*1000));
   }
-  function report(error) {
-    const status=document.getElementById('status');
-    status.textContent=error.message||String(error);status.classList.add('error');
-    showStatus();
-  }
+  function report(error){notify(error.message||String(error));}
   function dispatch(command) {
     try{Promise.resolve(onCommand(command)).catch(report);}catch(error){report(error);}
   }
-  function closeMenus(restore=false) {
-    const prior=openTrigger;
-    for(const trigger of triggers){document.getElementById(trigger.getAttribute('aria-controls')).hidden=true;trigger.setAttribute('aria-expanded','false');}
-    openTrigger=null;
-    if(restore)prior?.focus({preventScroll:true});
+
+  function closeMenus() {
+    if(!rail.open)return;
+    rail.close();
+    menu.setAttribute('aria-expanded','false');
+    if(!menu.hidden)menu.focus({preventScroll:true});
   }
-  function positionMenu(trigger,menu) {
-    const rect=trigger.getBoundingClientRect();
-    menu.style.maxHeight=`${Math.max(44,innerHeight-rect.bottom-12)}px`;
-    menu.style.left='0px';menu.style.top=`${rect.bottom+4}px`;
-    const bounds=menu.getBoundingClientRect();
-    const left=Math.max(8,Math.min(rect.left,innerWidth-bounds.width-8));
-    const top=Math.max(4,Math.min(rect.bottom+4,innerHeight-bounds.height-8));
-    menu.style.left=`${left}px`;menu.style.top=`${top}px`;
-  }
-  function showMenu(trigger,focus='none') {
-    if(document.querySelector('dialog[open]'))return;
+  function showMenu() {
+    if(activePage||document.querySelector('dialog[open]'))return;
     onMenuOpen();
-    syncNotices();
-    closeMenus();
-    const menu=document.getElementById(trigger.getAttribute('aria-controls'));
-    menu.hidden=false;menu.scrollTop=0;trigger.setAttribute('aria-expanded','true');openTrigger=trigger;
-    positionMenu(trigger,menu);
-    const items=enabledItems(menu);
-    if(focus==='none')trigger.focus({preventScroll:true});
-    if(focus==='first')focusMenuItem(items[0]||trigger);
-    if(focus==='last')focusMenuItem(items.at(-1)||trigger);
+    rail.showModal();
+    rail.scrollTop=0;
+    menu.setAttribute('aria-expanded','true');
+    byId('collapse-menu').focus({preventScroll:true});
   }
-  for(const trigger of triggers){
-    trigger.addEventListener('click',()=>{if(openTrigger===trigger)closeMenus();else showMenu(trigger);});
-    trigger.addEventListener('pointerenter',()=>{if(openTrigger&&openTrigger!==trigger)showMenu(trigger);});
-    trigger.addEventListener('keydown',event=>{
-      if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();showMenu(trigger,event.key==='ArrowDown'?'first':'last');}
-      else if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
-        event.preventDefault();const siblings=visibleTriggers();
-        const next=siblings[(siblings.indexOf(trigger)+(event.key==='ArrowRight'?1:-1)+siblings.length)%siblings.length];
-        next?.focus();if(openTrigger)showMenu(next,'first');
-      }else if(event.key==='Escape'){event.preventDefault();closeMenus(true);}
-    });
-  }
-  document.addEventListener('pointerdown',event=>{if(openTrigger&&!event.target.closest('.menu-group')&&!event.target.closest('.app-menu'))closeMenus();});
-  document.addEventListener('keydown',event=>{
-    if(!openTrigger)return;
-    const menu=document.getElementById(openTrigger.getAttribute('aria-controls'));
-    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeMenus(true);return;}
-    if(event.key==='Tab'){closeMenus();return;}
-    if(!menu.contains(event.target))return;
-    const items=enabledItems(menu),index=items.indexOf(document.activeElement);
-    if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
-      event.preventDefault();
-      const next=event.key==='Home'?0:event.key==='End'?items.length-1:(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;
-      focusMenuItem(items[next]);
-    }else if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
-      event.preventDefault();const siblings=visibleTriggers();
-      const next=siblings[(siblings.indexOf(openTrigger)+(event.key==='ArrowRight'?1:-1)+siblings.length)%siblings.length];
-      showMenu(next,'first');
-    }
-  });
+  menu.addEventListener('click',showMenu);
+  byId('collapse-menu').addEventListener('click',closeMenus);
+  rail.addEventListener('cancel',event=>{event.preventDefault();closeMenus();});
+  rail.addEventListener('click',event=>{if(event.target===rail&&event.clientX>rail.getBoundingClientRect().right)closeMenus();});
   for(const button of document.querySelectorAll('[data-command]'))button.addEventListener('click',()=>{
-    if(button.disabled)return;
-    const command=button.dataset.command,prior=openTrigger;closeMenus();prior?.focus({preventScroll:true});
-    dispatch(command);
-  });
-  document.addEventListener('keydown',event=>{
-    if(event.defaultPrevented||event.isComposing||event.altKey)return;
-    const editable=event.target.closest?.('input,select,textarea,[contenteditable="true"]');
-    const modal=Boolean(document.querySelector('dialog[open]'));
-    const key=event.key.toLowerCase(),modifier=(event.metaKey||event.ctrlKey)&&!event.shiftKey;
-    if(modifier&&['o',','].includes(key)&&(modal||editable)){event.preventDefault();return;}
-    let command=null;
-    if(modifier&&key===','&&!modal&&!editable)command='settings';
-    else if(modifier&&key==='o'&&!modal&&!editable)command='open-rom';
-    else if(event.metaKey&&event.ctrlKey&&!event.shiftKey&&key==='f'&&!modal&&!editable&&getState().fullscreenAvailable)command='fullscreen';
-    else if(event.code==='Space'&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!modal&&event.target===document.getElementById('screen')&&getState().loaded&&!getState().spaceIsStart&&(!getState().spaceBound||!getState().running))command='toggle';
-    if(!command)return;
-    event.preventDefault();closeMenus();
-    dispatch(command);
-  });
-  function selectTab(tab) {
-    activeTab=tab;
-    const inputSelected=inputSections.has(tab);
-    inputPage.hidden=!inputSelected;
-    inputPageButton.setAttribute('aria-selected',String(inputSelected));
-    inputPageButton.tabIndex=inputSelected?0:-1;
-    for(const button of tabs){const selected=button.dataset.settingsTab===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;}
-    for(const pane of panes)pane.hidden=pane.dataset.settingsPane!==tab;
-    settings.querySelector('.settings-content').scrollTop=0;
-    settings.dataset.section=tab;
-    settings.dataset.page=inputSelected?'input':tab;
-  }
-  function revealSettingsTab(tab) {
-    const selected=tabs.find(item=>item.dataset.settingsTab===tab);
-    for(const target of inputSections.has(tab)?[inputPageButton,selected]:[selected]){
-      const navigation=target?.parentElement;
-      if(!target||!navigation)continue;
-      const rect=target.getBoundingClientRect(),bounds=navigation.getBoundingClientRect();
-      if(rect.left<bounds.left)navigation.scrollLeft-=bounds.left-rect.left;
-      else if(rect.right>bounds.right)navigation.scrollLeft+=rect.right-bounds.right;
-      if(rect.top<bounds.top)navigation.scrollTop-=bounds.top-rect.top;
-      else if(rect.bottom>bounds.bottom)navigation.scrollTop+=rect.bottom-bounds.bottom;
-    }
-  }
-  async function openSettings(tab='controllers') {
-    if(!tabs.some(button=>button.dataset.settingsTab===tab))throw new Error('Unknown settings section.');
     closeMenus();
-    if(settings.open&&activeTab===tab)return true;
+    dispatch(button.dataset.command);
+  });
+  overlay.addEventListener('click',()=>dispatch(getState().loaded?'start-game':'open-rom'));
+  for(const entry of document.querySelectorAll('.warp-entry'))entry.addEventListener('click',()=>{
+    notify('Warp unavailable in the browser.',entry.querySelector('.warp-name').textContent);
+  });
+
+  function setPage(page,{focus=true}={}) {
+    if(activePage!==page&&activePage)onLeavePage(activePage);
+    activePage=page;
+    for(const [key,element] of pages)element.hidden=key!==page;
+    menu.hidden=logo.hidden=Boolean(page);
+    back.hidden=!page;
+    back.setAttribute('aria-label',page==='settings'&&activeTab==='profile'?'Back to Input Profiles':page==='settings'&&activeTab?'Back to Settings':'Back to game');
+    game.classList.toggle('page-backdrop',Boolean(page));
+    game.inert=Boolean(page);
+    title.textContent=(page==='settings'&&(activeTab==='profile'?profileTitle:paneTitles[activeTab]))||pageTitles[page]||'DKC1R Web';
+    window.scrollTo(0,0);
+    if(focus)(page?title:getState().loaded?canvas:menu).focus({preventScroll:true});
+  }
+  async function openSettings(tab=null,opener=null,label='') {
     if(settingsBusy)return false;
     settingsBusy=true;
     try{
       if(await onBeforeOpenSettings(tab)===false)return false;
-      const wasOpen=settings.open;
-      if(!wasOpen)settingsOpener=document.activeElement;
-      selectTab(tab);
-      if(!wasOpen)settings.showModal();
-      revealSettingsTab(tab);
-      const pane=panes.find(item=>item.dataset.settingsPane===tab);
-      const target=pane.querySelector('select:not(:disabled), input:not(:disabled):not([hidden]), button:not(:disabled):not([hidden])');
-      (target||tabs.find(item=>item.dataset.settingsTab===tab)).focus({preventScroll:true});
+      if(activePage==='settings'&&!activeTab&&tab){
+        detailOpener=opener;
+        homeScroll=window.scrollY;
+      }
+      if(tab==='profile'&&activeTab==='controllers'){
+        profileScroll=window.scrollY;profileOpener=opener;profileTitle=label;
+      }
+      activeTab=tab;
+      home.hidden=Boolean(tab);
+      for(const [key,pane] of panes)pane.hidden=key!==tab;
+      setPage('settings');
       return true;
     }finally{settingsBusy=false;}
   }
   async function closeSettings() {
-    if(!settings.open)return true;
+    if(activePage!=='settings')return true;
     if(settingsBusy)return false;
     settingsBusy=true;
     try{
       if(await onBeforeCloseSettings()===false)return false;
-      settings.close();return true;
+      activeTab=null;
+      setPage(null);
+      return true;
     }finally{settingsBusy=false;}
   }
-  const navigationButtons=[...tabs,inputPageButton];
-  const sectionFor=button=>button.dataset.settingsPage==='input'?'controllers':button.dataset.settingsTab;
-  for(const tab of navigationButtons){
-    tab.addEventListener('click',()=>openSettings(sectionFor(tab)).catch(report));
-    tab.addEventListener('keydown',event=>{
-      if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
-      event.preventDefault();
-      const siblings=[...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')].filter(item=>!item.disabled);
-      const index=siblings.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?siblings.length-1:(index+(['ArrowRight','ArrowDown'].includes(event.key)?1:-1)+siblings.length)%siblings.length;
-      openSettings(sectionFor(siblings[next])).then(allowed=>{if(allowed)siblings[next].focus({preventScroll:true});}).catch(report);
-    });
+  for(const button of home.querySelectorAll('[data-detail]'))button.addEventListener('click',()=>{
+    openSettings(button.dataset.detail,button).catch(report);
+  });
+  async function goBack(){
+    if(activePage!=='settings'){setPage(null);return;}
+    if(!activeTab){await closeSettings();return;}
+    if(activeTab==='profile'){
+      if(await openSettings('controllers')){
+        window.scrollTo(0,profileScroll);
+        (profileOpener?.isConnected?profileOpener:byId('add-profile')).focus({preventScroll:true});
+        profileOpener=null;profileScroll=0;
+      }
+      return;
+    }
+    if(await openSettings()){
+      window.scrollTo(0,homeScroll);
+      detailOpener?.focus({preventScroll:true});
+      detailOpener=null;homeScroll=0;
+    }
   }
-  document.getElementById('settings-done').addEventListener('click',()=>closeSettings().catch(report));
-  settings.addEventListener('cancel',event=>{event.preventDefault();closeSettings().catch(report);});
-  settings.addEventListener('click',event=>{if(event.target!==settings)return;const rect=settings.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)closeSettings().catch(report);});
-  settings.addEventListener('close',()=>{if(settingsOpener?.isConnected)settingsOpener.focus({preventScroll:true});if(pendingStatus)showStatus();});
-  function openHelp() {
-    closeMenus();
-    if(help.open)return;
-    helpOpener=document.activeElement;
-    help.showModal();
-    help.querySelector('[data-close-help]').focus({preventScroll:true});
-  }
-  for(const button of help.querySelectorAll('[data-close-help]'))button.addEventListener('click',()=>help.close());
-  help.addEventListener('close',()=>{if(helpOpener?.isConnected)helpOpener.focus({preventScroll:true});if(pendingStatus)showStatus();});
-  help.addEventListener('click',event=>{if(event.target!==help)return;const rect=help.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)help.close();});
-  for(const button of document.querySelectorAll('[data-close-about]'))button.addEventListener('click',()=>about.close());
-  about.addEventListener('beforetoggle',event=>{if(event.newState==='open'&&!about.contains(document.activeElement))aboutOpener=document.activeElement;});
-  about.addEventListener('close',()=>{if(aboutOpener?.isConnected)aboutOpener.focus({preventScroll:true});if(pendingStatus)showStatus();});
-  about.addEventListener('click',event=>{if(event.target!==about)return;const rect=about.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)about.close();});
-  window.addEventListener('resize',()=>{if(openTrigger){if(!openTrigger.getClientRects().length)closeMenus();else positionMenu(openTrigger,document.getElementById(openTrigger.getAttribute('aria-controls')));}});
-  function changeLabel(button,label) {
-    const node=[...button.childNodes].find(child=>child.nodeType===Node.TEXT_NODE);
-    if(node)node.textContent=label;else button.prepend(document.createTextNode(label));
-  }
-  function showStatus() {
-    if(document.querySelector('dialog[open]')){pendingStatus=true;return;}
-    pendingStatus=false;
-    const target=visibleTriggers().find(trigger=>trigger.getAttribute('aria-controls')==='menu-dkm')||visibleTriggers()[0];
-    if(!target)return;
-    showMenu(target);target.focus({preventScroll:true});
-    const menu=document.getElementById(target.getAttribute('aria-controls'));
-    revealInMenu(menu.querySelector('.menu-notices'));
+  back.addEventListener('click',()=>goBack().catch(report));
+  document.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.isComposing||event.altKey||document.querySelector('dialog[open]'))return;
+    const editable=event.target.closest?.('input,select,textarea,[contenteditable="true"]');
+    const key=event.key.toLowerCase(),modifier=(event.metaKey||event.ctrlKey)&&!event.shiftKey;
+    const value=getState();
+    if(event.key==='Escape'&&activePage){event.preventDefault();goBack().catch(report);return;}
+    if(editable||activePage)return;
+    let command;
+    if(modifier&&key===',')command='settings';
+    else if(modifier&&key==='o')command='open-rom';
+    else if(event.metaKey&&event.ctrlKey&&key==='f'&&value.fullscreenAvailable)command='fullscreen';
+    else if(event.code==='Space'&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&event.target===canvas
+      &&value.loaded&&!value.spaceIsStart&&(!value.spaceBound||!value.running))command='start-game';
+    if(command){event.preventDefault();dispatch(command);}
+  });
+  document.addEventListener('fullscreenchange',()=>{
+    if(document.fullscreenElement===game)game.append(fps,host);
+    else{
+      game.after(fps);
+      document.body.append(host);
+    }
+    update();
+  });
+
+  function setFps(value){
+    lastFps=value;
+    const label=`${value} FPS`;
+    if(fps.textContent!==label)fps.textContent=label;
   }
   function update(value=getState()) {
-    const {loaded=false,running=false,hasStarted=false,sound=true,loading=false,playbackBusy=false,playbackError=false,pausedReason,helpAvailable=false,aboutAvailable=false,inputMode='keyboard',keyboardCustom=false}=value;
-    document.body.dataset.running=String(running);document.body.dataset.loaded=String(loaded);document.body.dataset.sound=String(sound);
-    for(const button of document.querySelectorAll('[data-needs-game]'))button.disabled=!loaded||loading;
-    for(const button of document.querySelectorAll('[data-start-game]')){
-      changeLabel(button,running?'Pause Game':hasStarted?'Resume Game':'Start Game');
-      button.disabled=!loaded||loading||playbackBusy||playbackError||['error','gpu-error'].includes(pausedReason);
-    }
-    for(const button of document.querySelectorAll('[data-command="open-rom"]'))button.disabled=loading;
-    for(const button of document.querySelectorAll('[data-command="keyboard"]')){button.disabled=!helpAvailable;button.title=helpAvailable?'':'Help is unavailable.';}
-    for(const button of document.querySelectorAll('[data-command="about"]')){button.disabled=!aboutAvailable;button.title=aboutAvailable?'':'About is unavailable.';}
-    const inputLabel=inputMode==='keyboard'?(keyboardCustom?'Keyboard (custom)':'Keyboard (default)'):inputMode==='both'?'Keyboard and gamepad':inputMode==='none'?'Disabled':'Gamepad';
-    for(const label of document.querySelectorAll('[data-input-label]'))label.textContent=inputLabel;
-    for(const button of document.querySelectorAll('[data-toggle-label]')){
-      changeLabel(button,running?'Pause':hasStarted?'Resume':'Start');
-      button.disabled=!loaded||loading||playbackBusy||playbackError||['error','gpu-error'].includes(pausedReason);
-    }
-    for(const button of document.querySelectorAll('[data-command="audio"]')){
-      if(button.getAttribute('role')==='menuitemcheckbox')button.setAttribute('aria-checked',String(sound));
-      else button.setAttribute('aria-pressed',String(sound));
-      if(button.hasAttribute('data-sound-label'))changeLabel(button,sound?'Sound On':'Sound Off');
-    }
-    const fullscreenAvailable=Boolean(value.fullscreenAvailable);
-    for(const button of document.querySelectorAll('[data-fullscreen-label]')){
-      changeLabel(button,document.fullscreenElement?'Exit Full Screen':'Enter Full Screen');
-      button.disabled=!fullscreenAvailable;
-      button.title=fullscreenAvailable?'':'Full screen is not available in this browser.';
-    }
-    syncNotices();
+    const {loaded,running,hasStarted,loading,playbackBusy,playbackError,pausedReason}=value;
+    const playable=loaded&&!loading&&!playbackBusy&&!playbackError&&!['error','gpu-error'].includes(pausedReason);
+    const label=running?'Pause Game':hasStarted?'Resume Game':'Start Game';
+    if(startLabel.textContent!==label)startLabel.textContent=label;
+    const icon=running?'#pause-icon':'#play-icon';
+    if(startIcon.getAttribute('href')!==icon)startIcon.setAttribute('href',icon);
+    start.disabled=!playable;
+    for(const button of gameButtons)button.disabled=!loaded||loading;
+    fullscreen.disabled=!value.fullscreenAvailable;
+    const overlayLabel=loading?'Loading ROM…':loaded?label:'Load ROM';
+    const span=overlay.firstElementChild;
+    if(span.textContent!==overlayLabel)span.textContent=overlayLabel;
+    overlay.hidden=Boolean(running)||Boolean(loaded&&playbackError);
+    overlay.disabled=Boolean(loading)||Boolean(loaded&&!playable);
+    loadRom.disabled=Boolean(loading);
+    fps.hidden=!getPreferences().showFps;
+    if(!loaded)setFps(0);
+    else if(!fps.textContent)setFps(lastFps);
   }
-  document.addEventListener('fullscreenchange',()=>update(getState()));
-  selectTab('controllers');update(getState());
-  const noticeObserver=new MutationObserver(syncNotices);
-  for(const id of ['status','save-status'])noticeObserver.observe(document.getElementById(id),{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['class']});
-  return {update,openSettings,closeSettings,openHelp,isSettingsOpen:()=>settings.open,isMenuOpen:()=>Boolean(openTrigger),isSettingsBusy:()=>settingsBusy,activeSettingsTab:()=>activeTab,closeMenus,showStatus};
+  return {update,notify,trimNotices,setFps,openSettings,closeSettings,openPage:setPage,goBack,
+    renameProfile(titleText){profileTitle=titleText;if(activeTab==='profile')title.textContent=titleText;},
+    isSettingsOpen:()=>activePage==='settings',isMenuOpen:()=>rail.open,
+    isPageOpen:()=>Boolean(activePage),isSettingsBusy:()=>settingsBusy,
+  };
+}
+
+// Use fresh D-pad/button edges so a held game button cannot click into a sheet.
+export function createSettingsNavigation(){
+  let previous=0,wasOpen=false;
+  let menuHeld=true;
+  return function navigate(pads,blocked,rawBits=0,onMenu=()=>{},afterClose=()=>{}){
+    const dialog=document.querySelector('#settings:not([hidden]) #app-settings');
+    const standard=Array.from(pads||[]).filter(p=>p?.connected!==false&&p?.mapping==='standard');
+    const down=(pad,i)=>Boolean(pad.buttons[i]?.pressed||pad.buttons[i]?.value>.5||pad.buttons[i]>.5);
+    const menu=standard.some(p=>down(p,16)||(down(p,9)&&down(p,8)));
+    const openEdge=menu&&!menuHeld;menuHeld=menu;
+    if(openEdge&&!blocked&&!dialog){onMenu();return;}
+    const mask=standard.reduce((bits,pad)=>bits|evaluateProfile(DEFAULT_PROFILE,pad),rawBits);
+    const pressed=mask&~previous;previous=mask;
+    if(!dialog||!wasOpen||blocked||!pressed){wasOpen=Boolean(dialog);return;}
+    const elements=Array.from(dialog.querySelectorAll('button:not(:disabled),select:not(:disabled),input:not(:disabled),summary,[tabindex="0"]'))
+      .filter(el=>el.getClientRects().length&&!el.closest('[hidden]')&&(!el.closest('details:not([open])')||el.tagName==='SUMMARY'));
+    if(!elements.length)return;
+    const focus=document.activeElement,current=elements.indexOf(focus),next=pressed&32?1:pressed&16?-1:0;
+    if(next){elements[(current+next+elements.length)%elements.length].focus();return;}
+    if(pressed&256){document.getElementById('settings-done').click();afterClose();return;}
+    const direction=pressed&128?1:pressed&64?-1:0;
+    if(direction&&focus?.tagName==='SELECT'){
+      focus.selectedIndex=Math.max(0,Math.min(focus.options.length-1,focus.selectedIndex+direction));focus.dispatchEvent(new Event('change',{bubbles:true}));return;
+    }
+    if(direction&&focus?.matches('input[type=number],input[type=range]')){
+      direction>0?focus.stepUp():focus.stepDown();focus.dispatchEvent(new Event('input',{bubbles:true}));focus.dispatchEvent(new Event('change',{bubbles:true}));return;
+    }
+    if(direction){elements[(current+direction+elements.length)%elements.length].focus();return;}
+    if(pressed&1&&current>=0)focus.click();
+  };
 }

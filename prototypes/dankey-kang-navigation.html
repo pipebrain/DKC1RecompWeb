@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="en" data-appearance="black">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>DKC1R Web · Navigation prototype</title>
+<link rel="icon" href="../web/favicon.ico" type="image/x-icon" sizes="16x16 32x32 48x48">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bow-tie-red: #d03935;
+    --button-gold: #ce9452;
+    --white-fur: #99a2ab;
+    --paw-gray: #766b76;
+    --blue-fur: #3e70bd;
+    --surface: light-dark(color-mix(in srgb, var(--white-fur) 12%, white), #151923);
+    --container: light-dark(
+      color-mix(in srgb, var(--paw-gray) 12%, var(--surface)),
+      color-mix(in srgb, var(--paw-gray) 23%, var(--surface))
+    );
+    --on-surface: light-dark(#171d29, #edf1f5);
+    --muted: light-dark(#515469, #b9b8c6);
+    --secondary-container: light-dark(
+      color-mix(in srgb, var(--button-gold) 31%, #fff9eb),
+      color-mix(in srgb, var(--button-gold) 34%, #241e26)
+    );
+    --on-secondary-container: light-dark(#3b281b, #ffe4b7);
+    --focus: light-dark(
+      color-mix(in srgb, var(--blue-fur) 65%, #12254f),
+      color-mix(in srgb, var(--blue-fur) 42%, #f1f3ff)
+    );
+    --state: color-mix(in srgb, var(--focus) 10%, transparent);
+    --error: light-dark(
+      color-mix(in srgb, var(--bow-tie-red) 72%, #570b19),
+      color-mix(in srgb, var(--bow-tie-red) 42%, #ffddd9)
+    );
+    --scrim: rgb(0 0 0 / .32);
+    --screen: #0c1524;
+    --bar-height: 64px;
+  }
+  :root[data-appearance="light"] { color-scheme: light; }
+  :root[data-appearance="dark"] { color-scheme: dark; }
+  :root[data-appearance="black"] {
+    color-scheme: dark;
+    --surface: #000;
+    --container: #121319;
+    --chrome-surface: var(--surface);
+    --screen: #000;
+  }
+  * { box-sizing: border-box; }
+  html { scrollbar-gutter: stable; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font: 400 16px/1.5 Roboto, system-ui, sans-serif;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: transparent; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .app-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: calc(var(--bar-height) + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) calc(12px + env(safe-area-inset-right)) 0 calc(4px + env(safe-area-inset-left));
+    background-color: color-mix(in srgb, var(--chrome-surface, var(--container)) 88%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .app-bar:has(#settings-back:not([hidden])) {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .icon-button {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: 50%;
+    flex: none;
+  }
+  .icon-button:hover, .destination:hover { background-color: var(--state); }
+  .brand-mark {
+    display: block;
+    flex: none;
+    padding: 3px;
+    border-radius: 9px;
+    object-fit: contain;
+    background: color-mix(in srgb, var(--white-fur) 18%, white);
+  }
+  h1 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 400; }
+  main {
+    --main-height: calc(100dvh - var(--bar-height) - env(safe-area-inset-top));
+    --content-height: calc(var(--main-height) - env(safe-area-inset-bottom) - 24px);
+    --main-padding: 12px calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    --ui-background-opacity: 80%;
+    position: relative;
+    min-height: var(--main-height);
+  }
+  main:has(#game:not([hidden], .page-backdrop)) {
+    display: grid;
+    place-items: center;
+    padding: var(--main-padding);
+  }
+  main:has(> .page:not([hidden])) { isolation: isolate; }
+  .game-frame {
+    --frame-aspect: 4 / 3;
+    --max-frame-width: min(calc(var(--content-height) * (var(--frame-aspect))), var(--frame-width, 640px));
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: min(100%, var(--max-frame-width));
+    aspect-ratio: var(--frame-aspect);
+    background: var(--screen);
+    border-radius: 12px;
+    font-size: 14px;
+    background-position: center;
+    background-size: cover;
+    text-shadow: 0 1px 5px #000;
+  }
+  .game-frame.integer-scaling { background-size: 100% 100%; }
+  .game-frame.page-backdrop {
+    position: fixed;
+    top: calc(var(--bar-height) + env(safe-area-inset-top) + 12px + var(--content-height) / 2);
+    left: calc((100% + env(safe-area-inset-left) - env(safe-area-inset-right)) / 2);
+    width: min(calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)), var(--max-frame-width));
+    transform: translate(-50%, -50%);
+    opacity: .45;
+    pointer-events: none;
+  }
+  .page-backdrop .game-overlay { display: none; }
+  .game-frame.is-expanded {
+    position: fixed;
+    z-index: 3;
+    inset: 0;
+    width: auto;
+    aspect-ratio: auto;
+  }
+  body:has(.game-frame.is-expanded) { overflow: hidden; }
+  .game-frame:is(:fullscreen, .is-expanded) {
+    border-radius: 0;
+    background-color: #000;
+    background-repeat: no-repeat;
+    background-size: contain;
+  }
+  .game-frame.integer-scaling:is(:fullscreen, .is-expanded) {
+    --fullscreen-image-width: min(100vw, calc(100dvh * (var(--frame-aspect))), var(--frame-width));
+    background-size: var(--fullscreen-image-width) calc(var(--fullscreen-image-width) / (var(--frame-aspect)));
+  }
+  .game-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: inherit;
+    background: rgb(0 0 0 / .44);
+  }
+  .game-overlay span {
+    padding: 12px 24px;
+    border-radius: 28px;
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-weight: 600;
+    text-shadow: none;
+  }
+  .game-overlay:hover:not(:disabled) span { box-shadow: inset 0 0 0 48px var(--state); }
+  .fps-counter {
+    position: absolute;
+    z-index: 0;
+    inset: 8px max(8px, env(safe-area-inset-right)) auto auto;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgb(0 0 0 / .72);
+    color: #fff;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  main:has(> #settings:not([hidden])) > .fps-counter {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + var(--bar-height) + 8px);
+  }
+  main:has(.game-frame.is-expanded) > .fps-counter {
+    position: fixed;
+    z-index: 4;
+    top: max(8px, env(safe-area-inset-top));
+  }
+  .game-frame:fullscreen > .fps-counter { top: max(8px, env(safe-area-inset-top)); }
+  .page {
+    position: relative;
+    z-index: 1;
+    min-height: var(--main-height);
+    padding: var(--main-padding);
+    background-color: color-mix(in srgb, var(--surface) var(--ui-background-opacity), transparent);
+  }
+  .page > * { max-width: 560px; margin-inline: auto; }
+  #settings { padding-block: 20px calc(20px + env(safe-area-inset-bottom)); }
+  #settings > :is(.settings-group, #settings-detail) { padding-inline: 8px; }
+  #settings:has(> #settings-detail:not([hidden])) > .settings-group { display: none; }
+  h2 { font-size: 24px; line-height: 32px; font-weight: 400; margin: 12px 0; }
+  .page p { color: var(--muted); }
+  .page a { color: var(--focus); }
+  .settings-list { display: grid; gap: 2px; border-radius: 20px; overflow: hidden; }
+  .settings-group + .settings-group { margin-block-start: 20px; }
+  .settings-group h2 { margin: 0 0 8px; padding-inline: 16px; color: var(--focus); font-size: 14px; line-height: 24px; font-weight: 600; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 64px;
+    padding: 12px 16px;
+    background: var(--container);
+    text-align: start;
+  }
+  button.settings-row:hover { background: var(--secondary-container); }
+  .settings-row .supporting { display: block; color: var(--muted); font-size: 14px; }
+  .settings-row .icon { color: var(--muted); }
+  .range-setting { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .range-setting label { grid-column: 1 / -1; }
+  .range-setting input[type="range"] { width: 100%; min-height: 32px; margin: 0; }
+  .settings-row input { accent-color: var(--focus); }
+  .settings-row select, .settings-row input[type="number"], .settings-row input[type="text"] {
+    min-height: 48px;
+    max-width: 58%;
+    padding-inline: 8px;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background: var(--surface);
+    font: inherit;
+    color: inherit;
+  }
+  .settings-row input[type="number"] { width: 7ch; }
+  .settings-row input.range-value { max-width: none; }
+  .settings-row input[type="text"] { width: 15ch; }
+  .profile-panel { display: grid; gap: 16px; }
+  .profile-panel p { margin: 0; }
+  .profile-panel .form-action { justify-content: flex-start; font-weight: 600; color: var(--focus); }
+  .snackbar-host {
+    position: fixed;
+    z-index: 2;
+    left: 50%;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(560px, calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    display: grid;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .snackbar {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: 12px;
+    padding: 12px 16px;
+    border-radius: 4px;
+    background: var(--on-surface);
+    color: var(--surface);
+    box-shadow: 0 2px 6px rgb(0 0 0 / .25);
+    font-size: 14px;
+  }
+  .snackbar-context { opacity: .82; overflow-wrap: anywhere; }
+  .snackbar.is-dismissing { animation: snackbar-fade-out 200ms ease-in forwards; }
+  @keyframes snackbar-fade-out { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .snackbar.is-dismissing { animation-duration: 1ms; }
+  }
+  .mapping-row { gap: 8px; }
+  .mapping-row .mapping-summary { min-width: 0; overflow-wrap: anywhere; }
+  .mapping-actions { display: grid; grid-template-columns: repeat(2, minmax(52px, auto)); gap: 8px; flex: none; }
+  .mapping-actions button { min-height: 48px; padding: 0 8px; border-radius: 24px; color: var(--focus); font-size: 14px; }
+  .mapping-actions button:hover:not(:disabled) { background: var(--state); }
+  .settings-switch {
+    appearance: none;
+    position: relative;
+    width: 52px;
+    height: 32px;
+    margin: 8px 0;
+    flex: none;
+    border: 2px solid var(--muted);
+    border-radius: 16px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .settings-switch::before {
+    content: '';
+    position: absolute;
+    inset: 6px auto 6px 6px;
+    width: 16px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .settings-switch:checked { background: var(--focus); border-color: var(--focus); }
+  .settings-switch:checked::before { inset: 2px 2px 2px auto; width: 24px; background: var(--surface); }
+  .settings-switch:focus-visible { outline-offset: 3px; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 136px), 1fr)); gap: 12px; }
+  .save-card, .add-card { min-width: 0; aspect-ratio: 4 / 5.5; border-radius: 16px; }
+  .save-card { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); background: var(--container); overflow: hidden; }
+  .load-card { display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 0; text-align: start; }
+  .load-card:hover, .add-card:hover { background: var(--state); }
+  .load-card:focus-visible { outline-offset: -3px; }
+  .load-card img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+  .card-caption { display: grid; align-content: start; gap: 4px; padding: 12px; }
+  .card-caption strong { font-weight: 600; }
+  .card-caption time { color: var(--muted); font-size: 13px; }
+  .delete-card {
+    position: absolute;
+    inset: 4px 4px auto auto;
+    background: var(--surface);
+  }
+  .delete-card:hover { background: var(--secondary-container); }
+  .add-card {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px dashed var(--muted);
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+  }
+  .profile-list { margin: 0; padding: 0; list-style: none; }
+  .profile-list .settings-row { width: 100%; min-height: 76px; padding-block: 16px; overflow-wrap: anywhere; }
+  .new-profile-button {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 8px 20px 8px 16px;
+    border-radius: 24px;
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-weight: 600;
+  }
+  .new-profile-button:hover { box-shadow: inset 0 0 0 48px var(--state); }
+  .delete-profile-button { color: var(--error); }
+  .profile-dialog {
+    width: min(360px, calc(100% - 32px));
+    padding: 24px;
+    border: 0;
+    border-radius: 28px;
+    background: var(--container);
+    color: var(--on-surface);
+  }
+  .profile-dialog::backdrop { background: var(--scrim); }
+  body:has(.profile-dialog:modal) :is(.app-bar, #settings) {
+    filter: blur(3px);
+  }
+  .profile-dialog h2 { margin: 0 0 16px; }
+  .binding-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .binding-dialog-header h2, #binding-message { margin: 0; }
+  #binding-title:focus { outline: none; }
+  .profile-dialog label { display: grid; gap: 4px; }
+  .profile-dialog input { min-height: 48px; padding: 0 12px; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--muted); border-radius: 8px; }
+  .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .dialog-actions button { min-height: 48px; padding-inline: 16px; border-radius: 24px; color: var(--focus); }
+  .dialog-actions button:hover { background: var(--state); }
+  .dialog-actions button[type="submit"] { background: var(--secondary-container); color: var(--on-secondary-container); }
+  #rumble-advanced { border-radius: 0 0 20px 20px; overflow-wrap: anywhere; }
+  .navigation-rail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    margin: 0;
+    padding: calc(8px + env(safe-area-inset-top)) 20px max(12px, env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+    width: min(clamp(220px, 68vw, 300px), calc(100vw - 56px + env(safe-area-inset-left)));
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    border-radius: 0 16px 16px 0;
+    background: var(--chrome-surface, var(--container));
+    color: var(--on-surface);
+    overscroll-behavior: contain;
+  }
+  .navigation-rail::backdrop { background: var(--scrim); }
+  .navigation-rail[open] { animation: enter 220ms cubic-bezier(.2, 0, 0, 1); }
+  @keyframes enter { from { transform: translateX(-100%); } }
+  .destinations { display: grid; gap: 4px; }
+  .destination, .rail-action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 28px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: start;
+  }
+  .destination[aria-current="page"] {
+    background-color: var(--secondary-container);
+    color: var(--on-secondary-container);
+    font-weight: 650;
+  }
+  .rail-action:hover:not(:disabled) { background-color: var(--state); }
+  .destinations .icon { margin-inline-start: auto; }
+  .destinations hr { width: 100%; margin: 4px 0; border: 0; border-block-start: 1px solid var(--state); }
+  button:disabled { opacity: .38; cursor: default; }
+  @media (orientation: landscape) and (max-height: 480px) {
+    :root { --bar-height: 56px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .navigation-rail[open] { animation: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <symbol id="menu-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="back-icon" viewBox="0 0 24 24"><path d="M20 12H4m7-7-7 7 7 7"/></symbol>
+  <symbol id="close-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="restore-icon" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 5v6h6m3-4v5l3 2"/></symbol>
+  <symbol id="add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="next-icon" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="menu-open-icon" viewBox="0 0 24 24"><path d="M3 6h16M3 12h10M3 18h16M21 9l-3 3 3 3"/></symbol>
+  <symbol id="play-icon" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+  <symbol id="pause-icon" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+  <symbol id="reload-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-1.4 5.5M20 5v6h-6"/></symbol>
+  <symbol id="save-icon" viewBox="0 0 24 24"><path d="M5 3h12l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 18v-7h10v7M7 3v5h9V3"/></symbol>
+  <symbol id="open-file-icon" viewBox="0 0 24 24"><path d="M3 18V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v2M3 18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-1.5l2-6.5a1 1 0 0 0-1-1H7a2 2 0 0 0-2 1.5Z"/></symbol>
+  <symbol id="bookmark-icon" viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z"/></symbol>
+  <symbol id="expand-icon" viewBox="0 0 24 24"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></symbol>
+  <symbol id="cheats-icon" viewBox="0 0 24 24"><path d="m4 17 9-9 3 3-9 9H4v-3Zm7-7 3 3M19 3v6m-3-3h6M6 3v4M4 5h4m11 10v4m-2-2h4"/></symbol>
+  <symbol id="settings-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M8 4v4m8 2v4m-6 2v4"/></symbol>
+  <symbol id="info-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+</svg>
+<header class="app-bar">
+  <button class="icon-button" id="open-menu" type="button" aria-label="Expand navigation" aria-haspopup="dialog" aria-controls="navigation-rail" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#menu-icon"/></svg></button>
+  <button class="icon-button" id="settings-back" type="button" aria-label="Back to settings" hidden><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button>
+  <img class="brand-mark" src="../web/dk-coin.png" width="32" height="32" alt="">
+  <h1 id="app-title" tabindex="-1">DKC1R Web</h1>
+</header>
+<main>
+  <div id="game" class="game-frame screen-wrap" tabindex="-1">
+    <button class="game-overlay" id="game-overlay" type="button"><span>Load ROM</span></button>
+  </div>
+  <span class="fps-counter" id="fps-counter" hidden></span>
+  <section id="saves" class="page" aria-labelledby="app-title" hidden>
+    <div class="card-grid" id="save-cards">
+      <button class="add-card" id="add-save" type="button"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg>Add save state</button>
+    </div>
+    <template id="save-card-template">
+      <article class="save-card">
+        <button class="load-card" type="button">
+          <img alt="" width="320" height="240">
+          <span class="card-caption"><strong></strong><time></time></span>
+        </button>
+        <button class="icon-button delete-card" type="button"><svg class="icon" aria-hidden="true"><use href="#close-icon"/></svg></button>
+      </article>
+    </template>
+  </section>
+  <section id="settings" class="page" aria-labelledby="app-title" hidden>
+    <section class="settings-group" aria-labelledby="audio-group-title">
+      <h2 id="audio-group-title">Audio</h2>
+      <div class="settings-list">
+        <label class="settings-row">Game sound<input id="game-sound" class="settings-switch" type="checkbox" role="switch" data-save-label="Game sound" checked></label>
+        <div class="settings-row range-setting">
+          <label for="audio-volume">Volume (%)</label>
+          <input id="audio-volume" type="range" min="0" max="100" value="100">
+          <input id="volume-value" class="range-value" type="number" min="0" max="100" value="100" required aria-label="Volume percentage" data-save-label="Volume" data-save-unit="%">
+        </div>
+        <button class="settings-row" type="button" data-category="Advanced audio">Advanced audio<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="input-group-title">
+      <h2 id="input-group-title">Input</h2>
+      <div class="settings-list">
+        <label class="settings-row">Player 1 profile<select id="player-one" data-save-label="Player 1 profile"></select></label>
+        <label class="settings-row">Player 2 profile<select id="player-two" data-save-label="Player 2 profile"></select></label>
+        <button class="settings-row" type="button" data-category="Input Profiles">Manage input profiles<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="system-group-title">
+      <h2 id="system-group-title">System</h2>
+      <div class="settings-list">
+        <label class="settings-row">Appearance<select id="appearance" data-save-label="Appearance"><option value="black" selected>Black</option><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <button class="settings-row" id="import-config" type="button">Load Settings<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+        <button class="settings-row" id="export-config" type="button">Save Settings<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+        <button class="settings-row" type="button" data-category="Advanced system">Advanced system<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="game-group-title">
+      <h2 id="game-group-title">Game</h2>
+      <div class="settings-list">
+        <label class="settings-row">Pause on focus loss<input class="settings-switch" type="checkbox" role="switch" data-save-label="Pause on focus loss" checked></label>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="video-group-title">
+      <h2 id="video-group-title">Video</h2>
+      <div class="settings-list">
+        <div class="settings-row">
+          <div>
+            <label for="integer-scaling">Scale</label>
+            <output class="supporting" id="scaling-resolution" for="integer-scaling custom-scale">256 × 224</output>
+          </div>
+          <select id="integer-scaling" aria-describedby="scaling-resolution" data-save-label="Scale">
+            <option value="fit" selected>Scale to Fit</option>
+            <option value="1">1×</option>
+            <option value="2">2×</option>
+            <option value="3">3×</option>
+            <option value="4">4×</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <label class="settings-row" id="custom-scale-row" hidden>Custom multiplier
+          <input id="custom-scale" type="number" min="1" step="1" value="1" required data-save-label="Custom multiplier" data-save-unit="×">
+        </label>
+        <label class="settings-row">Fullscreen on Start<input class="settings-switch" type="checkbox" role="switch" data-save-label="Fullscreen on Start"></label>
+        <label class="settings-row">Display FPS counter<input id="display-fps" class="settings-switch" type="checkbox" role="switch" data-save-label="Display FPS counter"></label>
+        <button class="settings-row" type="button" data-category="Advanced video">Advanced video<svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="files-group-title">
+      <h2 id="files-group-title">Files</h2>
+      <div class="settings-list">
+        <label class="settings-row">Remember ROM<input class="settings-switch" type="checkbox" role="switch" data-save-label="Remember ROM" checked></label>
+        <button class="settings-row" id="replace-rom" type="button">Load ROM<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+      </div>
+      <p id="file-status" role="status"></p>
+    </section>
+    <div id="settings-detail" hidden>
+      <div class="settings-list" data-detail="Advanced video" hidden>
+        <div class="settings-row range-setting">
+          <label for="fps-opacity-slider">FPS counter opacity (%)</label>
+          <input id="fps-opacity-slider" type="range" min="0" max="100" value="100">
+          <input id="fps-opacity" class="range-value" type="number" min="0" max="100" value="100" required aria-label="FPS counter opacity percentage" data-save-label="FPS counter opacity" data-save-unit="%">
+        </div>
+      </div>
+      <div class="settings-list" data-detail="Advanced system" hidden>
+        <div class="settings-row range-setting">
+          <label for="ui-background-opacity-slider">UI background opacity (%)</label>
+          <input id="ui-background-opacity-slider" type="range" min="0" max="100" value="80">
+          <input id="ui-background-opacity" class="range-value" type="number" min="0" max="100" value="80" required aria-label="UI background opacity percentage" data-save-label="UI background opacity" data-save-unit="%">
+        </div>
+        <label class="settings-row">Maximum visible notifications<select id="notification-max" data-save-label="Notification limit"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+        <label class="settings-row">Notification duration (seconds)<input id="notification-duration" type="number" min="1" max="30" step="1" value="4" data-save-label="Notification duration" data-save-unit=" s" required></label>
+        <label class="settings-row">Notification fade out<input id="notification-fade" class="settings-switch" type="checkbox" role="switch" data-save-label="Notification fade out" checked></label>
+        <label class="settings-row">Verbose notifications<input id="notification-verbose" class="settings-switch" type="checkbox" role="switch" data-save-label="Verbose notifications" checked></label>
+        <button class="settings-row" type="button" id="restore-default-settings">Restore Default Settings<svg class="icon" aria-hidden="true"><use href="#restore-icon"/></svg></button>
+      </div>
+      <div class="settings-list" data-detail="Advanced audio" hidden>
+        <label class="settings-row">Audio prebuffer<select data-save-label="Audio prebuffer"><option>1 block</option><option selected>2 blocks</option><option>3 blocks</option><option>4 blocks</option></select></label>
+        <label class="settings-row">Correct audio clock drift<input class="settings-switch" type="checkbox" role="switch" data-save-label="Audio drift correction" checked></label>
+      </div>
+      <div class="profile-panel" data-detail="Input Profiles" hidden>
+        <button class="new-profile-button" id="add-profile" type="button"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg>New profile</button>
+        <ul class="settings-list profile-list" id="profile-list"></ul>
+        <p id="profiles-empty" hidden>No input profiles.</p>
+        <template id="profile-list-item">
+          <li><button class="settings-row" type="button"><span></span><svg class="icon" aria-hidden="true"><use href="#next-icon"/></svg></button></li>
+        </template>
+      </div>
+      <div class="profile-panel" data-detail="Profile" hidden>
+        <h2>Control mappings</h2>
+        <div class="settings-list" id="profile-mappings" aria-label="Control mappings"></div>
+        <template id="mapping-row-template">
+          <div class="settings-row mapping-row">
+            <div class="mapping-summary"><strong></strong><div class="supporting"></div></div>
+            <div class="mapping-actions"><button type="button">Set</button><button type="button">Clear</button></div>
+          </div>
+        </template>
+        <div class="settings-list" aria-label="Rumble settings">
+          <label class="settings-row">Rumble<input id="stomp-rumble" class="settings-switch" type="checkbox" role="switch" aria-controls="rumble-advanced"></label>
+          <div class="settings-list" id="rumble-advanced" hidden>
+            <label class="settings-row">Duration (ms)<input type="number" min="1" max="5000" required></label>
+            <div class="settings-row range-setting">
+              <label for="rumble-low-slider">Low motor (%)</label>
+              <input id="rumble-low-slider" type="range" min="0" max="100" value="80">
+              <input class="range-value" type="number" min="0" max="100" value="80" required aria-label="Low motor percentage">
+            </div>
+            <div class="settings-row range-setting">
+              <label for="rumble-high-slider">High motor (%)</label>
+              <input id="rumble-high-slider" type="range" min="0" max="100" value="100">
+              <input class="range-value" type="number" min="0" max="100" value="100" required aria-label="High motor percentage">
+            </div>
+            <button class="settings-row" id="preview-stomp" type="button">Test Rumble</button>
+          </div>
+        </div>
+        <div class="settings-list">
+          <button class="settings-row" id="rename-profile" type="button">Rename profile</button>
+          <button class="settings-row delete-profile-button" id="delete-profile" type="button">Delete profile</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section id="cheats" class="page" aria-labelledby="app-title" hidden>
+    <section class="settings-group" aria-labelledby="warp-destinations-title">
+      <h2 id="warp-destinations-title">Warp destinations</h2>
+      <div class="settings-list" id="warp-destinations">
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Bouncy Bonanza — Winky room</span><span class="supporting">Interior · $0003 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Winky’s Walkway</span><span class="supporting">Main level · $00D9 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Orang-utan Gang — checkpoint</span><span class="supporting">Checkpoint · $001D · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Orang-utan Gang — start</span><span class="supporting">Main level · $000D · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Ice Age Alley</span><span class="supporting">Main level · $00A7 · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Mine Cart Carnage</span><span class="supporting">Main level · $002E · Native replay verified</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+        <button class="settings-row warp-entry" type="button">
+          <span><span class="warp-name">Snow Barrel Blast</span><span class="supporting">Main level · $0024 · Native initialization observed</span></span>
+          <svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg>
+        </button>
+      </div>
+    </section>
+  </section>
+  <section id="about" class="page" hidden>
+    <h2>DKC1R Web</h2>
+    <p>Version 1.1.2 · UI prototype</p>
+    <h3>Source and credits</h3>
+    <p><a href="https://github.com/pipebrain/DKC1RecompWeb">DKC1RecompWeb on GitHub</a> · <a href="https://pipebrain.github.io/DKC1RecompWeb/">Play DKC1R Web</a></p>
+    <p>The browser port builds on <a href="https://github.com/elliotttate/DKC1Recomp/tree/559bab62596a97e91f389b39cdeb6cda981ab7c9">DKC1Recomp v0.0.17</a> by elliotttate and contributors, and <a href="https://github.com/elliotttate/snesrecomp/tree/75223f35b16e4c904cea78453b9cd1fcefbcd7f2">snesrecomp</a> by Matthew Stan and contributors. Upstream credits include DKC2Recomp and Yoshifanatic1’s Donkey Kong Country disassembly.</p>
+    <h3>Licenses and distribution</h3>
+    <p>The <a href="../LICENSE">MIT License</a> requires copies and substantial portions of the covered code to retain its copyright and permission notices. snesrecomp uses the <a href="../licenses/snesrecomp-LICENSE.txt">PolyForm Noncommercial License 1.0.0</a>. Browser releases ship the <a href="../THIRD_PARTY_NOTICES.md">third-party notices</a> and <a href="../licenses/README.md">runtime licenses</a> with WebAssembly.</p>
+    <p>Donkey Kong Country, Nintendo, Rare, and related names and artwork belong to their respective owners. This independent fan project requires a user-supplied ROM.</p>
+  </section>
+</main>
+<div class="snackbar-host" id="snackbar-host" role="log" aria-label="Notifications" aria-relevant="additions"></div>
+<dialog class="navigation-rail" id="navigation-rail" aria-label="Navigation">
+  <button class="icon-button" id="collapse-menu" type="button" aria-label="Collapse navigation"><svg class="icon" aria-hidden="true"><use href="#menu-open-icon"/></svg></button>
+  <nav class="destinations" aria-label="Main navigation">
+    <button class="rail-action" id="start-game" type="button" disabled><span>Start Game</span><svg class="icon" aria-hidden="true"><use href="#play-icon"/></svg></button>
+    <button class="rail-action" id="reload-game" type="button" disabled>Reload Game<svg class="icon" aria-hidden="true"><use href="#reload-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="quick-save" disabled>Quick Save<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+    <button class="rail-action" type="button" id="quick-load" disabled>Quick Load<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+    <button class="destination" type="button" data-page="saves">Save States<svg class="icon" aria-hidden="true"><use href="#bookmark-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="save-game-save" disabled>Save Game<svg class="icon" aria-hidden="true"><use href="#save-icon"/></svg></button>
+    <button class="rail-action" type="button" id="load-game-save" disabled>Load Games<svg class="icon" aria-hidden="true"><use href="#open-file-icon"/></svg></button>
+    <hr>
+    <button class="rail-action" type="button" id="full-screen">Full Screen<svg class="icon" aria-hidden="true"><use href="#expand-icon"/></svg></button>
+    <button class="destination" type="button" data-page="cheats">Cheats<svg class="icon" aria-hidden="true"><use href="#cheats-icon"/></svg></button>
+    <button class="destination" type="button" data-page="settings">Settings<svg class="icon" aria-hidden="true"><use href="#settings-icon"/></svg></button>
+    <hr>
+    <button class="destination" type="button" data-page="about">About<svg class="icon" aria-hidden="true"><use href="#info-icon"/></svg></button>
+  </nav>
+</dialog>
+<dialog class="profile-dialog" id="profile-dialog" aria-labelledby="new-profile-title">
+  <form id="new-profile">
+    <h2 id="new-profile-title">New profile</h2>
+    <label>Profile name<input id="profile-name" type="text" maxlength="40" required autofocus></label>
+    <div class="dialog-actions">
+      <button type="button" id="cancel-profile">Cancel</button>
+      <button type="submit">Create profile</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="profile-dialog" id="delete-profile-dialog" aria-labelledby="delete-profile-title" aria-describedby="delete-profile-message">
+  <h2 id="delete-profile-title">Delete profile?</h2>
+  <p id="delete-profile-message"></p>
+  <div class="dialog-actions">
+    <button type="button" id="cancel-delete-profile" autofocus>Cancel</button>
+    <button type="button" id="confirm-delete-profile" class="delete-profile-button">Delete profile</button>
+  </div>
+</dialog>
+<dialog class="profile-dialog" id="binding-dialog" aria-labelledby="binding-title" aria-describedby="binding-message">
+  <header class="binding-dialog-header">
+    <h2 id="binding-title" tabindex="-1" autofocus>Set binding</h2>
+    <button class="icon-button" id="cancel-binding" type="button" aria-label="Cancel binding"><svg class="icon" aria-hidden="true"><use href="#close-icon"/></svg></button>
+  </header>
+  <p id="binding-message">Waiting for input…</p>
+</dialog>
+<input id="rom-file" type="file" accept=".smc,.sfc" hidden>
+<dialog class="profile-dialog" id="restore-settings-dialog" aria-labelledby="restore-settings-title" aria-describedby="restore-settings-message">
+  <h2 id="restore-settings-title">Restore Default Settings?</h2>
+  <p id="restore-settings-message">Reset preferences and player assignments to their defaults.</p>
+  <div class="dialog-actions">
+    <button type="button" id="cancel-restore-settings" autofocus>Cancel</button>
+    <button type="button" id="confirm-restore-settings">Restore defaults</button>
+  </div>
+</dialog>
+<script>
+  const snackbarHost = document.querySelector('#snackbar-host');
+  const snackbarTimers = new WeakMap();
+  const notificationMax = document.querySelector('#notification-max');
+  const notificationDuration = document.querySelector('#notification-duration');
+  const notificationFade = document.querySelector('#notification-fade');
+  const verboseNotifications = document.querySelector('#notification-verbose');
+  const savedControlValues = new WeakMap();
+  const defaultControlValues = new Map();
+  const restoreSettingsDialog = document.querySelector('#restore-settings-dialog');
+  let notificationSeconds = notificationDuration.valueAsNumber;
+
+  function removeSnackbar(snackbar) {
+    clearTimeout(snackbarTimers.get(snackbar));
+    snackbarTimers.delete(snackbar);
+    snackbar.remove();
+  }
+
+  function notify(message, context = '') {
+    const parent = document.querySelector('dialog:modal') || (isGameFullScreen() ? game : document.body);
+    if (snackbarHost.parentElement !== parent) parent.append(snackbarHost);
+    const limit = Math.max(1, Number(notificationMax.value) || 1);
+    while (snackbarHost.childElementCount >= limit) {
+      removeSnackbar(snackbarHost.firstElementChild);
+    }
+    const snackbar = document.createElement('div');
+    snackbar.className = 'snackbar';
+    snackbar.textContent = message;
+    if (verboseNotifications.checked && context) {
+      const detail = document.createElement('span');
+      detail.className = 'snackbar-context';
+      detail.textContent = context;
+      snackbar.append(' ', detail);
+    }
+    snackbarHost.append(snackbar);
+    snackbarTimers.set(snackbar, setTimeout(() => {
+      if (!notificationFade.checked) {
+        removeSnackbar(snackbar);
+        return;
+      }
+      snackbar.classList.add('is-dismissing');
+      snackbarTimers.set(snackbar, setTimeout(() => removeSnackbar(snackbar), 200));
+    }, notificationSeconds * 1000));
+  }
+
+  function notifySaved(label, before, after) {
+    if (before !== after) notify(label + ' saved.', before + ' → ' + after);
+  }
+
+  function settingValue(control) {
+    if (control.type === 'checkbox') return control.checked ? 'On' : 'Off';
+    if (control instanceof HTMLSelectElement) return control.selectedOptions[0]?.textContent || control.value;
+    return control.value + (control.dataset.saveUnit || '');
+  }
+
+  document.addEventListener('close', event => {
+    if (event.target === snackbarHost.parentElement) document.body.append(snackbarHost);
+  }, true);
+  document.addEventListener('change', event => {
+    const control = event.target;
+    if (!control.dataset?.saveLabel) return;
+    const value = settingValue(control);
+    notifySaved(control.dataset.saveLabel, savedControlValues.get(control), value);
+    savedControlValues.set(control, value);
+  });
+  notificationDuration.addEventListener('change', () => {
+    if (notificationDuration.validity.valid) {
+      notificationSeconds = notificationDuration.valueAsNumber;
+    } else notificationDuration.value = notificationSeconds;
+  });
+
+  const rail = document.querySelector('#navigation-rail');
+  const openMenu = document.querySelector('#open-menu');
+  const destinations = [...rail.querySelectorAll('[data-page]')];
+  const game = document.querySelector('#game');
+  const main = game.parentElement;
+  const appBar = openMenu.closest('.app-bar');
+  const gameOverlay = document.querySelector('#game-overlay');
+  const gameOverlayLabel = gameOverlay.querySelector('span');
+  const displayFps = document.querySelector('#display-fps');
+  const fpsCounter = document.querySelector('#fps-counter');
+  let fpsFrame = null;
+  let fpsSampleStart = null;
+  let fpsFrames = 0;
+
+  function measureFps(now) {
+    if (fpsSampleStart === null) {
+      fpsSampleStart = now;
+    } else {
+      fpsFrames++;
+      const elapsed = now - fpsSampleStart;
+      if (elapsed >= 500) {
+        fpsCounter.textContent = Math.round(fpsFrames * 1000 / elapsed) + ' FPS';
+        fpsSampleStart = now;
+        fpsFrames = 0;
+      }
+    }
+    fpsFrame = requestAnimationFrame(measureFps);
+  }
+
+  function updateFpsCounter() {
+    fpsCounter.hidden = !displayFps.checked || document.hidden;
+    if (fpsCounter.hidden) {
+      if (fpsFrame !== null) cancelAnimationFrame(fpsFrame);
+      fpsFrame = fpsSampleStart = null;
+      fpsFrames = 0;
+      fpsCounter.textContent = '';
+    } else if (fpsFrame === null) {
+      fpsCounter.textContent = '— FPS';
+      fpsFrame = requestAnimationFrame(measureFps);
+    }
+  }
+
+  displayFps.addEventListener('change', updateFpsCounter);
+  document.addEventListener('visibilitychange', updateFpsCounter);
+  const romFile = document.querySelector('#rom-file');
+  const startGame = document.querySelector('#start-game');
+  const startGameLabel = startGame.querySelector('span');
+  const startGameIcon = startGame.querySelector('use');
+  const reloadGame = document.querySelector('#reload-game');
+  const appTitle = document.querySelector('#app-title');
+  const appName = appTitle.textContent;
+  const brand = document.querySelector('.brand-mark');
+  const settingsBack = document.querySelector('#settings-back');
+  const settingsDetail = document.querySelector('#settings-detail');
+  const categories = [...document.querySelectorAll('[data-category]')];
+  const detailControls = [...settingsDetail.querySelectorAll('[data-detail]')];
+  const fileStatus = document.querySelector('#file-status');
+  const replaceRom = document.querySelector('#replace-rom');
+  const saveCards = document.querySelector('#save-cards');
+  const addSave = document.querySelector('#add-save');
+  const saveCardTemplate = document.querySelector('#save-card-template');
+  const saveStates = [];
+  const quickSave = document.querySelector('#quick-save');
+  const quickLoad = document.querySelector('#quick-load');
+  const loadGameSave = document.querySelector('#load-game-save');
+  const saveGameSave = document.querySelector('#save-game-save');
+  let romLoaded = false;
+  let playback = 'ready';
+  const playbackLabels = {ready: 'Start Game', running: 'Pause Game', paused: 'Resume Game'};
+  const pageTitles = {settings: 'Settings', saves: 'Save States', cheats: 'Cheats', about: 'About'};
+
+  function drawPreviewFrame() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+    const sky = ctx.createLinearGradient(0, 0, 0, 240);
+    sky.addColorStop(0, '#151d39');
+    sky.addColorStop(1, '#bd7468');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, 320, 240);
+    ctx.fillStyle = '#f9ce9b';
+    ctx.beginPath();
+    ctx.arc(244, 61, 26, 0, Math.PI * 2);
+    ctx.fill();
+    function silhouette(color, points) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, 240);
+      for (const [x, y] of points) ctx.lineTo(x, y);
+      ctx.lineTo(320, 240);
+      ctx.fill();
+    }
+    silhouette('#5b526c', [[0, 152], [61, 88], [126, 155], [193, 97], [255, 163], [320, 119]]);
+    silhouette('#344760', [[0, 182], [66, 145], [144, 183], [218, 139], [320, 176]]);
+    silhouette('#182f38', [[0, 208], [80, 184], [136, 210], [212, 181], [320, 202]]);
+    return canvas.toDataURL('image/png');
+  }
+
+  const previewCapture = {level: 'Moonrise Ridge', image: drawPreviewFrame()};
+  function updateSaveActions() {
+    quickSave.disabled = playback === 'ready';
+    quickLoad.disabled = !romLoaded || saveStates.length === 0;
+    loadGameSave.disabled = saveGameSave.disabled = !romLoaded;
+  }
+
+  function setPlayback(next) {
+    playback = next;
+    startGameLabel.textContent = playbackLabels[next];
+    startGameIcon.setAttribute('href', next === 'running' ? '#pause-icon' : '#play-icon');
+    gameOverlay.hidden = next === 'running';
+    gameOverlayLabel.textContent = romLoaded ? playbackLabels[next] : 'Load ROM';
+    updateSaveActions();
+  }
+
+  function renderPage(route, previous = null) {
+    stopBindingCapture();
+    const {page: id = 'game', parentCategory = null, profile} = route;
+    const category = profile && !inputProfiles.has(profile) ? 'Input Profiles'
+      : profile ? 'Profile' : route.category || null;
+    const page = document.getElementById(id);
+    const sectionTitle = pageTitles[id];
+    const hasBack = Boolean(sectionTitle);
+    if (profile && inputProfiles.has(profile)) {
+      selectedProfile = profile;
+      showProfile();
+    }
+    game.hidden = page !== game && !hasBack;
+    game.inert = page !== game;
+    game.classList.toggle('page-backdrop', hasBack);
+    const wasExpanded = game.classList.contains('is-expanded');
+    const expanded = !game.inert && route.expanded === true;
+    if (expanded !== wasExpanded) {
+      game.classList.toggle('is-expanded', expanded);
+      syncFullScreen();
+    }
+    updateFpsCounter();
+    for (const item of destinations) {
+      const destination = document.getElementById(item.dataset.page);
+      const active = destination === page;
+      destination.hidden = !active;
+      if (active) item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    }
+    settingsDetail.hidden = category === null;
+    settingsBack.hidden = !hasBack;
+    settingsBack.setAttribute('aria-label', category ? 'Back to ' + (parentCategory || 'Settings') : 'Back to game');
+    openMenu.hidden = hasBack;
+    brand.hidden = hasBack;
+    appTitle.textContent = (category === 'Profile' ? selectedProfile : category) || (hasBack ? sectionTitle : appName);
+    for (const control of detailControls) control.hidden = category !== control.dataset.detail;
+    if (rail.open) rail.close();
+    let returnTo;
+    if (previous?.category && id === 'settings' && (previous.parentCategory || null) === category) {
+      if (previous.category === 'Profile') returnTo = profileButtons.get(previous.profile) || addProfile;
+      else returnTo = categories.find(button => button.dataset.category === previous.category);
+    }
+    const focus = returnTo || (hasBack ? appTitle : page.querySelector('h2') || page);
+    focus.focus({preventScroll: true});
+    if (returnTo) returnTo.scrollIntoView({block: 'nearest'});
+    else window.scrollTo(0, 0);
+  }
+
+  function readPageState(state) {
+    return state && (state.page === 'game' || Object.hasOwn(pageTitles, state.page)) ? state : {page: 'game'};
+  }
+
+  let locationState = readPageState(history.state);
+  history.replaceState(locationState, '');
+  function showPage(page, category = null, {parentCategory = null, profile} = {}) {
+    const next = {page: page.id, category, parentCategory, profile};
+    if (locationState.page !== next.page || (locationState.category || null) !== category) {
+      if (pageTitles[next.page] && !category) {
+        next.fromGame = locationState.page === 'game';
+      }
+      history.pushState(next, '');
+      locationState = next;
+    }
+    renderPage(locationState);
+  }
+  window.addEventListener('popstate', event => {
+    if (rail.open) rail.close();
+    for (const dialog of [profileDialog, deleteProfileDialog, restoreSettingsDialog]) {
+      if (dialog.open) dialog.close();
+    }
+    const previous = locationState;
+    locationState = readPageState(event.state);
+    renderPage(locationState, previous);
+  });
+  settingsBack.addEventListener('click', () => {
+    if (locationState.category || locationState.fromGame) {
+      history.back();
+    } else {
+      locationState = {page: 'game'};
+      history.replaceState(locationState, '');
+      renderPage(locationState);
+    }
+  });
+  const settingsPage = document.querySelector('#settings');
+  for (const entry of document.querySelectorAll('#warp-destinations .warp-entry')) {
+    entry.addEventListener('click', () => {
+      notify('Browser warps are unavailable in this prototype.', entry.querySelector('.warp-name').textContent);
+    });
+  }
+  for (const button of categories) {
+    button.addEventListener('click', () => {
+      showPage(settingsPage, button.dataset.category, {
+        parentCategory: button.closest('[data-detail]')?.dataset.detail,
+        profile: locationState.profile,
+      });
+    });
+  }
+  function linkPercentControls(slider, number, preview) {
+    let committed = number.value;
+    function setValue(value) {
+      committed = String(value);
+      slider.value = number.value = committed;
+      preview?.(number.valueAsNumber);
+    }
+    slider.addEventListener('input', () => {
+      number.value = slider.value;
+      preview?.(slider.valueAsNumber);
+    });
+    slider.addEventListener('change', () => {
+      number.value = slider.value;
+      number.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    number.addEventListener('input', () => {
+      if (!number.validity.valid) return;
+      slider.value = number.value;
+      preview?.(number.valueAsNumber);
+    });
+    number.addEventListener('change', event => {
+      if (!number.validity.valid) {
+        setValue(committed);
+        event.stopImmediatePropagation();
+        return;
+      }
+      setValue(number.value);
+    });
+    return setValue;
+  }
+  const percentPreviews = {
+    'fps-opacity': value => { fpsCounter.style.opacity = value / 100; },
+    'ui-background-opacity': value => main.style.setProperty('--ui-background-opacity', value + '%'),
+  };
+  const percentControls = new Map();
+  for (const row of document.querySelectorAll('.range-setting')) {
+    const number = row.querySelector('input[type="number"]');
+    percentControls.set(number, linkPercentControls(row.querySelector('input[type="range"]'), number, percentPreviews[number.id]));
+  }
+  const integerScaling = document.querySelector('#integer-scaling');
+  const customScaleRow = document.querySelector('#custom-scale-row');
+  const customScale = document.querySelector('#custom-scale');
+  const scalingResolution = document.querySelector('#scaling-resolution');
+  const baseWidth = 256;
+  const baseHeight = 224;
+  let customMultiplier = customScale.valueAsNumber;
+
+  function applyIntegerScaling() {
+    const mode = integerScaling.value;
+    const fixed = mode !== 'fit';
+    customScaleRow.hidden = mode !== 'custom';
+    game.classList.toggle('integer-scaling', fixed);
+    if (!fixed) {
+      game.style.removeProperty('--frame-width');
+      game.style.removeProperty('--frame-aspect');
+      scalingResolution.value = `${baseWidth} × ${baseHeight}`;
+      return;
+    }
+    const multiplier = mode === 'custom' ? customMultiplier : Number(mode);
+    const width = baseWidth * multiplier;
+    const height = baseHeight * multiplier;
+    game.style.setProperty('--frame-width', width + 'px');
+    game.style.setProperty('--frame-aspect', `${baseWidth} / ${baseHeight}`);
+    scalingResolution.value = `${width} × ${height}`;
+  }
+  integerScaling.addEventListener('change', applyIntegerScaling);
+  customScale.addEventListener('change', () => {
+    if (!customScale.validity.valid || !Number.isSafeInteger(customScale.valueAsNumber * baseWidth)) {
+      customScale.value = customMultiplier;
+      return;
+    }
+    customMultiplier = customScale.valueAsNumber;
+    applyIntegerScaling();
+  });
+  document.querySelector('#appearance').addEventListener('change', event => {
+    document.documentElement.dataset.appearance = event.target.value;
+  });
+  const keyboardDefaults = {
+    B: 'Z', Y: 'X', Select: 'Shift', Start: 'Return', Up: '↑', Down: '↓',
+    Left: '←', Right: '→', A: 'A', X: 'S', L: 'Q', R: 'W',
+  };
+  const snesInputs = Object.keys(keyboardDefaults);
+  function createInputProfile(bindings = []) {
+    return {rumbleEnabled: false, rumble: [140, 80, 100], bindings};
+  }
+  const inputProfiles = new Map([['Keyboard', createInputProfile(
+    Object.entries(keyboardDefaults).map(([action, input]) => ({action, device: 'Keyboard', input}))
+  )]]);
+  const profileList = document.querySelector('#profile-list');
+  const profileListItem = document.querySelector('#profile-list-item');
+  const addProfile = document.querySelector('#add-profile');
+  const profileDialog = document.querySelector('#profile-dialog');
+  const renameProfile = document.querySelector('#rename-profile');
+  const deleteProfile = document.querySelector('#delete-profile');
+  const deleteProfileDialog = document.querySelector('#delete-profile-dialog');
+  const profileButtons = new Map();
+  let selectedProfile = 'Keyboard';
+  const playerOne = document.querySelector('#player-one');
+  const playerTwo = document.querySelector('#player-two');
+  const playerSelectors = [playerOne, playerTwo];
+  const profileName = document.querySelector('#profile-name');
+  let profileToRename = null;
+  const mappingList = document.querySelector('#profile-mappings');
+  const mappingRowTemplate = document.querySelector('#mapping-row-template');
+  const bindingDialog = document.querySelector('#binding-dialog');
+  const bindingTitle = document.querySelector('#binding-title');
+  const cancelBinding = document.querySelector('#cancel-binding');
+  let bindingAction = null;
+  let gamepadCaptureFrame = 0;
+  const rumbleAdvanced = document.querySelector('#rumble-advanced');
+  const stompRumble = document.querySelector('#stomp-rumble');
+  const customRumble = [...rumbleAdvanced.querySelectorAll('input[type="number"]')];
+
+  for (const select of [playerOne, playerTwo]) {
+    select.add(new Option('Keyboard'));
+    select.add(new Option('Disabled'));
+  }
+  playerTwo.value = 'Disabled';
+
+  const editedProfile = () => inputProfiles.get(selectedProfile);
+  function showRumble() {
+    stompRumble.checked = editedProfile().rumbleEnabled;
+    rumbleAdvanced.hidden = !stompRumble.checked;
+    if (rumbleAdvanced.hidden) return;
+    const values = editedProfile().rumble;
+    customRumble.forEach((input, index) => {
+      if (percentControls.has(input)) percentControls.get(input)(values[index]);
+      else input.value = values[index];
+    });
+  }
+
+  function readGamepads() {
+    try {
+      return Array.from(navigator.getGamepads?.() || []).filter(pad => pad?.connected);
+    } catch {
+      return [];
+    }
+  }
+
+  function stopBindingCapture() {
+    bindingAction = null;
+    cancelAnimationFrame(gamepadCaptureFrame);
+    gamepadCaptureFrame = 0;
+    if (bindingDialog.open) bindingDialog.close();
+  }
+
+  function listenForGamepadBinding() {
+    cancelAnimationFrame(gamepadCaptureFrame);
+    const snapshot = (pad, rest = pad.axes) => ({
+      id: pad.id, buttons: pad.buttons.map(button => button.pressed), rest: Array.from(rest),
+    });
+    let previous = new Map(readGamepads().map(pad => [pad.index, snapshot(pad)]));
+    function poll() {
+      if (!bindingAction) return;
+      const next = new Map();
+      for (const pad of readGamepads()) {
+        const prior = previous.get(pad.index);
+        const rest = prior?.id === pad.id ? prior : undefined;
+        const device = `Gamepad ${pad.index + 1} · ${pad.id || 'Controller'}`;
+        const button = pad.buttons.findIndex(({pressed}, index) => pressed && !rest?.buttons[index]);
+        if (button !== -1) {
+          captureBinding(device, 'Button ' + button);
+          return;
+        }
+        if (rest) {
+          let axis = -1;
+          let movement = 0.35;
+          pad.axes.forEach((value, index) => {
+            const from = rest.rest[index];
+            const delta = Math.abs(value - from);
+            if (delta >= movement && Math.abs(value) >= 0.1 && Math.abs(value) <= 1) {
+              axis = index;
+              movement = delta;
+            }
+          });
+          if (axis !== -1) {
+            const value = pad.axes[axis];
+            const direction = Math.abs(rest.rest[axis]) > 1
+              ? ' · ' + value.toFixed(3)
+              : value > rest.rest[axis] ? '+' : '−';
+            captureBinding(device, 'Axis ' + axis + direction);
+            return;
+          }
+        }
+        next.set(pad.index, snapshot(pad, rest?.rest));
+      }
+      previous = next;
+      gamepadCaptureFrame = requestAnimationFrame(poll);
+    }
+    gamepadCaptureFrame = requestAnimationFrame(poll);
+  }
+
+  function showMappings() {
+    const {bindings} = editedProfile();
+    mappingList.replaceChildren();
+    for (const action of snesInputs) {
+      const row = mappingRowTemplate.content.firstElementChild.cloneNode(true);
+      row.dataset.input = action;
+      row.querySelector('strong').textContent = action;
+      const summary = row.querySelector('.supporting');
+      const matches = bindings.filter(binding => binding.action === action);
+      if (matches.length === 0) summary.textContent = 'Unassigned';
+      for (const {device, input} of matches) {
+        const line = document.createElement('div');
+        line.textContent = device + ' · ' + input;
+        summary.append(line);
+      }
+      const [set, clear] = row.querySelectorAll('button');
+      set.setAttribute('aria-label', 'Set ' + action);
+      set.setAttribute('aria-haspopup', 'dialog');
+      set.addEventListener('click', () => {
+        set.focus({preventScroll: true});
+        bindingTitle.textContent = 'Set ' + action;
+        bindingDialog.showModal();
+        bindingAction = action;
+        listenForGamepadBinding();
+      });
+      clear.disabled = matches.length === 0;
+      clear.setAttribute('aria-label', 'Clear ' + action);
+      clear.addEventListener('click', () => {
+        stopBindingCapture();
+        editedProfile().bindings = bindings.filter(binding => binding.action !== action);
+        showMappings();
+        mappingList.querySelector(`[data-input="${action}"] button`).focus();
+        const previous = matches.length === 1
+          ? matches[0].device + ' · ' + matches[0].input : matches.length + ' bindings';
+        notify(action + ' bindings cleared.', previous + ' → Unassigned');
+      });
+      mappingList.append(row);
+    }
+  }
+
+  function showProfile() {
+    showMappings();
+    showRumble();
+  }
+
+  function showProfiles() {
+    document.querySelector('#profiles-empty').hidden = inputProfiles.size > 0;
+    for (const name of inputProfiles.keys()) {
+      if (!profileButtons.has(name)) {
+        const item = profileListItem.content.firstElementChild.cloneNode(true);
+        const button = item.querySelector('button');
+        button.dataset.profile = name;
+        item.querySelector('span').textContent = name;
+        button.addEventListener('click', () => showPage(settingsPage, 'Profile', {
+          parentCategory: 'Input Profiles', profile: button.dataset.profile,
+        }));
+        profileButtons.set(name, button);
+        profileList.append(item);
+      }
+    }
+  }
+
+  function readName(input, isTaken) {
+    const name = input.value.trim();
+    const message = !name ? 'Enter a name.' : isTaken(name) ? 'This entry already exists.' : '';
+    input.setCustomValidity(message);
+    return input.reportValidity() ? name : null;
+  }
+
+  profileName.addEventListener('input', () => profileName.setCustomValidity(''));
+  function openProfileNameDialog(trigger, name = null) {
+    profileToRename = name;
+    const title = name === null ? 'New profile' : 'Rename profile';
+    profileDialog.querySelector('h2').textContent = title;
+    profileDialog.querySelector('[type="submit"]').textContent = name === null ? 'Create profile' : title;
+    trigger.focus();
+    profileName.value = name || '';
+    profileName.setCustomValidity('');
+    profileDialog.showModal();
+    if (name !== null) profileName.select();
+  }
+  addProfile.addEventListener('click', () => openProfileNameDialog(addProfile));
+  renameProfile.addEventListener('click', () => openProfileNameDialog(renameProfile, selectedProfile));
+  document.querySelector('#cancel-profile').addEventListener('click', () => profileDialog.close());
+  document.querySelector('#new-profile').addEventListener('submit', event => {
+    event.preventDefault();
+    const name = readName(profileName, value => ['Disabled', ...inputProfiles.keys()].some(
+      existing => existing !== profileToRename && existing.toLowerCase() === value.toLowerCase()));
+    if (!name) return;
+    if (profileToRename !== null) {
+      const before = profileToRename;
+      profileDialog.close();
+      if (name === before) return;
+      inputProfiles.set(name, inputProfiles.get(before));
+      inputProfiles.delete(before);
+      const button = profileButtons.get(before);
+      button.dataset.profile = name;
+      button.querySelector('span').textContent = name;
+      profileButtons.set(name, button);
+      profileButtons.delete(before);
+      for (const select of playerSelectors) {
+        const option = Array.from(select.options).find(item => item.value === before);
+        option.value = option.textContent = name;
+        if (defaultControlValues.get(select) === before) defaultControlValues.set(select, name);
+        savedControlValues.set(select, settingValue(select));
+      }
+      selectedProfile = name;
+      locationState = {...locationState, profile: name};
+      history.replaceState(locationState, '');
+      appTitle.textContent = name;
+      notify('Profile renamed.', before + ' → ' + name);
+      return;
+    }
+    inputProfiles.set(name, createInputProfile());
+    playerOne.add(new Option(name), playerOne.options.length - 1);
+    playerTwo.add(new Option(name), playerTwo.options.length - 1);
+    showProfiles();
+    profileDialog.close();
+    showPage(settingsPage, 'Profile', {parentCategory: 'Input Profiles', profile: name});
+    notify('Profile saved.', name);
+  });
+  deleteProfile.addEventListener('click', () => {
+    const assigned = playerSelectors.some(select => select.value === selectedProfile);
+    document.querySelector('#delete-profile-message').textContent = assigned
+      ? `Delete “${selectedProfile}”? Players using it will switch to Disabled.`
+      : `Delete “${selectedProfile}” and its device mappings?`;
+    deleteProfile.focus();
+    deleteProfileDialog.showModal();
+  });
+  document.querySelector('#cancel-delete-profile').addEventListener('click', () => deleteProfileDialog.close());
+  document.querySelector('#confirm-delete-profile').addEventListener('click', () => {
+    const name = selectedProfile;
+    inputProfiles.delete(name);
+    profileButtons.get(name).closest('li').remove();
+    profileButtons.delete(name);
+    const resetPlayers = [];
+    for (const select of playerSelectors) {
+      if (defaultControlValues.get(select) === name) defaultControlValues.set(select, 'Disabled');
+      if (select.value === name) {
+        select.value = 'Disabled';
+        savedControlValues.set(select, settingValue(select));
+        resetPlayers.push(select.dataset.saveLabel);
+      }
+      Array.from(select.options).find(option => option.value === name).remove();
+    }
+    showProfiles();
+    deleteProfileDialog.close();
+    history.back();
+    notify('Profile deleted.', resetPlayers.length ? name + ' · ' + resetPlayers.join(', ') + ' → Disabled' : name);
+  });
+  function captureBinding(device, input) {
+    const action = bindingAction;
+    if (!action) return;
+    stopBindingCapture();
+    const {bindings} = editedProfile();
+    const exists = bindings.some(binding =>
+      binding.action === action && binding.device === device && binding.input === input);
+    if (!exists) {
+      bindings.push({action, device, input});
+      showMappings();
+      mappingList.querySelector(`[data-input="${action}"] button`).focus({preventScroll: true});
+    }
+    notify(action + (exists ? ' is already bound.' : ' binding saved.'), device + ' · ' + input);
+  }
+  const keyLabels = {
+    Space: 'Space', Enter: 'Return', ShiftLeft: 'Shift', ShiftRight: 'Right Shift',
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+  };
+  bindingDialog.addEventListener('keydown', event => {
+    if (!bindingAction) return;
+    if (event.key === 'Escape' || event.key === 'Tab') return;
+    if (event.target === cancelBinding && (event.key === 'Enter' || event.key === ' ')) return;
+    if (!event.code || event.isComposing) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    captureBinding('Keyboard', keyLabels[event.code] || event.code.replace(/^(Key|Digit)(?=[A-Z0-9]$)/, ''));
+  });
+  function captureMouseBinding(event) {
+    if (!bindingAction || cancelBinding.contains(event.target)) return;
+    const {left, top, right, bottom} = bindingDialog.getBoundingClientRect();
+    if (event.clientX < left || event.clientX >= right ||
+        event.clientY < top || event.clientY >= bottom) return;
+    if (event.pointerType && event.pointerType !== 'mouse') return;
+    if (event.type === 'contextmenu' ? event.button !== 2 : event.button < 0) return;
+    event.preventDefault();
+    // Wait for contextmenu to capture the secondary button without opening a menu.
+    if (event.type === 'pointerdown' && event.button === 2) return;
+    captureBinding('Mouse', 'Button ' + event.button);
+  }
+  bindingDialog.addEventListener('pointerdown', captureMouseBinding);
+  bindingDialog.addEventListener('contextmenu', captureMouseBinding);
+  bindingDialog.addEventListener('cancel', event => {
+    event.preventDefault();
+    stopBindingCapture();
+  });
+  cancelBinding.addEventListener('click', stopBindingCapture);
+  window.addEventListener('blur', stopBindingCapture);
+  stompRumble.addEventListener('change', () => {
+    const before = editedProfile().rumbleEnabled;
+    editedProfile().rumbleEnabled = stompRumble.checked;
+    showRumble();
+    notifySaved('Rumble setting', before ? 'On' : 'Off', stompRumble.checked ? 'On' : 'Off');
+  });
+  const rumbleFields = [['Rumble duration', ' ms'], ['Low motor level', '%'], ['High motor level', '%']];
+  customRumble.forEach((input, index) => {
+    input.addEventListener('change', () => {
+      if (!input.validity.valid) return;
+      const values = editedProfile().rumble;
+      const before = values[index];
+      values[index] = input.valueAsNumber;
+      const [label, unit] = rumbleFields[index];
+      notifySaved(label, before + unit, values[index] + unit);
+    });
+  });
+  showProfile();
+  showProfiles();
+
+  document.querySelector('#preview-stomp').addEventListener('click', () => {
+    if (!customRumble.every(input => input.reportValidity())) return;
+    const [duration, low, high] = customRumble.map(input => input.valueAsNumber);
+    notify(`Rumble: ${duration} ms · Low ${low}% · High ${high}%`);
+  });
+  for (const command of document.querySelectorAll('#import-config, #export-config')) {
+    command.addEventListener('click', () => {
+      notify(command.textContent + ' is a preview in this prototype.');
+    });
+  }
+  renderPage(locationState);
+
+  openMenu.addEventListener('click', () => {
+    openMenu.focus();
+    rail.showModal();
+    openMenu.setAttribute('aria-expanded', 'true');
+    if (romLoaded) startGame.focus();
+  });
+  document.querySelector('#collapse-menu').addEventListener('click', () => rail.close());
+  rail.addEventListener('close', () => openMenu.setAttribute('aria-expanded', 'false'));
+
+  let pressedBackdrop = false;
+  function isBackdrop(event) {
+    return event.target === rail && event.clientX >= rail.getBoundingClientRect().right;
+  }
+  rail.addEventListener('pointerdown', event => { pressedBackdrop = isBackdrop(event); });
+  rail.addEventListener('click', event => {
+    if (pressedBackdrop && isBackdrop(event)) rail.close();
+    pressedBackdrop = false;
+  });
+
+  for (const destination of destinations) {
+    destination.addEventListener('click', () => showPage(document.getElementById(destination.dataset.page)));
+  }
+
+  function isGameFullScreen() {
+    return document.fullscreenElement === game || game.classList.contains('is-expanded');
+  }
+  function syncFullScreen() {
+    const expanded = isGameFullScreen();
+    appBar.inert = expanded;
+    const fpsParent = document.fullscreenElement === game ? game : main;
+    if (fpsCounter.parentElement !== fpsParent) fpsParent.append(fpsCounter);
+    if (expanded) game.append(snackbarHost);
+    else if (snackbarHost.parentElement === game) document.body.append(snackbarHost);
+    if (!game.inert) game.focus({preventScroll: true});
+  }
+  document.querySelector('#full-screen').addEventListener('click', async () => {
+    showPage(game);
+    if (document.fullscreenEnabled && typeof game.requestFullscreen === 'function') {
+      try {
+        await game.requestFullscreen();
+        return;
+      } catch {
+        // Some browsers only allow an expanded view inside the page.
+      }
+    }
+    if (game.inert) return;
+    locationState = {...locationState, expanded: true};
+    history.pushState(locationState, '');
+    renderPage(locationState);
+    notify('Use Back or Escape to exit full screen.');
+  });
+  document.addEventListener('fullscreenchange', syncFullScreen);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && game.classList.contains('is-expanded')) {
+      event.preventDefault();
+      if (!event.repeat) history.back();
+    }
+  });
+
+  replaceRom.addEventListener('click', () => romFile.click());
+  gameOverlay.addEventListener('click', () => {
+    if (!romLoaded) romFile.click();
+    else if (playback !== 'running') togglePlayback();
+  });
+  function reportRomError(message) {
+    fileStatus.textContent = message;
+    if (!game.inert) notify(message);
+  }
+  romFile.addEventListener('change', async () => {
+    const file = romFile.files[0];
+    romFile.value = '';
+    if (!file) return;
+    replaceRom.disabled = gameOverlay.disabled = true;
+    fileStatus.textContent = 'Checking ROM…';
+    if (!romLoaded) gameOverlayLabel.textContent = 'Checking ROM…';
+    try {
+      const expected = 'fa8cacf5bbfc39ee6bbaa557adf89133d60d42f6cf9e1db30d5a36a469f74d15';
+      const digest = file.size === 4194304
+        ? new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))
+        : [];
+      const hash = Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('');
+      if (hash !== expected) {
+        reportRomError('Choose a valid headerless USA v1.0 ROM.');
+        return;
+      }
+      fileStatus.textContent = 'ROM loaded.';
+      startGame.disabled = false;
+      reloadGame.disabled = false;
+      romLoaded = true;
+      setPlayback('ready');
+      game.style.backgroundImage = '';
+      if (!game.inert) notify('ROM loaded.', file.name);
+    } catch {
+      reportRomError('Could not read this file. Try again.');
+    } finally {
+      replaceRom.disabled = gameOverlay.disabled = false;
+      if (!romLoaded) gameOverlayLabel.textContent = 'Load ROM';
+      if (!game.inert && !rail.open && !gameOverlay.hidden) gameOverlay.focus({preventScroll: true});
+    }
+  });
+  function togglePlayback() {
+    let action;
+    if (playback === 'running') {
+      setPlayback('paused');
+      action = 'paused';
+    } else {
+      const starting = playback === 'ready';
+      if (starting) game.style.backgroundImage = 'url(' + previewCapture.image + ')';
+      setPlayback('running');
+      action = starting ? 'started' : 'resumed';
+    }
+    showPage(game);
+    notify('Game ' + action + '.');
+  }
+  startGame.addEventListener('click', togglePlayback);
+  reloadGame.addEventListener('click', () => {
+    setPlayback('ready');
+    game.style.backgroundImage = '';
+    showPage(game);
+    notify('Game reloaded.', 'Ready to start');
+  });
+
+  const formatCaptureDate = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+  function loadState(state) {
+    if (romLoaded) setPlayback('running');
+    game.style.backgroundImage = 'url(' + state.image + ')';
+    showPage(game);
+    notify('Save state loaded.', state.level);
+  }
+  function addSaveState() {
+    const state = {...previewCapture, date: new Date()};
+    saveStates.unshift(state);
+    const card = saveCardTemplate.content.firstElementChild.cloneNode(true);
+    const load = card.querySelector('.load-card');
+    const remove = card.querySelector('.delete-card');
+    const date = card.querySelector('time');
+    card.querySelector('img').src = state.image;
+    card.querySelector('strong').textContent = state.level;
+    date.dateTime = state.date.toISOString();
+    date.textContent = formatCaptureDate.format(state.date);
+    remove.setAttribute('aria-label', 'Delete save state for ' + state.level + ', ' + date.textContent);
+    load.addEventListener('click', () => loadState(state));
+    remove.addEventListener('click', () => {
+      const next = card.nextElementSibling.querySelector('.load-card') || addSave;
+      saveStates.splice(saveStates.indexOf(state), 1);
+      card.remove();
+      updateSaveActions();
+      next.focus();
+      notify('Save state deleted.', state.level + ' · ' + formatCaptureDate.format(state.date));
+    });
+    saveCards.prepend(card);
+    updateSaveActions();
+    return load;
+  }
+  addSave.addEventListener('click', () => {
+    addSaveState().focus();
+    notify('Save state saved.', previewCapture.level);
+  });
+  quickSave.addEventListener('click', () => {
+    addSaveState();
+    showPage(game);
+    notify('Save state saved.', previewCapture.level);
+  });
+  quickLoad.addEventListener('click', () => loadState(saveStates[0]));
+  addSaveState();
+  for (const command of [loadGameSave, saveGameSave]) {
+    command.addEventListener('click', () => {
+      notify(command.textContent + ' is a preview in this prototype.');
+    });
+  }
+  for (const control of document.querySelectorAll('[data-save-label]')) {
+    savedControlValues.set(control, settingValue(control));
+    defaultControlValues.set(control, control.type === 'checkbox' ? control.checked : control.value);
+  }
+  const restoreSettings = document.querySelector('#restore-default-settings');
+  restoreSettings.addEventListener('click', () => {
+    restoreSettings.focus();
+    restoreSettingsDialog.showModal();
+  });
+  document.querySelector('#cancel-restore-settings').addEventListener('click', () => restoreSettingsDialog.close());
+  document.querySelector('#confirm-restore-settings').addEventListener('click', () => {
+    for (const [control, value] of defaultControlValues) {
+      if (control.type === 'checkbox') control.checked = value;
+      else control.value = value;
+      control.dispatchEvent(new Event('change'));
+      savedControlValues.set(control, settingValue(control));
+    }
+    restoreSettingsDialog.close();
+    notify('Default settings restored.');
+  });
+</script>
+</body>
+</html>

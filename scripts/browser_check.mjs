@@ -10,6 +10,7 @@ import {dirname,resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {verifyCandyRestart} from './browser_candy_check.mjs';
+import {verifyUnringed} from './browser_unringed_check.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const NATIVE_FRAMES={
@@ -22,6 +23,7 @@ const options={frames:600,smoke:false,rom:null,input:null,expectedFrame:null,url
 for(let i=2;i<process.argv.length;i++){
   const arg=process.argv[i];
   if(arg==='--smoke')options.smoke=true;
+  else if(arg==='--unringed')options.unringed=true;
   else if(arg==='--rom')options.rom=resolve(process.argv[++i]||'');
   else if(arg==='--input')options.input=resolve(process.argv[++i]||'');
   else if(arg==='--expected-frame')options.expectedFrame=(process.argv[++i]||'').toLowerCase();
@@ -38,9 +40,10 @@ for(let i=2;i<process.argv.length;i++){
   else if(arg==='--frames')options.frames=Number(process.argv[++i]);
   else if(arg==='--url'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--url requires a site directory URL.');options.url=normalizeBaseUrl(value);}
   else if(arg==='--manifest'){const value=process.argv[++i];if(!value||value.startsWith('--'))throw new Error('--manifest requires a local Pages manifest path.');options.manifest=resolve(value);}
-  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256] [--native-reference comparison.json]\nnode scripts/browser_check.mjs --rom /absolute/game.smc --candy-reference build/candy-route/oracle.json\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
+  else if(arg==='--help'){console.log('node scripts/browser_check.mjs --smoke\nnode scripts/browser_check.mjs --rom /absolute/game.smc [--frames 600] [--input /absolute/masks.txt] [--expected-frame SHA256] [--native-reference comparison.json]\nnode scripts/browser_check.mjs --rom /absolute/game.smc --candy-reference build/candy-route/oracle.json\nnode scripts/browser_check.mjs --rom /absolute/game.smc --unringed\nRemote: append --url https://owner.github.io/repository/ [--manifest build/pages/pages-manifest.json]\nOnly HTTPS or HTTP loopback URLs are accepted. The ROM stays local and is selected through the browser file picker.\nInput: one hex joypad mask per line; # or // comments and hex*decimal-count runs are accepted.');process.exit(0);}
   else throw new Error(`Unknown argument: ${arg}`);
 }
+if(options.unringed&&(options.smoke||options.candyReference||options.input||options.nativeReference||options.url))throw new Error('--unringed is a standalone local check.');
 if(!options.smoke&&!options.rom)throw new Error('--rom is required unless --smoke is selected.');
 if(!Number.isInteger(options.frames)||options.frames<0||options.frames>100000)throw new Error('--frames must be an integer from 0 to 100,000.');
 if(options.expectedFrame!==null&&!/^[0-9a-f]{64}$/.test(options.expectedFrame))throw new Error('--expected-frame must contain exactly 64 hexadecimal characters.');
@@ -74,7 +77,7 @@ const report={started:new Date().toISOString(),mode:options.smoke?'smoke':'game'
 let server=null,chrome=null,client=null,session=null,originalSave=null,origin=null,profile=null;
 let pagesManifest=null,pagesManifestBytes=null;
 const streams=[];
-const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/pause-presentation.js','web/controller-ui.js','web/gamepad-profiles.js','web/keyboard-ui.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/settings.js','web/assist.js','web/dkc.wasm'];
+const sourceFiles=['scripts/serve.py','web/index.html','web/style.css','web/main.js','web/ui-shell.js','web/start-shortcut.js','web/input-profiles.js','web/input-profile-ui.js','web/gamepad-profiles.js','web/keyboard-profiles.js','web/content-pages.js','web/About.md','web/Help.md','web/worker.js','web/wasm-imports.js','web/storage.js','web/audio-worklet.js','web/graphics.js','web/settings.js','web/assist.js','web/dkc.wasm'];
 async function sourceHashes(){return Object.fromEntries(await Promise.all(sourceFiles.map(async file=>[file,createHash('sha256').update(await readFile(join(root,file))).digest('hex')])));}
 
 function normalizeBaseUrl(value){
@@ -192,9 +195,9 @@ async function evaluate(expression,timeout=120000){
   return result.result?.value;
 }
 async function waitReady(){
-  await poll(()=>evaluate(`Boolean(window.dkcDebug && document.querySelector('#status'))`),'browser host script');
-  await poll(()=>evaluate(`document.querySelector('#status').textContent.startsWith('Ready') || document.querySelector('#status').classList.contains('error')`),'player startup and cartridge restoration',60000);
-  const status=await evaluate(`({message:document.querySelector('#status').textContent,error:document.querySelector('#status').classList.contains('error'),debug:window.dkcDebug.status()})`);
+  await poll(()=>evaluate(`Boolean(window.dkcDebug)`),'browser host script');
+  await poll(()=>evaluate(`(window.dkcDebug.status().message??document.querySelector('#status')?.textContent??'').startsWith('Ready') || (window.dkcDebug.status().error??document.querySelector('#status')?.classList.contains('error'))`),'player startup and cartridge restoration',60000);
+  const status=await evaluate(`({message:(window.dkcDebug.status().message??document.querySelector('#status')?.textContent),error:(window.dkcDebug.status().error??document.querySelector('#status')?.classList.contains('error')),debug:window.dkcDebug.status()})`);
   return status;
 }
 async function screenshot(name){
@@ -231,7 +234,7 @@ async function launch(extraFlags,attempt,profileDirectory=join(profileRoot,Strin
   const target=await client.send('Target.createTarget',{url:'about:blank'});
   const attached=await client.send('Target.attachToTarget',{targetId:target.targetId,flatten:true});session=attached.sessionId;
   await client.send('Runtime.enable',{},session);await client.send('Page.enable',{},session);
-  if(options.candyReference){
+  if(options.candyReference||options.unringed){
     attemptReport.fileChoosers=[];
     client.on('Page.fileChooserOpened',(data,id)=>{if(id===session)attemptReport.fileChoosers.push(data.mode);});
     await client.send('Page.setInterceptFileChooserDialog',{enabled:true},session);
@@ -250,13 +253,22 @@ async function launch(extraFlags,attempt,profileDirectory=join(profileRoot,Strin
   await client.send('Page.navigate',{url:origin},session);
   await client.send('Page.bringToFront',{},session);
   const ready=await waitReady();
-  attemptReport.webgpu=await evaluate(`(async()=>{const adapter=await navigator.gpu?.requestAdapter();return {secureContext:isSecureContext,available:Boolean(navigator.gpu),adapter:Boolean(adapter),info:adapter?{vendor:adapter.info.vendor,architecture:adapter.info.architecture,device:adapter.info.device,description:adapter.info.description}:null,status:document.querySelector('#status').textContent};})()`);
+  attemptReport.webgpu=await evaluate(`(async()=>{const adapter=await navigator.gpu?.requestAdapter();return {secureContext:isSecureContext,available:Boolean(navigator.gpu),adapter:Boolean(adapter),info:adapter?{vendor:adapter.info.vendor,architecture:adapter.info.architecture,device:adapter.info.device,description:adapter.info.description}:null,status:(window.dkcDebug.status().message??document.querySelector('#status')?.textContent)};})()`);
   attemptReport.ready=ready;
   try{attemptReport.systemGpu=(await client.send('SystemInfo.getInfo')).gpu;}catch(error){attemptReport.systemGpuError=error.message;}
   return ready;
 }
 async function dkmCommand(command){
   await evaluate(`(()=>{
+    const action=${JSON.stringify(command)};
+    if(document.querySelector('#navigation-rail')){
+      if(action==='open-rom'){document.querySelector('#game-overlay').click();return;}
+      document.querySelector('#open-menu').click();
+      const button=document.querySelector('#navigation-rail [data-command="'+CSS.escape(action)+'"]');
+      if(!button||button.disabled||!button.getClientRects().length)throw new Error('Unavailable rail command '+action);
+      button.click();
+      return;
+    }
     const trigger=document.querySelector('[aria-controls="menu-dkm"]');
     if(!trigger || !trigger.getClientRects().length)throw new Error('DKM menu unavailable.');
     if(trigger.getAttribute('aria-expanded')!=='true')trigger.click();
@@ -279,7 +291,7 @@ async function selectRom(){
   assert(nodeId,'ROM picker is missing.');
   await client.send('DOM.setFileInputFiles',{files:[options.rom],nodeId},session);
   await poll(async()=>{
-    const value=await evaluate(`({debug:window.dkcDebug.status(),pickerDone:!document.querySelector('#rom-file').files.length,message:document.querySelector('#status').textContent,error:document.querySelector('#status').classList.contains('error')})`);
+    const value=await evaluate(`({debug:window.dkcDebug.status(),pickerDone:!document.querySelector('#rom-file').files.length,message:(window.dkcDebug.status().message??document.querySelector('#status')?.textContent),error:(window.dkcDebug.status().error??document.querySelector('#status')?.classList.contains('error'))})`);
     if(value.error&&!value.debug.loading){const error=new Error(value.message);error.fatal=true;throw error;}
     return value.pickerDone&&value.debug.loaded&&!value.debug.loading?value:false;
   },'verified ROM and standalone Wasm initialization',180000);
@@ -310,7 +322,7 @@ async function checkUnavailableFullscreen(){
       const disabled=buttons.map(button=>button.disabled);for(const button of buttons)button.click();
       const shortcut=new KeyboardEvent('keydown',{key:'f',code:'KeyF',ctrlKey:true,metaKey:true,bubbles:true,cancelable:true});document.dispatchEvent(shortcut);
       await new Promise(resolve=>requestAnimationFrame(resolve));
-      return {available:window.dkcDebug.status().fullscreenAvailable,buttons:buttons.length,disabled,calls,shortcutPrevented:shortcut.defaultPrevented,fullscreen:Boolean(document.fullscreenElement),error:document.querySelector('#status').classList.contains('error'),method:'Runtime capability override and synthetic shortcut; not a physical iPhone test.'};
+      return {available:window.dkcDebug.status().fullscreenAvailable,buttons:buttons.length,disabled,calls,shortcutPrevented:shortcut.defaultPrevented,fullscreen:Boolean(document.fullscreenElement),error:(window.dkcDebug.status().error??document.querySelector('#status')?.classList.contains('error')),method:'Runtime capability override and synthetic shortcut; not a physical iPhone test.'};
     }finally{
       if(enabled)Object.defineProperty(document,'fullscreenEnabled',enabled);else delete document.fullscreenEnabled;
       if(request)Object.defineProperty(Element.prototype,'requestFullscreen',request);else delete Element.prototype.requestFullscreen;
@@ -364,6 +376,10 @@ try{
         assert.equal(await evaluate('location.href'),previousOrigin,'Chrome must reopen the same URL.');
         return {firstPid:previousChrome.pid,secondPid:chrome.pid,firstExitCode:previousChrome.exitCode,sameProfile:profile===previousProfile,sameOrigin:true};
       }});
+  }else if(options.unringed){
+    report.mode='unringed';
+    await verifyUnringed({evaluate,poll,screenshot,report,rom:options.rom,chooseDkmFile,
+      send:(method,params)=>client.send(method,params,session),reopen:reopenCartridge});
   }else if(!options.smoke){
     report.initial=await selectRom();report.imports=report.initial.imports;
     assert.equal(report.initial.loaded,true);assert.equal(report.initial.running,false);
@@ -393,9 +409,9 @@ try{
       report.presentation=await evaluate(`(()=>{const canvas=document.querySelector('#screen');return {
         bounds:canvas.getBoundingClientRect().toJSON(),width:canvas.width,height:canvas.height,
         dpr:devicePixelRatio,frame:window.dkcDebug.status().presentedFrame};})()`);
-      const previous=await evaluate(`(()=>{const node=document.querySelector('#pause-overlay');const old=node.style.visibility;node.style.visibility='hidden';return old;})()`);
+      const previous=await evaluate(`(()=>{const nodes=[...document.querySelectorAll('#pause-overlay, #game-overlay')];const old=nodes.map(node=>node.style.visibility);nodes.forEach(node=>node.style.visibility='hidden');return old;})()`);
       try{await screenshot('unobscured-game.png');}
-      finally{await evaluate(`document.querySelector('#pause-overlay').style.visibility=${JSON.stringify(previous)}`);}
+      finally{await evaluate(`[...document.querySelectorAll('#pause-overlay, #game-overlay')].forEach((node,i)=>node.style.visibility=${JSON.stringify(previous)}[i])`);}
     }
     originalSave=await evaluate('window.dkcDebug.saveBytes()');assert.equal(originalSave.length,2048);
     const invalid=await evaluate(`(async()=>{try{await window.dkcDebug.importSave([1,2]);return false;}catch(error){return /2,048/.test(error.message);}})()`);
@@ -413,7 +429,7 @@ try{
     assert.equal(before.audioContextState,'not-created','A paused fresh boot should wait for Start to initialize audio.');
     if(!before.sound)await evaluate('window.dkcDebug.enableSound(true)'); // Published v1 starts muted.
     await dkmCommand('start-game');
-    await poll(()=>evaluate('window.dkcDebug.status().running'),'DKM Start Game playback');
+    await poll(()=>evaluate('window.dkcDebug.status().running'),'Start Game playback');
     await delay(1800);
     const playing=await evaluate('window.dkcDebug.status()');
     const paused=await evaluate('window.dkcDebug.pause()');
@@ -423,7 +439,7 @@ try{
     assert.equal(playing.audioStats.type,'audio-stats','AudioWorklet did not report processing during real-time play.');
     for(const key of ['queuedFrames','underruns','overruns'])assert(Number.isInteger(playing.audioStats[key])&&playing.audioStats[key]>=0,`AudioWorklet did not report a valid ${key} count.`);
     report.audio={defaultOn:before.sound,contextBeforeStart:before.audioContextState,contextState:playing.audioContextState,stats:playing.audioStats,observationMs:1800,listeningQualityAssessed:false};
-    report.checks.push('DKM Start Game plays through the AudioContext and PCM AudioWorklet. The sound control mutes afterward.');
+    report.checks.push('Start Game plays through the AudioContext and PCM AudioWorklet. The sound control mutes afterward.');
     assert.equal(await evaluate('window.dkcDebug.status().sound'),false,'Sound did not disable after the audio check.');
     assert(paused.frameCount>before.frameCount,'Resume did not advance game frames.');assert(paused.frameCount-before.frameCount<240,'Fixed-step game ran implausibly fast.');
     await delay(200);const still=await evaluate('window.dkcDebug.refresh()');assert.equal(still.frameCount,paused.frameCount,'Game advanced while paused.');
@@ -439,7 +455,7 @@ try{
   report.result='passed';
 }catch(error){
   report.result='failed';report.error={message:error.message,stack:error.stack};process.exitCode=1;
-  if(client&&session)try{report.failureState=await evaluate(`({url:location.href,ready:document.readyState,visibility:document.visibilityState,focused:document.hasFocus(),message:document.querySelector('#status')?.textContent,debug:window.dkcDebug?.status(),resources:performance.getEntriesByType('resource').map(value=>({name:value.name,duration:value.duration,transferSize:value.transferSize}))})`);await screenshot('failure.png');}catch{}
+  if(client&&session)try{report.failureState=await evaluate(`({url:location.href,ready:document.readyState,visibility:document.visibilityState,focused:document.hasFocus(),message:window.dkcDebug?.status().message??document.querySelector('#status')?.textContent,debug:window.dkcDebug?.status(),resources:performance.getEntriesByType('resource').map(value=>({name:value.name,duration:value.duration,transferSize:value.transferSize}))})`);await screenshot('failure.png');}catch{}
 }finally{
   if(originalSave&&client&&session){try{await evaluate(`(async()=>{await window.dkcDebug.pause();await window.dkcDebug.importSave(${JSON.stringify(originalSave)});await window.dkcDebug.flushSaves();})()`);report.saveRestored=true;}catch(error){report.restoreError=error.message;}}
   await closeChrome();

@@ -1,0 +1,72 @@
+name: Deploy approved Pages package
+
+"on":
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release containing the approved pages-site.tar.gz asset
+        type: string
+        required: true
+      archive_sha256:
+        description: Approved SHA-256 of pages-site.tar.gz
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out deployment tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, Node 24
+        with:
+          persist-credentials: false
+
+      - name: Read Pages configuration
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0, Node 24
+
+      - name: Download and verify the approved package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', os.environ['RELEASE_TAG']):
+              raise SystemExit('Invalid package release tag.')
+          if not re.fullmatch(r'[0-9a-fA-F]{64}', os.environ['ARCHIVE_SHA256']):
+              raise SystemExit('Invalid approved archive SHA-256.')
+          PY
+          mkdir -p build/pages-transfer
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern pages-site.tar.gz --dir build/pages-transfer
+          python3 scripts/pages_archive.py extract \
+            --archive build/pages-transfer/pages-site.tar.gz \
+            --expected-sha256 "$ARCHIVE_SHA256" --out build/pages
+
+      - name: Upload the verified Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/pages
+          include-hidden-files: true
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1, Node 24

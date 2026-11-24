@@ -77,7 +77,7 @@ async function rawBindStart(){
   await setValue('#controller-bind-action','start');await setValue('#controller-bind-type','button');await setValue('#controller-bind-index',11);await click('#controller-bind-add');
 }
 
-async function overlay(){return evaluate(`(()=>{const e=document.querySelector('#pause-overlay');return {hidden:e.hidden,display:getComputedStyle(e).display,title:document.querySelector('#pause-title').textContent,input:document.querySelector('#pause-input').textContent,hint:document.querySelector('#pause-hint').textContent,text:e.innerText,pointerEvents:getComputedStyle(e).pointerEvents};})()`);}
+async function overlay(){return evaluate(`(()=>{const e=document.querySelector('#pause-overlay');return {hidden:e.hidden,display:getComputedStyle(e).display,title:document.querySelector('#pause-title').textContent,input:document.querySelector('#pause-input').textContent,hint:e.querySelector('p:last-of-type').textContent,text:e.innerText,pointerEvents:getComputedStyle(e).pointerEvents};})()`);}
 async function labels(expected,{disabled=false}={}){const values=await evaluate(`Array.from(document.querySelectorAll('[data-start-game]')).map(e=>({text:e.textContent.trim(),disabled:e.disabled}))`);assert.equal(values.length,2);for(const value of values){assert.equal(value.text,expected);assert.equal(value.disabled,disabled);}return values;}
 async function shown(title){await poll(async()=>{const e=await overlay();return !e.hidden&&e.display!=='none'&&(!title||title.test(e.title));},'pause overlay shown');return overlay();}
 async function hidden(){await poll(async()=>{const e=await overlay();return e.hidden||e.display==='none';},'pause overlay hidden');}

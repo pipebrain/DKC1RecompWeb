@@ -35,7 +35,7 @@ changes them.
 - About uses the monochrome `.dk-coin`. Its content comes from `web/About.md`;
   Help comes from `web/Help.md` and stays disabled when its content is missing
   or empty. Keep upstream credits/links accurate. Our repository link is
-  https://github.com/pipebrain/DKC1RecompWeb (private).
+  https://github.com/pipebrain/DKC1RecompWeb.
 - Keyboard is the default input source for a fresh browser profile. Expose
   saved, editable keyboard bindings under Config > Input and show the active
   source in menus. Preserve keyboard settings separately from controller
@@ -54,8 +54,8 @@ changes them.
 - Donkey Kong Land level integration is a later phase.
 - Version 1 includes GitHub Pages hosting for Android/iOS testing. Follow
   `docs/PAGES.md` for hosting status and the chosen visibility/plan route.
-  The source repo stays private; the approved public deployment repo is
-  `pipebrain/DKC1RecompWeb-Pages`, with no imported private history.
+  The public source repository `pipebrain/DKC1RecompWeb` hosts GitHub Pages.
+  The legacy `pipebrain/DKC1RecompWeb-Pages` repository is retired.
   Package an explicit runtime allowlist; never copy the whole `web/` folder,
   which can contain ignored ROMs and saves. Compiled Wasm may be supplied as a
   deployment artifact while staying out of Git. Include runtime license

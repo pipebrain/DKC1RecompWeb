@@ -4,8 +4,8 @@ import {KEYBOARD_STORAGE_KEY,LEGACY_KEYBOARD_KEY,DEFAULT_KEYBOARD_BINDINGS,defau
 
 const clone=value=>JSON.parse(JSON.stringify(value));
 
-export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
-  const ids=['keyboard-panel','keyboard-bindings','keyboard-save','keyboard-discard','keyboard-defaults','keyboard-capture-cancel','keyboard-message','keyboard-draft'];
+export function initKeyboardUI({onChange=()=>{},onCapture=()=>{},bindingDialog}={}){
+  const ids=['keyboard-panel','keyboard-bindings','keyboard-save','keyboard-discard','keyboard-defaults','keyboard-message','keyboard-draft'];
   const elements=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
   for(const id of ids)if(!elements[id])throw new Error(`Missing keyboard settings element: ${id}.`);
   let settings=defaultKeyboardSettings(),storedVersion=null,storageAvailable=true,initialError=null;
@@ -17,7 +17,7 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
   catch(error){storageAvailable=false;initialError=`Keyboard settings could not be loaded: ${error.message}`;}
   let player=0,dirty=false,captureAction=null,append=false;
   const port=(n=player)=>n===1?settings.player2:settings;
-  const replacePort=(patch)=>player===1?{...settings,player2:{...settings.player2,...patch}}:{...settings,...patch};
+  const replacePort=(patch,n=player)=>n===1?{...settings,player2:{...settings.player2,...patch}}:{...settings,...patch};
   let draft=clone(port().bindings),maps=[];
   function rebuild(){maps=[settings,settings.player2].map(p=>keyboardKeyMap(p.bindings));}
   rebuild();
@@ -31,15 +31,22 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
     }
     catch(error){storageAvailable=false;throw new Error(`Keyboard settings could not be saved: ${error.message}`);}
   }
-  function cancelCapture(){captureAction=null;elements['keyboard-capture-cancel'].hidden=true;render();}
+  function cancelCapture(){if(captureAction)bindingDialog.dismiss();captureAction=null;render();}
   function updateDirty(){dirty=JSON.stringify(draft)!==JSON.stringify(port().bindings);}
   function changeBinding(action,codes){
     const next=clone(draft);next[action]=codes;
     draft=validateKeyboardBindings(next);updateDirty();render();
   }
   function listen(action,add=false){
-    append=add;captureAction=action;elements['keyboard-capture-cancel'].hidden=false;
-    onCapture();render();tell(`Press a key for ${ACTIONS.find(item=>item.id===action).label}. Escape cancels.`);
+    append=add;captureAction=action;
+    onCapture();
+    bindingDialog.show(ACTIONS.find(item=>item.id===action).label,()=>{
+      cancelCapture();tell('Key capture cancelled.');
+      focusAction(action);
+    });
+  }
+  function focusAction(action){
+    elements['keyboard-bindings'].querySelector(`[data-keyboard-learn="${action}"]`)?.focus({preventScroll:true});
   }
   function render(){
     const active=document.activeElement,focusedAction=active?.dataset.keyboardLearn||active?.dataset.keyboardClear;
@@ -54,7 +61,7 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
       const keys=document.createElement('div');keys.className='keyboard-bindings';
       if(!draft[action.id].length){const empty=document.createElement('span');empty.textContent='Unassigned';keys.append(empty);}
       for(const code of draft[action.id]){const key=document.createElement('kbd');key.className='keyboard-binding';key.textContent=keyboardCodeLabel(code);key.dataset.keyCode=code;keys.append(key);}
-      const learn=document.createElement('button');learn.type='button';learn.dataset.keyboardLearn=action.id;learn.textContent=captureAction===action.id?'Listening…':'Set key';learn.setAttribute('aria-label',`Set key for ${action.label}`);learn.addEventListener('click',()=>listen(action.id));
+      const learn=document.createElement('button');learn.type='button';learn.dataset.keyboardLearn=action.id;learn.textContent='Set';learn.setAttribute('aria-label',`Set key for ${action.label}`);learn.addEventListener('click',()=>listen(action.id));
       const clear=document.createElement('button');clear.type='button';clear.dataset.keyboardClear=action.id;clear.textContent='Clear';clear.disabled=!draft[action.id].length;clear.setAttribute('aria-label',`Clear key for ${action.label}`);clear.addEventListener('click',()=>{cancelCapture();changeBinding(action.id,[]);tell('Binding cleared. Save to keep the change.');});
       const add=document.createElement('button');add.type='button';add.textContent='Add key';add.disabled=draft[action.id].length>=4;
       add.setAttribute('aria-label',`Add another key for ${action.label}`);add.addEventListener('click',()=>listen(action.id,true));keys.append(add);
@@ -72,13 +79,15 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
     if(captureAction)cancelCapture();
     return true;
   }
-  function setMode(mode){
+  function setMode(mode,n=player){
     if(!['keyboard','gamepad','both','none'].includes(mode))throw new Error('Choose an input source.');
-    if(mode===port().mode)return true;
-    if(!canClose())return false;
-    const next=replacePort({mode});settings=next;
-    try{write(next);}catch(error){tell(`${error.message} This input source still works for this session.`,true);}
-    render();notify();return true;
+    if(mode===port(n).mode)return {applied:true,saved:true};
+    if(!canClose())return {applied:false,saved:false};
+    const next=replacePort({mode},n);settings=next;
+    let saved=true;
+    try{write(next);}catch(error){saved=false;tell(`${error.message} This input source still works for this session.`,true);}
+    render();notify();return {applied:true,saved};
+
   }
   elements['keyboard-save'].addEventListener('click',()=>{
     try{
@@ -88,20 +97,21 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
   });
   elements['keyboard-discard'].addEventListener('click',()=>{draft=clone(port().bindings);dirty=false;cancelCapture();tell('Unsaved keyboard changes discarded.');});
   elements['keyboard-defaults'].addEventListener('click',()=>{cancelCapture();draft=clone(player?defaultKeyboardSettings().player2.bindings:DEFAULT_KEYBOARD_BINDINGS);updateDirty();render();tell(dirty?'Default keys restored. Save to keep them.':'Already using the default keyboard bindings.');});
-  elements['keyboard-capture-cancel'].addEventListener('click',()=>{cancelCapture();tell('Key capture cancelled.');});
   document.addEventListener('keydown',event=>{
     if(!captureAction)return;
+    if(event.code==='Escape'||event.code==='Tab')return;
+    if(event.target.id==='binding-cancel'&&['Enter','Space'].includes(event.code))return;
     event.preventDefault();event.stopImmediatePropagation();
-    if(event.code==='Escape'){cancelCapture();tell('Key capture cancelled.');return;}
     if(event.repeat)return;
     const code=keyboardEventCode(event);
     if(!code){tell('Choose a key without Control, Alt/Option, or Command/Windows. Tab and Escape are reserved.',true);return;}
     try{
       const action=captureAction;changeBinding(action,append?[...draft[action],code]:[code]);cancelCapture();
       tell(`${keyboardCodeLabel(code)} assigned. Save to keep the change.`);
+      focusAction(action);
     }catch(error){tell(error.message,true);}
   },true);
-  render();tell(initialError||'Keyboard is the default input. Select Set key beside an action to change it.',Boolean(initialError));
+  render();tell(initialError||'Keyboard is the default input. Select Set beside an action to change it.',Boolean(initialError));
   return {
     exportSettings:()=>clone(settings),
     applySettings(value){
@@ -115,7 +125,7 @@ export function initKeyboardUI({onChange=()=>{},onCapture=()=>{}}={}){
     },
     assistKey:action=>settings.assistKeys[action],
     keyMap:(n=0)=>maps[n],bitForCode:(code,n=0)=>Object.hasOwn(maps[n],code)?maps[n][code]:0,getMode:(n=0)=>port(n).mode,setMode,
-    canClose,isCapturing:()=>Boolean(captureAction),hasUnsavedChanges:()=>dirty,isEditing:()=>dirty||Boolean(captureAction),cancelCapture,
+    canClose,isCapturing:()=>Boolean(captureAction),isEditing:()=>dirty||Boolean(captureAction),cancelCapture,
     status:(n=0)=>({mode:port(n).mode,isDefault:isDefaultKeyboardBindings(port(n).bindings),dirty,
       bindings:clone(port(n).bindings),draftBindings:clone(draft),captureAction,storageAvailable}),
   };

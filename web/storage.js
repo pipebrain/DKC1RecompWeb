@@ -118,9 +118,14 @@ export function rememberPickedRom(image) {
   });
 }
 
-async function stateSlot(slot,write){
-  if(!Number.isInteger(slot)||slot<1||slot>5)throw new Error('Invalid state slot.');
-  const key='v0.0.17-web2/'+CARTRIDGE_KEY+'/'+slot;
+const STATE_SLOTS=[1,2,3,4,5];
+
+function stateKey(slot){
+  if(!STATE_SLOTS.includes(slot))throw new Error('Invalid state slot.');
+  return 'v0.0.17-web2/'+CARTRIDGE_KEY+'/'+slot;
+}
+
+async function stateTransaction(mode,operation){
   const db=await new Promise((resolve,reject)=>{
     const open=indexedDB.open('dkc-browser-states',1);
     open.onupgradeneeded=()=>open.result.createObjectStore('slots');
@@ -129,15 +134,66 @@ async function stateSlot(slot,write){
   });
   try{
     return await new Promise((resolve,reject)=>{
-      const tx=db.transaction('slots',write?'readwrite':'readonly'),store=tx.objectStore('slots');
-      const request=write?store.put(write,key):store.get(key);
-      tx.oncomplete=()=>resolve(request.result);
+      const tx=db.transaction('slots',mode);
       tx.onabort=()=>reject(tx.error||new Error('State storage interrupted.'));
+      const result=operation(tx.objectStore('slots'));
+      tx.oncomplete=()=>resolve(result());
     });
   }finally{db.close();}
 }
-export const loadStateSlot=slot=>stateSlot(slot);
-export const storeStateSlot=(slot,snapshot)=>stateSlot(slot,snapshot);
+
+function readStateSlots(store,onRead=()=>{}){
+  const requests=STATE_SLOTS.map(slot=>store.get(stateKey(slot)));
+  const values=()=>requests.map(request=>request.result);
+  // Requests in one transaction finish in the order they were queued.
+  requests.at(-1).onsuccess=()=>onRead(values());
+  return values;
+}
+
+function stateOrder(snapshot){
+  return snapshot.saveOrder??snapshot.savedAt??0;
+}
+
+export const loadStateSlots=()=>stateTransaction('readonly',readStateSlots);
+export const loadStateSlot=slot=>stateTransaction('readonly',store=>{
+  const request=store.get(stateKey(slot));return ()=>request.result;
+});
+export const storeStateSlot=(slot,snapshot)=>stateTransaction('readwrite',store=>{
+  store.add(snapshot,stateKey(slot));return ()=>{};
+});
+export const deleteStateSlot=slot=>stateTransaction('readwrite',store=>{
+  store.delete(stateKey(slot));return ()=>{};
+});
+
+export function appendStateSlot(snapshot){
+  return stateTransaction('readwrite',store=>{
+    let slot=null;
+    // Select the empty slot and add the snapshot in one transaction so
+    // simultaneous saves cannot compete for the same slot or overwrite one.
+    readStateSlots(store,entries=>{
+      const index=entries.indexOf(undefined);
+      if(index===-1)return;
+      const savedAt=snapshot.savedAt??Date.now();
+      const newest=entries.reduce((latest,entry)=>entry?Math.max(latest,stateOrder(entry)):latest,0);
+      const saveOrder=Math.max(savedAt,newest+1);
+      slot=STATE_SLOTS[index];
+      store.add({...snapshot,savedAt,saveOrder},stateKey(slot));
+    });
+    return ()=>slot;
+  });
+}
+
+export async function loadLatestStateSlot(){
+  const entries=await loadStateSlots();
+  let latest;
+  for(const [index,snapshot] of entries.entries()){
+    // Undated older states have no chronological metadata. Use the higher
+    // slot as the tie breaker when the available ordering information agrees.
+    if(snapshot&&(!latest||stateOrder(snapshot)>=stateOrder(latest.snapshot)))
+      latest={slot:STATE_SLOTS[index],snapshot};
+  }
+  return latest;
+}
 
 // The same IndexedDB transaction that applies the ROM setting removes the
 // import journal. A journal present on restart means the import never committed.

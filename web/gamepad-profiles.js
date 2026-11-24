@@ -42,7 +42,7 @@ function deviceDescriptor(value) {
     buttons:integer(value.buttons,0,256,'Device button count'),
     axes:integer(value.axes,0,64,'Device axis count')};
 }
-function validateBinding(value) {
+export function validateBinding(value) {
   if (!record(value)) throw new Error('A binding must be an object.');
   let result;
   switch (value.type) {
@@ -208,7 +208,7 @@ function defaultRoute(){
   return {assignments:{},lastDevice:null,lastProfile:DEFAULT_PROFILE.id,deadzone:null};
 }
 export function defaultControllerSettings(){
-  return {...defaultRoute(),profiles:[],player2:defaultRoute(),captureMode:'auto',rumble:true,stompStrength:'standard',
+  return {...defaultRoute(),profiles:[],player2:defaultRoute(),captureMode:'auto',rumble:true,stompStrength:'standard',stompEffect:null,
     assistBindings:{'quick-save':null,'quick-load':null}};
 }
 function validateRoute(route,available){
@@ -224,19 +224,28 @@ function validateRoute(route,available){
 }
 export function validateControllerSettings(value){
   const routeKeys=['assignments','lastDevice','lastProfile','deadzone'];
-  keys(value,[...routeKeys,'profiles','player2','captureMode','rumble','stompStrength','assistBindings'],'controller settings');
+  keys(value,[...routeKeys,'profiles','player2','captureMode','rumble','stompStrength','stompEffect','assistBindings'],'controller settings');
   if(!Array.isArray(value.profiles)||value.profiles.length>64)throw new Error('Use up to 64 custom controller profiles.');
   const profiles=value.profiles.map(validateProfile),available=new Set(['standard',...profiles.map(p=>p.id)]);
   if(available.size!==profiles.length+1)throw new Error('Duplicate controller profile ID.');
   const defaults=defaultControllerSettings();
   const {player2=defaults.player2,captureMode=defaults.captureMode,rumble=defaults.rumble,
-    stompStrength=defaults.stompStrength,assistBindings=defaults.assistBindings}=value;
+    stompStrength=defaults.stompStrength,stompEffect=null,assistBindings=defaults.assistBindings}=value;
   keys(player2,routeKeys,'player 2 controller');
   if(!CAPTURE_MODES.includes(captureMode)||typeof rumble!=='boolean')throw new Error('Invalid capture mode or rumble setting.');
   if(!['standard','light'].includes(stompStrength))throw new Error('Invalid stomp strength.');
   keys(assistBindings,[...Object.keys(ASSIST_ACTIONS),'rewind-step','fast-forward','frame-step'],'controller shortcuts');
   const validated=Object.fromEntries(Object.keys(ASSIST_ACTIONS).map(id=>[id,assistBindings[id]===null?null:validateBinding(assistBindings[id])]));
-  const result={...validateRoute(value,available),profiles,player2:validateRoute(player2,available),captureMode,rumble,stompStrength,assistBindings:validated};
+  let effect=null;
+  if(stompEffect!==null){
+    keys(stompEffect,['duration','low','high'],'stomp effect');
+    effect={
+      duration:integer(stompEffect.duration,1,1000,'Rumble duration'),
+      low:integer(stompEffect.low,0,100,'Low motor'),
+      high:integer(stompEffect.high,0,100,'High motor'),
+    };
+  }
+  const result={...validateRoute(value,available),profiles,player2:validateRoute(player2,available),captureMode,rumble,stompStrength,stompEffect:effect,assistBindings:validated};
   if(JSON.stringify(result).length>1048576)throw new Error('Controller settings exceed the 1 MiB storage limit.');
   return result;
 }

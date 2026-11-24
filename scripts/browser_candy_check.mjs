@@ -36,7 +36,7 @@ export async function verifyCandyRestart({
   }
   async function reloadGame(){
     await dkmCommand('reset-game');
-    await poll(()=>evaluate(`/Game reloaded/i.test(document.querySelector('#status').textContent) && !window.dkcDebug.status().loading`),'DKM Reload Game');
+    await poll(()=>evaluate(`/Game reloaded/i.test((window.dkcDebug.status().message??document.querySelector('#status')?.textContent)) && !window.dkcDebug.status().loading`),'DKM Reload Game');
     assert.equal((await evaluate('window.dkcDebug.status()')).frameCount,0);
   }
 
@@ -63,11 +63,11 @@ export async function verifyCandyRestart({
       // The debug replay pauses between exact frame counts. Uncover the game
       // for evidence without advancing a frame or changing cartridge state.
       const oldVisibility=await evaluate(`(()=>{
-        const node=document.querySelector('#pause-overlay'),old=node.style.visibility;
-        node.style.visibility='hidden';return old;
+        const nodes=[...document.querySelectorAll('#pause-overlay, #game-overlay')];
+        const old=nodes.map(node=>node.style.visibility);nodes.forEach(node=>node.style.visibility='hidden');return old;
       })()`);
       try{await screenshot(`${leg}-${name}.png`);}
-      finally{await evaluate(`document.querySelector('#pause-overlay').style.visibility=${JSON.stringify(oldVisibility)}`);}
+      finally{await evaluate(`[...document.querySelectorAll('#pause-overlay, #game-overlay')].forEach((node,i)=>node.style.visibility=${JSON.stringify(oldVisibility)}[i])`);}
       assert.equal(rendered.sha256,frame_sha256,`${leg}: ${name} differs from the native framebuffer.`);
     }
   }

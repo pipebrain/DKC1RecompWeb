@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {defaultKeyboardSettings} from '../web/keyboard-profiles.js';
 import {defaultControllerSettings} from '../web/gamepad-profiles.js';
-import {makeConfig, parseConfig, PLAYER_DEFAULTS, PLAYER_KEY, readPlayer} from '../web/settings.js';
+import {defaultInputProfiles} from '../web/input-profiles.js';
+import {makeConfig, makeProfileConfig, parseConfig, PLAYER_DEFAULTS, PLAYER_KEY, readPlayer} from '../web/settings.js';
 
 function phase2Config() {
   const keyboard = defaultKeyboardSettings();
@@ -20,10 +21,13 @@ function phase2Config() {
   controllers.rumble = false;
   controllers.assistBindings['quick-save'] = {type:'button',index:6,threshold:0.5};
   controllers.assistBindings['rewind-step'] = {type:'button',index:7,threshold:0.5};
+  const retained=['sound','volume','audioDriftCorrection','audioPreroll','pauseWhenInactive','appearance','fullscreenOnStart','stateSlot'];
+  const player=Object.fromEntries(retained.map(key=>[key,PLAYER_DEFAULTS[key]]));
+  player.appearance='system';
   return {
     schema: 'dkc.player-config', version: 1, rememberRom: false, controllers, keyboard,
     player: {
-      ...PLAYER_DEFAULTS, stateSlot: 5, volume: 61, sound: false, audioPreroll: 3,
+      ...player, stateSlot: 5, volume: 61, sound: false, audioPreroll: 3,
       variant: 'dixie', speed: 3, assist: true, music: 'msu1', aspect: '16:9',
       hdTextures: true, display: 'crt', frameGeneration: 'poses',
     },
@@ -33,8 +37,8 @@ function phase2Config() {
 test('Phase 2 portable preferences retain both players, state shortcuts and stock settings', () => {
   const legacy = phase2Config();
   const clean = parseConfig(JSON.stringify(legacy));
-  assert.equal(clean.version, 2);
-  assert.deepEqual(clean.player, {...PLAYER_DEFAULTS, stateSlot:5, volume:61, sound:false, audioPreroll:3});
+  assert.equal(clean.version, 3);
+  assert.deepEqual(clean.player, {...PLAYER_DEFAULTS, appearance:'system', stateSlot:5, volume:61, sound:false, audioPreroll:3});
   assert.equal(clean.rememberRom, false);
   assert.equal(clean.keyboard.mode, 'both');
   assert.deepEqual(clean.keyboard.player2, legacy.keyboard.player2);
@@ -82,4 +86,12 @@ test('existing browser preferences carry forward until the first clean edit', t 
   records.set(PLAYER_KEY, JSON.stringify({...PLAYER_DEFAULTS, stateSlot:2}));
   assert.deepEqual(readPlayer(), {...PLAYER_DEFAULTS, stateSlot:2});
   assert.equal(records.get(oldKey), original);
+});
+
+test('notifications default on in older exports and preserve an explicit off setting', () => {
+  const config=makeProfileConfig(PLAYER_DEFAULTS,defaultInputProfiles(),true);
+  delete config.player.notificationsEnabled;
+  assert.equal(parseConfig(JSON.stringify(config)).player.notificationsEnabled,true);
+  config.player.notificationsEnabled=false;
+  assert.equal(parseConfig(JSON.stringify(config)).player.notificationsEnabled,false);
 });

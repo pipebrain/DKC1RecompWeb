@@ -7,19 +7,19 @@ test duration were not supplied.
 
 ## Hosting status
 
-The canonical source repository is private:
-https://github.com/pipebrain/DKC1RecompWeb.
+The public [DKC1RecompWeb source repository](https://github.com/pipebrain/DKC1RecompWeb)
+hosts [DKC1R Web](https://pipebrain.github.io/DKC1RecompWeb/). The manual Pages
+workflow deploys the verified archive attached to the
+[v1.1.2 release](https://github.com/pipebrain/DKC1RecompWeb/releases/tag/v1.1.2).
 
-The user chose a separate public deployment repository:
-[pipebrain/DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages).
-It contains six deployment/tooling files and no imported private Git history.
-Its commits use the GitHub no-reply identity. The private source repository's
-visibility was not changed.
+## Earlier mobile previews
 
-The [mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/) serves the
-**clean v1.1.0 testing preview**, built from private Phase 3 commit
-`d6adeae2ee325c15fb150c7e9e349be8985ddab4`. It uses the same URL as the
-previous previews. [Preview release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-v1.1.0-preview-16443759c66d) ·
+The retired `DKC1RecompWeb-Pages` repository was used for previews while
+the source was private. It is kept for rollback and marked for future deletion.
+
+The former test site served the
+**clean v1.1.0 testing preview**, built from Phase 3 commit
+`d6adeae2ee325c15fb150c7e9e349be8985ddab4`.  [Preview release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-v1.1.0-preview-16443759c66d) ·
 [Deployment run](https://github.com/pipebrain/DKC1RecompWeb-Pages/actions/runs/45073717643)
 
 | Clean preview | SHA-256 |
@@ -39,8 +39,8 @@ The previous
 [Phase 2 release](https://github.com/pipebrain/DKC1RecompWeb-Pages/releases/tag/pages-phase2-1a3d6518c669)
 
 GitHub initially rejected Pages for the private source repository on the
-account plan (HTTP 422). Public-repository Pages is available on that account,
-so the separate deployment repository resolves this without a plan upgrade.
+account plan (HTTP 422). The separate preview repository provided public Pages
+until the source repository became public.
 
 Ordinary GitHub Pages publishes the site's HTML, JavaScript, images, and
 compiled Wasm publicly, even when its source repository is private. ROMs and
@@ -56,7 +56,7 @@ python3 scripts/package_pages.py --out build/pages --verify
 ```
 
 For an exact tested build, also provide `--expected-wasm-sha256 HASH`.
-The Phase 3 packager writes a clean archive with one stock Wasm module, the
+The packager writes a clean archive with one stock Wasm module, the
 browser host, icons, license notices, a checksum manifest and `.nojekyll`.
 The local and public verifiers accept the exact clean, v1.0.0 and Phase 2
 archive layouts. ROMs and cartridge saves stay on the player's device.
@@ -79,27 +79,15 @@ only the exact package manifest/allowlist, with no links or traversal paths.
 
 ## Deployment approach
 
-Deployment is manual. A checked archive of the local static package is used as
-a release asset in the chosen deployment repository. A manually dispatched
-workflow verifies its SHA-256 and manifest, extracts only allowed files, and
-uses GitHub's Pages actions to publish it. This avoids committing compiled game
-binaries or sending a ROM/generated game C to a hosted runner.
+Deployment is manual. Attach the checked `pages-site.tar.gz` archive to
+the release in `pipebrain/DKC1RecompWeb`. GitHub's Pages actions deploy it
+after the workflow checks its SHA-256 and verifies the manifest. The hosted
+runner needs the archive and the repository's deployment scripts.
 
-The public deployment repository contains only the deployment workflow/tools,
-with the browser package supplied as a release asset. The source repository
-and upstream Git history remain private.
-The release asset is a transport artifact for the publicly served site.
-
-The workflow template is `deployment/pages/workflow.yml`. In the chosen
-deployment repository it belongs at `.github/workflows/pages.yml`, alongside
-`scripts/package_pages.py` and `scripts/pages_archive.py`. Enable Pages with
-GitHub Actions once through repository settings, upload `pages-site.tar.gz` as
-a release asset, then manually dispatch the workflow on `main` with
-`release_tag` and `archive_sha256`. It uses pinned GitHub actions, minimal
-deployment permissions, and no automatic push trigger. It does not need a ROM
-or generated game C on the hosted runner. If the package schema/allowlist or
-workflow tools change, update their copies in the deployment repository before
-publishing a new archive.
+The workflow is `.github/workflows/pages.yml`. Its source template lives
+at `deployment/pages/workflow.yml`. In repository settings, select GitHub
+Actions as the Pages publishing source, then dispatch the workflow on
+`main` with `release_tag` and `archive_sha256`.
 
 The first deployed preview is `pages-v1-ac77be235c22`. Its archive SHA-256 is
 `ac77be235c22f3d55945287c37a4560779d6be09740d8c283f29bce79d934e0b`.
@@ -112,30 +100,23 @@ remains unrecorded.
 
 ## Test on a phone or tablet
 
-1. Open the published HTTPS URL in a WebGPU-capable browser. For Android, use
-   current Chrome on a supported device. Safari 26 or later introduced the
-   required WebGPU support on iOS/iPadOS; actual adapter availability is checked
-   by the app.
-2. Put your own verified ROM in the device's Files picker. Select it through
-   Menu → Load ROM; it is read locally and not uploaded.
-3. Pair your controller and press a button so the browser can detect it. In the
-   compact **Menu**, open **Config → Input**, select **Player 1**, choose **Gamepad**,
-   then select the device and its profile. **Config → Devices** shows detected hardware.
-4. Tap the game screen and choose **DKM → Start Game**. Test the D-pad diagonals,
-   face buttons, and mapped Start for quick resume. Sound defaults on.
-5. Use **Config → Save Config** to download your settings. Change a binding or sound
-   setting, use **Load Config** to restore it, then close and reopen the page.
-   Check that the setting, input source and controller profile are restored.
-6. Under **Config → Devices**, select the player and choose **Test rumble**.
-   Compare **Standard** and **Light (original)** on an enemy stomp. Check
-   that an ordinary jump stays quiet. Note the displayed status if the browser
-   exposes no rumble output.
-7. Record device, OS, browser and controller connection when reporting results.
-   Rotation, app switching, reconnecting the controller and rumble on supported
-   devices are useful physical-device checks.
+1. Open [DKC1R Web](https://pipebrain.github.io/DKC1RecompWeb/) on the
+   phone in a browser with WebGPU.
+2. Choose **Load ROM** on the game screen and select your supported ROM.
+3. Pair your controller and press a button to make it available to the browser.
+   In **Settings → Manage input profiles**, create a profile and use **Set** to
+   bind its inputs. Assign that profile to a player in Settings.
+4. Use **Start Game** on the game screen. Test sound, D-pad diagonals, face
+   buttons, and the mapped Start input after pausing.
+5. Test **Quick Save**, **Quick Load**, and reopening the app. Save at Candy's
+   to check that cartridge progress is restored.
+6. Test rumble from the selected profile. Record the device, OS, browser,
+   controller, and connection when reporting results.
 
-Pages and localhost have separate browser storage. **Save Config** transfers
-preferences and bindings. **DKM → Export Save** transfers cartridge progress.
+Both Pages URLs use the same browser origin. The app uses the same local
+ROM and save keys at the new path. Localhost has separate browser storage.
+**Save Settings** transfers preferences and profiles. **Save Game** exports
+cartridge progress.
 
 ## References
 

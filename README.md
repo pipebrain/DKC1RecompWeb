@@ -1,15 +1,15 @@
-# DKC1RecompWeb
+# DKC1R Web
 
 Phase 1 ports the pinned DKC1Recomp C core to standalone WebAssembly, presented
 by a handwritten JavaScript host using WebGPU. Donkey Kong Land integration is
 a later phase. Read [the project brief](docs/PROJECT.md) for decisions and
 verified status. The accepted browser baseline is tagged
 [v1.0.0](https://github.com/pipebrain/DKC1RecompWeb/tree/v1.0.0).
-The [private Phase 2 snapshot](https://github.com/pipebrain/DKC1RecompWeb/commit/41a969f4de1cc48a728873f77e22a86fdfdc465b) preserves the feature-parity build. This branch targets **v1.1.0**, a clean browser player using the stock DKC1Recomp v0.0.17 game, original soundtrack and 4:3 presentation.
+The [Phase 2 snapshot](https://github.com/pipebrain/DKC1RecompWeb/commit/41a969f4de1cc48a728873f77e22a86fdfdc465b) preserves the feature-parity build. The current browser release is **v1.1.2**. The phone-first interface runs on the tagged v1.1.0 stock DKC1Recomp v0.0.17 player.
 
-Repository: [pipebrain/DKC1RecompWeb](https://github.com/pipebrain/DKC1RecompWeb)
-(private). This standalone repository preserves the original
-[DKC1Recomp](https://github.com/elliotttate/DKC1Recomp) Git history and adds the
+The [pipebrain/DKC1RecompWeb repository](https://github.com/pipebrain/DKC1RecompWeb)
+preserves the original [DKC1Recomp](https://github.com/elliotttate/DKC1Recomp)
+Git history and adds the
 browser port on top of the pinned revision. `origin` points here and `upstream`
 points to the original project. [README.upstream.md](README.upstream.md) retains
 the native project's original README; its license and third-party notices are
@@ -24,9 +24,11 @@ uses its separate pinned source checkout under ignored `.local/upstream/`.
 With the local build ready, double-click **Play.command** in the project root
 or run `./Play.command` in Terminal. It opens Chrome at `http://localhost:8000/`,
 the same address as the original Mac launcher for access to saved games and input
-profiles. The first time, choose **DKM → Load ROM** and select your USA v1.0
-ROM. On subsequent visits it opens automatically. Choose **DKM → Start Game**. Keep Terminal open while playing. Press **Control-C** there
-to stop the server.
+profiles. Choose **Load ROM** on the game screen and select your USA v1.0
+ROM. With ROM remembering enabled, it opens automatically on subsequent visits.
+Choose **Start Game** to play. The navigation rail contains Settings, Save
+States, and the game controls. Keep Terminal open while playing. Press
+**Control-C** there to stop the server.
 
 ## Local build
 
@@ -64,71 +66,37 @@ not by the deployed browser application. Generation logs are under
 The Python server serves only `web/` on localhost. The source folder, ROM,
 private generated C, and native evidence are outside its document root.
 Keep generated game code/binaries, extracted assets, ROMs, and saves out of Git.
-The [public mobile test site](https://pipebrain.github.io/DKC1RecompWeb-Pages/)
-is hosted through a separate deployment repository; this source repository
-stays private. See [GitHub Pages and mobile testing](docs/PAGES.md).
+Play the shipped version at [DKC1R Web](https://pipebrain.github.io/DKC1RecompWeb/). See [GitHub Pages and mobile testing](docs/PAGES.md).
 
 ## Controls and saves
 
-Keyboard is the default input for a fresh browser profile. Click the game
-screen to focus it. Arrows move, **Z** maps to B/jump, **X** to
-Y/run/roll, **Enter** to Start, and **Shift** to Select. **A**, **S**, **Q**,
-and **W** map to A, X, L, and R. Open **Config → Input** to change keyboard
-bindings with **Set key** and **Clear**, then **Save**. **Discard** returns to
-the saved mapping; **Restore defaults** prepares the original keys for saving.
-Select **Player 1** or **Player 2** to assign a keyboard, a gamepad, or both
-to that SNES port. Player 2 starts disabled. Keep
-the original standard mapping or create a custom button/axis/hat profile.
-Controller profiles can be saved locally, exported, and loaded from JSON. See the
-[controller guide](docs/CONTROLLERS.md) for setup and validation limits.
-Switching tabs or losing focus pauses the game by default. A screen overlay shows
-**Paused**, the active input source, and the saved Start binding to resume.
+Keyboard is the default Player 1 profile. Arrows move, **Z** jumps, **X** runs
+or rolls, **Enter** maps to Start, and **Shift** maps to Select. **A**, **S**,
+**Q**, and **W** map to A, X, L, and R.
 
-With the game screen focused, press the selected input's mapped **Start**
-(Return by default on the keyboard) to quick start or resume a paused game.
-That press is consumed until release; the next Start press during play goes
-to DKC normally. Menus, dialogs, input editing, and background pages block
-quick resume. A controller held through focus/source changes or reconnection
-must be released before a fresh press can resume.
+Open **Settings → Manage input profiles** to create, rename, or delete a
+profile. Use **Set** or **Clear** beside any SNES action. One profile can
+combine keyboard, mouse, and gamepad bindings. Choose a profile for each
+player from the Input section in Settings. Test and tune rumble in the
+profile editor. **Save Settings** and **Load Settings** transfer settings and
+profile assignments.
 
-Wide viewports have an application menu bar. Narrow/short viewports use a
-compact **Menu** in the same navigation element. The only content outside
-navigation is the game screen; there are no headers, toolbars, status strips,
-or empty-state controls. A static monochrome DK coin precedes the ZSNES-inspired
-**DKM**, **Config**, **Cheat**, **NetPlay**, and **Misc** groups. **Config** hosts
-Input, Devices, Options, Video, Sound, Paths, Saves, Speed, Load Config and Save Config. The separate Input,
-Devices, and Options menu items select three tabs in one shared settings page.
-Paths manages the remembered ROM. The [settings inventory](docs/SETTINGS.md) covers defaults, both input ports, stomp rumble and portable configurations. Cheat and NetPlay are visibly disabled. Opening Config pauses the game.
-**Misc → Help** opens keyboard controls separately from Config. Menus also support keyboard navigation,
-with **⌘O** for Load ROM and **⌘,** for Config on Mac.
-The interface follows [the design brief](docs/UI_DESIGN.md) with automatic
-light/dark appearance and no browser runtime dependencies.
+The game screen shows the **Start Game** or **Resume Game** overlay when
+appropriate. With the screen focused, the mapped Start input also starts or
+resumes play. The navigation rail offers **Pause Game** during playback and
+**Reload Game** to boot the selected ROM again. The game pauses by default
+when the page loses focus.
 
-About and Help load from editable [web/About.md](web/About.md) and
-[web/Help.md](web/Help.md). Reload the page after editing them. Missing or empty
-Help content disables its menu commands. About credits and links to the
-original repositories and this private browser repository.
+**Settings → Files → Remember ROM** keeps a verified ROM in this browser.
+Turning it off removes the saved ROM copy and keeps cartridge saves. To keep
+progress, save at Candy’s Save Point. **Save Game** exports cartridge progress,
+and **Load Game** imports a 2,048-byte SRAM file. Reload the game after import
+to read the imported progress.
 
-The browser remembers a verified ROM locally by default. Turning off
-**Config → Paths → Remember ROM on this device** removes that copy and keeps
-your cartridge saves. If local ROM storage is unavailable, use the file picker.
-
-Jump into the barrel at Candy’s Save Point to save. To continue after closing Chrome,
-open the same address in the same profile, choose **DKM → Start Game** and select
-that file in the game. Use **DKM → Export Save** to keep a backup. **Load Save** accepts a 2,048-byte SRAM
-file; choose **Reload Game** to let the game read the imported files. Storage is tied
-to the browser profile and the exact local origin, including port number.
-
-For a snapshot of the current frame, choose one of five slots under **Config → Saves**
-and use **Save State** or **Load State**. Stock Phase 2 slots carry over on the
-same origin. **Config → Input → Save-state shortcuts** lets you bind a key or
-gamepad input to either command.
-
-**DKM → Reload Game** returns the already selected ROM to a fresh, paused boot
-without another file picker. It preserves cartridge SRAM and controller
-profiles and keyboard settings; use **DKM → Start Game**, mapped Start, or Space
-to begin again. The DKM command becomes **Pause Game** during play and
-**Resume Game** after pausing. Resuming preserves the current game state.
+**Quick Save** creates a save state in an empty slot. **Quick Load** restores
+the newest state. **Save States** shows saved snapshots and lets you load or
+delete an individual state. Browser data belongs to the current browser
+profile and site origin.
 
 ## GitHub Pages and mobile testing
 
@@ -142,20 +110,16 @@ python3 scripts/pages_archive.py create --package build/pages \
   --out build/pages-transfer/pages-site.tar.gz
 ```
 
-The archive is supplied as a release asset to a manual Pages workflow; ROMs,
-saves, generated C, and compiled Wasm remain out of Git. Browser files and Wasm
-are publicly served by Pages. A paired controller or hardware keyboard is
-needed for mobile gameplay. The public test site serves the clean v1.1.0 preview.
-The earlier v1 mobile build passed user testing. See [Pages testing instructions](docs/PAGES.md#test-on-a-phone-or-tablet) for the new controller and configuration checks.
-The private repository's account plan does not support Pages for it. The user
-chose [DKC1RecompWeb-Pages](https://github.com/pipebrain/DKC1RecompWeb-Pages)
-as the separate public deployment repository, preserving source/history privacy.
+The manual Pages workflow downloads the archive from a GitHub Release.
+GitHub Pages serves the browser files and compiled Wasm from the allowlisted
+artifact. ROMs, saves, generated C, and compiled Wasm stay out of Git. See
+[Pages testing instructions](docs/PAGES.md#test-on-a-phone-or-tablet).
 
 To verify a deployment, use the checker and package manifest from the revision
-that produced it. For the clean v1.1.0 preview:
+that produced it. For the v1.1.2 release, run the following.
 
 ```sh
-node scripts/browser_check.mjs --url https://pipebrain.github.io/DKC1RecompWeb-Pages/ \
+node scripts/browser_check.mjs --url https://pipebrain.github.io/DKC1RecompWeb/ \
   --manifest build/pages/pages-manifest.json --rom '/absolute/game.smc'
 ```
 
